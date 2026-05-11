@@ -1,0 +1,229 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import './Pages.css'
+
+export default function Configuracoes() {
+  const { profile } = useAuth()
+  const [aba, setAba] = useState('perfil')
+  const [formPerfil, setFormPerfil] = useState({ nome: '', crp_crm: '', especialidade: '' })
+  const [formSenha, setFormSenha] = useState({ atual: '', nova: '', confirma: '' })
+  const [tipos, setTipos] = useState(['Psicoterapia', 'Avaliação Psicológica', 'Consulta Psiquiátrica', 'Neuropsicologia', 'Psicologia Infantil'])
+  const [novoTipo, setNovoTipo] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msgOk, setMsgOk] = useState('')
+  const [msgErr, setMsgErr] = useState('')
+
+  useEffect(() => {
+    if (profile) {
+      setFormPerfil({ nome: profile.nome || '', crp_crm: profile.crp_crm || '', especialidade: profile.especialidade || '' })
+    }
+  }, [profile])
+
+  function notify(ok, msg) {
+    if (ok) { setMsgOk(msg); setTimeout(() => setMsgOk(''), 3000) }
+    else { setMsgErr(msg); setTimeout(() => setMsgErr(''), 4000) }
+  }
+
+  async function salvarPerfil() {
+    setSaving(true)
+    const { error } = await supabase.from('profiles').update({
+      nome: formPerfil.nome,
+      crp_crm: formPerfil.crp_crm,
+      especialidade: formPerfil.especialidade,
+    }).eq('id', profile.id)
+    notify(!error, error ? 'Erro ao salvar: ' + error.message : 'Perfil atualizado com sucesso!')
+    setSaving(false)
+  }
+
+  async function salvarSenha() {
+    if (formSenha.nova !== formSenha.confirma) { notify(false, 'As senhas não coincidem.'); return }
+    if (formSenha.nova.length < 6) { notify(false, 'A nova senha precisa ter pelo menos 6 caracteres.'); return }
+    setSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: formSenha.nova })
+    if (!error) {
+      setFormSenha({ atual: '', nova: '', confirma: '' })
+      notify(true, 'Senha alterada com sucesso!')
+    } else {
+      notify(false, 'Erro ao alterar senha: ' + error.message)
+    }
+    setSaving(false)
+  }
+
+  function adicionarTipo() {
+    const t = novoTipo.trim()
+    if (!t || tipos.includes(t)) return
+    setTipos(prev => [...prev, t])
+    setNovoTipo('')
+    notify(true, 'Tipo adicionado. (Salvo localmente — integre ao banco se necessário)')
+  }
+
+  function removerTipo(tipo) {
+    setTipos(prev => prev.filter(t => t !== tipo))
+  }
+
+  const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1>Configurações</h1>
+          <p className="page-sub">Gerencie seu perfil e as configurações da clínica</p>
+        </div>
+      </div>
+
+      {/* Mensagens de feedback */}
+      {msgOk && (
+        <div style={{ background: 'var(--sbg)', color: 'var(--success)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+          ✅ {msgOk}
+        </div>
+      )}
+      {msgErr && (
+        <div style={{ background: 'var(--dbg)', color: 'var(--danger)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+          ❌ {msgErr}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 20, alignItems: 'start' }}>
+        {/* Menu lateral */}
+        <div className="card" style={{ padding: '8px 0' }}>
+          {[
+            ['perfil', '👤 Meu perfil'],
+            ['senha', '🔒 Alterar senha'],
+            ...(isAdmin ? [['clinica', '🏥 Dados da clínica'], ['consultas', '📋 Tipos de consulta']] : []),
+          ].map(([k, l]) => (
+            <div
+              key={k}
+              onClick={() => setAba(k)}
+              style={{
+                padding: '11px 18px',
+                fontSize: 13,
+                fontWeight: aba === k ? 700 : 400,
+                color: aba === k ? 'var(--p)' : 'var(--text)',
+                background: aba === k ? 'var(--p3)' : 'transparent',
+                cursor: 'pointer',
+                borderLeft: aba === k ? '3px solid var(--p)' : '3px solid transparent',
+                transition: '.15s',
+              }}
+            >{l}</div>
+          ))}
+        </div>
+
+        {/* Conteúdo */}
+        <div className="card" style={{ padding: 28 }}>
+
+          {/* Perfil */}
+          {aba === 'perfil' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Meu Perfil</h3>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Suas informações exibidas no sistema</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--p3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: 'var(--p)' }}>
+                  {profile?.nome?.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{profile?.nome}</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)' }}>{profile?.email}</div>
+                  <span className={{ admin: 'role-adm', coordenador: 'role-coo', medico: 'role-med', recepcionista: 'role-rec' }[profile?.tipo] || 'tag'}>
+                    {{ admin: 'Administrador', coordenador: 'Coordenador', medico: 'Médico / Psicólogo', recepcionista: 'Recepcionista' }[profile?.tipo]}
+                  </span>
+                </div>
+              </div>
+              <div className="form-grid">
+                <div className="fld"><label>Nome completo *</label><input value={formPerfil.nome} onChange={e => setFormPerfil(p => ({ ...p, nome: e.target.value }))} /></div>
+                <div className="fld"><label>E-mail (não editável)</label><input value={profile?.email || ''} disabled style={{ opacity: .6 }} /></div>
+                {profile?.tipo === 'medico' && (
+                  <>
+                    <div className="fld"><label>CRP / CRM</label><input value={formPerfil.crp_crm} onChange={e => setFormPerfil(p => ({ ...p, crp_crm: e.target.value }))} placeholder="Ex: 06/12345" /></div>
+                    <div className="fld"><label>Especialidade</label><input value={formPerfil.especialidade} onChange={e => setFormPerfil(p => ({ ...p, especialidade: e.target.value }))} placeholder="Ex: Psicólogo Clínico" /></div>
+                  </>
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn-primary" onClick={salvarPerfil} disabled={saving || !formPerfil.nome}>
+                  {saving ? 'Salvando...' : 'Salvar perfil'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Senha */}
+          {aba === 'senha' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Alterar Senha</h3>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sua nova senha precisa ter pelo menos 6 caracteres</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 380 }}>
+                <div className="fld"><label>Nova senha *</label><input type="password" value={formSenha.nova} onChange={e => setFormSenha(p => ({ ...p, nova: e.target.value }))} placeholder="••••••••" /></div>
+                <div className="fld"><label>Confirmar nova senha *</label><input type="password" value={formSenha.confirma} onChange={e => setFormSenha(p => ({ ...p, confirma: e.target.value }))} placeholder="••••••••" /></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn-primary" onClick={salvarSenha} disabled={saving || !formSenha.nova || !formSenha.confirma}>
+                  {saving ? 'Alterando...' : 'Alterar senha'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Dados da clínica */}
+          {aba === 'clinica' && isAdmin && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Dados da Clínica</h3>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Informações gerais exibidas no sistema</p>
+              </div>
+              <div className="form-grid">
+                <div className="fld"><label>Nome da clínica</label><input defaultValue="Clínica Vida+" /></div>
+                <div className="fld"><label>CNPJ</label><input placeholder="00.000.000/0001-00" /></div>
+                <div className="fld"><label>Telefone</label><input placeholder="(11) 3333-3333" /></div>
+                <div className="fld"><label>E-mail de contato</label><input type="email" placeholder="contato@clinicavidamais.com.br" /></div>
+                <div className="fld" style={{ gridColumn: '1/-1' }}><label>Endereço</label><input placeholder="Rua, número, bairro, cidade – UF" /></div>
+              </div>
+              <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--warn)' }}>
+                ⚠️ Esses dados são informativos. Para salvar persistentemente, adicione uma tabela <strong>config_clinica</strong> no Supabase.
+              </div>
+            </div>
+          )}
+
+          {/* Tipos de consulta */}
+          {aba === 'consultas' && isAdmin && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Tipos de Consulta</h3>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Gerencie os tipos disponíveis ao agendar</p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {tipos.map(t => (
+                  <div key={t} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
+                    <span>{t}</span>
+                    <button
+                      onClick={() => removerTipo(t)}
+                      style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    >Remover</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input
+                  value={novoTipo}
+                  onChange={e => setNovoTipo(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && adicionarTipo()}
+                  placeholder="Novo tipo de consulta..."
+                  style={{ flex: 1, padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}
+                />
+                <button className="btn-primary" onClick={adicionarTipo} disabled={!novoTipo.trim()}>Adicionar</button>
+              </div>
+              <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--warn)' }}>
+                ⚠️ Para persistir os tipos no banco, crie uma tabela <strong>tipos_consulta</strong> no Supabase e adapte as queries de Agenda.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,147 @@
+import { useEffect, useState, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import './Pages.css'
+import './Chat.css'
+
+export default function Chat() {
+  const { profile } = useAuth()
+  const [conversas, setConversas] = useState([])
+  const [ativa, setAtiva] = useState(null)
+  const [mensagens, setMensagens] = useState([])
+  const [texto, setTexto] = useState('')
+  const bottomRef = useRef(null)
+
+  useEffect(() => { fetchConversas() }, [])
+
+  useEffect(() => {
+    if (!ativa) return
+    fetchMensagens(ativa.id)
+    marcarLidas(ativa.id)
+
+    const channel = supabase
+      .channel('chat-' + ativa.id)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'mensagens',
+        filter: `paciente_id=eq.${ativa.id}`
+      }, payload => {
+        setMensagens(prev => [...prev, payload.new])
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [ativa])
+
+  async function fetchConversas() {
+    const { data } = await supabase
+      .from('mensagens')
+      .select('paciente_id, paciente:pacientes(id, nome), lida, remetente')
+      .order('criado_em', { ascending: false })
+
+    const map = {}
+    data?.forEach(m => {
+      const pid = m.paciente_id
+      if (!map[pid]) map[pid] = { ...m.paciente, unread: 0 }
+      if (!m.lida && m.remetente === 'paciente') map[pid].unread++
+    })
+    setConversas(Object.values(map))
+  }
+
+  async function fetchMensagens(pacienteId) {
+    const { data } = await supabase
+      .from('mensagens')
+      .select('*')
+      .eq('paciente_id', pacienteId)
+      .order('criado_em')
+    setMensagens(data || [])
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  }
+
+  async function marcarLidas(pacienteId) {
+    await supabase.from('mensagens').update({ lida: true }).eq('paciente_id', pacienteId).eq('remetente', 'paciente')
+    fetchConversas()
+  }
+
+  async function handleEnviar() {
+    if (!texto.trim() || !ativa) return
+    await supabase.from('mensagens').insert([{
+      paciente_id: ativa.id,
+      remetente: 'clinica',
+      conteudo: texto.trim(),
+      lida: true,
+    }])
+    setTexto('')
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() }
+  }
+
+  return (
+    <div className="chat-page">
+      <div className="chat-list">
+        <div className="chat-list-header">
+          <h3>Conversas</h3>
+          <span className="chat-count">{conversas.filter(c => c.unread > 0).length} não lidas</span>
+        </div>
+        {conversas.length === 0 && <div className="empty" style={{ padding: 20 }}>Nenhuma conversa ainda.</div>}
+        {conversas.map(c => (
+          <div key={c.id} className={`chat-list-item${ativa?.id === c.id ? ' active' : ''}`} onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}>
+            <div className="chat-av">{c.nome?.slice(0,2).toUpperCase()}</div>
+            <div className="chat-item-info">
+              <div className="chat-item-name">{c.nome}</div>
+              <div className="chat-item-sub">Paciente</div>
+            </div>
+            {c.unread > 0 && <span className="unread">{c.unread}</span>}
+          </div>
+        ))}
+      </div>
+
+      <div className="chat-window">
+        {!ativa ? (
+          <div className="chat-empty">
+            <div style={{ fontSize: 40 }}>💬</div>
+            <div style={{ fontSize: 15, color: 'var(--muted)', marginTop: 12 }}>Selecione uma conversa para começar</div>
+          </div>
+        ) : (
+          <>
+            <div className="chat-win-header">
+              <div className="chat-av">{ativa.nome?.slice(0,2).toUpperCase()}</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{ativa.nome}</div>
+                <div style={{ fontSize: 11, color: 'var(--success)' }}>● Paciente</div>
+              </div>
+            </div>
+
+            <div className="chat-messages">
+              {mensagens.map(m => (
+                <div key={m.id} className={`msg-row ${m.remetente === 'clinica' ? 'me' : 'them'}`}>
+                  <div className="msg-bubble">{m.conteudo}</div>
+                  <div className="msg-time">
+                    {m.remetente === 'clinica' ? 'Clínica' : ativa.nome} · {new Date(m.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+              <div ref={bottomRef}/>
+            </div>
+
+            <div className="chat-input-bar">
+              <textarea
+                className="chat-textarea"
+                placeholder="Digite uma mensagem... (Enter para enviar)"
+                value={texto}
+                onChange={e => setTexto(e.target.value)}
+                onKeyDown={handleKey}
+                rows={1}
+              />
+              <button className="btn-primary" onClick={handleEnviar} disabled={!texto.trim()}>Enviar</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
