@@ -11,6 +11,7 @@
   flex-direction: column;
   background: var(--card);
   flex-shrink: 0;
+  overflow-y: auto;
 }
 
 .chat-list-header {
@@ -19,6 +20,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
 }
 
 .chat-list-header h3 { font-size: 15px; font-weight: 700; }
@@ -71,11 +76,26 @@
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
   background: var(--bg);
 }
 
-.msg-row { display: flex; flex-direction: column; max-width: 65%; }
+.chat-date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.chat-date-divider span {
+  font-size: 11px;
+  color: var(--muted);
+  background: #E5E7EB;
+  padding: 3px 12px;
+  border-radius: 50px;
+}
+
+.msg-row { display: flex; flex-direction: column; max-width: 65%; margin-bottom: 8px; }
 .msg-row.me { align-self: flex-end; align-items: flex-end; }
 .msg-row.them { align-self: flex-start; align-items: flex-start; }
 
@@ -122,6 +142,7 @@
   resize: none;
   max-height: 120px;
   color: var(--text);
+  background: var(--bg);
 }
 
 .chat-textarea:focus { border-color: var(--p); }

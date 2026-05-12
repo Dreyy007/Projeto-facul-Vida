@@ -12,7 +12,12 @@ export default function Chat() {
   const [texto, setTexto] = useState('')
   const bottomRef = useRef(null)
 
-  useEffect(() => { fetchConversas() }, [])
+  useEffect(() => {
+    fetchConversas()
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
 
   useEffect(() => {
     if (!ativa) return
@@ -29,11 +34,25 @@ export default function Chat() {
       }, payload => {
         setMensagens(prev => [...prev, payload.new])
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+        if (payload.new.remetente === 'paciente') {
+          notificarBrowser(ativa.nome, payload.new.conteudo)
+          fetchConversas()
+        }
       })
       .subscribe()
 
     return () => supabase.removeChannel(channel)
   }, [ativa])
+
+  function notificarBrowser(nome, mensagem) {
+    if (document.visibilityState === 'visible') return
+    if (Notification.permission === 'granted') {
+      new Notification(`💬 ${nome}`, {
+        body: mensagem,
+        icon: '/favicon.ico',
+      })
+    }
+  }
 
   async function fetchConversas() {
     const { data } = await supabase
@@ -80,6 +99,11 @@ export default function Chat() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() }
   }
 
+  const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
+
+  let lastDate = null
+
   return (
     <div className="chat-page">
       <div className="chat-list">
@@ -90,7 +114,7 @@ export default function Chat() {
         {conversas.length === 0 && <div className="empty" style={{ padding: 20 }}>Nenhuma conversa ainda.</div>}
         {conversas.map(c => (
           <div key={c.id} className={`chat-list-item${ativa?.id === c.id ? ' active' : ''}`} onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}>
-            <div className="chat-av">{c.nome?.slice(0,2).toUpperCase()}</div>
+            <div className="chat-av">{c.nome?.slice(0, 2).toUpperCase()}</div>
             <div className="chat-item-info">
               <div className="chat-item-name">{c.nome}</div>
               <div className="chat-item-sub">Paciente</div>
@@ -109,7 +133,7 @@ export default function Chat() {
         ) : (
           <>
             <div className="chat-win-header">
-              <div className="chat-av">{ativa.nome?.slice(0,2).toUpperCase()}</div>
+              <div className="chat-av">{ativa.nome?.slice(0, 2).toUpperCase()}</div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{ativa.nome}</div>
                 <div style={{ fontSize: 11, color: 'var(--success)' }}>● Paciente</div>
@@ -117,15 +141,28 @@ export default function Chat() {
             </div>
 
             <div className="chat-messages">
-              {mensagens.map(m => (
-                <div key={m.id} className={`msg-row ${m.remetente === 'clinica' ? 'me' : 'them'}`}>
-                  <div className="msg-bubble">{m.conteudo}</div>
-                  <div className="msg-time">
-                    {m.remetente === 'clinica' ? 'Clínica' : ativa.nome} · {new Date(m.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              {mensagens.map(m => {
+                const msgDate = fmtData(m.criado_em)
+                const showDate = msgDate !== lastDate
+                lastDate = msgDate
+
+                return (
+                  <div key={m.id}>
+                    {showDate && (
+                      <div className="chat-date-divider">
+                        <span>{msgDate}</span>
+                      </div>
+                    )}
+                    <div className={`msg-row ${m.remetente === 'clinica' ? 'me' : 'them'}`}>
+                      <div className="msg-bubble">{m.conteudo}</div>
+                      <div className="msg-time">
+                        {m.remetente === 'clinica' ? 'Clínica' : ativa.nome} · {fmtHora(m.criado_em)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-              <div ref={bottomRef}/>
+                )
+              })}
+              <div ref={bottomRef} />
             </div>
 
             <div className="chat-input-bar">
