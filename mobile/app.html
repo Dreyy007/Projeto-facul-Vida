@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Clínica Vida+</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Sora',sans-serif;background:#0D0D1A;display:flex;justify-content:center;align-items:center;min-height:100vh}
+#root{width:390px;height:844px;overflow:hidden;position:relative;border-radius:44px;box-shadow:0 40px 120px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08);background:#F7F8FC}
+@media(max-width:430px){body{background:#F7F8FC;align-items:flex-start}#root{width:100%;height:100vh;border-radius:0;box-shadow:none}}
+:root{
+  --p:#2563EB;--p2:#1D4ED8;--p3:#EFF6FF;--p4:#DBEAFE;
+  --bg:#F7F8FC;--card:#FFFFFF;
+  --text:#0F172A;--sub:#475569;--muted:#94A3B8;--border:#E2E8F0;
+  --green:#16A34A;--gbg:#DCFCE7;--red:#DC2626;--rbg:#FEE2E2;
+  --yellow:#D97706;--ybg:#FEF3C7;--blue:#2563EB;--bbg:#DBEAFE;
+  --grad:linear-gradient(135deg,#1E3A8A 0%,#2563EB 50%,#3B82F6 100%);
+}
+::-webkit-scrollbar{display:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+.fu{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) both}
+.fu1{animation-delay:.05s}.fu2{animation-delay:.1s}.fu3{animation-delay:.15s}.fu4{animation-delay:.2s}
+.fi{animation:fadeIn .3s ease both}
+input,textarea,select{font-family:'Sora',sans-serif}
+button{font-family:'Sora',sans-serif;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, createContext, useContext, useCallback } = React
+
+// ── Supabase ────────────────────────────────────────────────────────────────
+const { createClient } = supabase
+const sb = createClient(
+  'https://zlxrellgxpxyninqturj.supabase.co',
+  'sb_publishable_QHF7OD80jumTTJN6t622rQ_l9ZoHIWV'
+)
+
+// ── Auth Context ────────────────────────────────────────────────────────────
+const AuthCtx = createContext({})
+function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [paciente, setPaciente] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    sb.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      if (session?.user) fetchPaciente(session.user.email)
+      else setLoading(false)
+    })
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) fetchPaciente(session.user.email)
+      else { setPaciente(null); setLoading(false) }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function fetchPaciente(email) {
+    const { data } = await sb.from('pacientes').select('*').eq('email', email).single()
+    setPaciente(data)
+    setLoading(false)
+  }
+
+  const signIn = (e, p) => sb.auth.signInWithPassword({ email: e, password: p })
+  const signOut = () => sb.auth.signOut()
+  const refresh = () => { if (user) fetchPaciente(user.email) }
+
+  return <AuthCtx.Provider value={{ user, paciente, loading, signIn, signOut, refresh }}>{children}</AuthCtx.Provider>
+}
+const useAuth = () => useContext(AuthCtx)
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+const Ico = ({ n, s = 20, c = 'currentColor', sw = 2 }) => {
+  const d = {
+    home: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+    cal: <><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
+    chat: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>,
+    user: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+    send: <><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>,
+    back: <polyline points="15 18 9 12 15 6"/>,
+    x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+    clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+    check: <polyline points="20 6 9 17 4 12"/>,
+    out: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
+    edit: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+    bell: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>,
+    file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></>,
+    plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+    img: <><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>,
+  }
+  return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">{d[n]}</svg>
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const fmtD = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'}) : ''
+const fmtDL = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : ''
+const fmtT = d => new Date(d).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+const h = t => t?.slice(0,5)
+
+const ST = {
+  confirmada:{l:'Confirmada',bg:'#DCFCE7',c:'#166534'},
+  aguardando:{l:'Aguardando',bg:'#FEF3C7',c:'#92400E'},
+  cancelada:{l:'Cancelada',bg:'#FEE2E2',c:'#991B1B'},
+  realizada:{l:'Realizada',bg:'#DBEAFE',c:'#1E40AF'},
+  cancelamento_pendente:{l:'Cancelamento pend.',bg:'#FEE2E2',c:'#991B1B'},
+  reagendamento_pendente:{l:'Reagend. pend.',bg:'#FEF3C7',c:'#92400E'},
+}
+
+const Tag = ({ s }) => {
+  const t = ST[s] || {l:s,bg:'#F1F5F9',c:'#475569'}
+  return <span style={{background:t.bg,color:t.c,fontSize:10,fontWeight:700,padding:'4px 10px',borderRadius:50,whiteSpace:'nowrap'}}>{t.l}</span>
+}
+
+const Btn = ({ children, onClick, variant='primary', style={}, disabled }) => {
+  const styles = {
+    primary:{background:'var(--grad)',color:'#fff',border:'none',borderRadius:14,padding:'14px 20px',fontSize:15,fontWeight:700,width:'100%'},
+    outline:{background:'#fff',color:'var(--p)',border:'1.5px solid var(--p)',borderRadius:14,padding:'13px 20px',fontSize:15,fontWeight:700,width:'100%'},
+    ghost:{background:'transparent',color:'var(--sub)',border:'1.5px solid var(--border)',borderRadius:14,padding:'13px 20px',fontSize:14,fontWeight:600,width:'100%'},
+    danger:{background:'var(--rbg)',color:'var(--red)',border:'none',borderRadius:14,padding:'14px 20px',fontSize:15,fontWeight:700,width:'100%'},
+  }
+  return <button onClick={onClick} disabled={disabled} style={{...styles[variant],cursor:disabled?'not-allowed':'pointer',opacity:disabled?.6:1,transition:'all .2s',...style}}>{children}</button>
+}
+
+const Input = ({ label, ...props }) => (
+  <div style={{marginBottom:14}}>
+    {label && <label style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,display:'block',marginBottom:6}}>{label}</label>}
+    <input {...props} style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:12,padding:'13px 16px',fontSize:14,outline:'none',color:'var(--text)',background:'#fff',transition:'border .2s',...props.style}}
+      onFocus={e=>{e.target.style.borderColor='var(--p)';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,.1)'}}
+      onBlur={e=>{e.target.style.borderColor='var(--border)';e.target.style.boxShadow='none'}}/>
+  </div>
+)
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+function Toast({ msg, type='success' }) {
+  if (!msg) return null
+  const colors = {success:{bg:'#DCFCE7',c:'#166534',icon:'✅'},error:{bg:'#FEE2E2',c:'#991B1B',icon:'❌'},info:{bg:'#DBEAFE',c:'#1E40AF',icon:'ℹ️'}}
+  const t = colors[type]
+  return (
+    <div className="fi" style={{position:'absolute',top:20,left:16,right:16,zIndex:999,background:t.bg,color:t.c,borderRadius:14,padding:'12px 16px',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:8,boxShadow:'0 8px 32px rgba(0,0,0,.12)'}}>
+      {t.icon} {msg}
+    </div>
+  )
+}
+
+// ── Header ──────────────────────────────────────────────────────────────────
+const Header = ({ title, sub, back, action }) => (
+  <div style={{background:'var(--grad)',padding:'48px 20px 20px',position:'relative',overflow:'hidden'}}>
+    <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,borderRadius:'50%',background:'rgba(255,255,255,.06)'}}/>
+    <div style={{position:'absolute',bottom:-40,left:40,width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,.04)'}}/>
+    <div style={{display:'flex',alignItems:'center',gap:12,position:'relative'}}>
+      {back && <button onClick={back} style={{width:36,height:36,borderRadius:10,background:'rgba(255,255,255,.15)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <Ico n="back" s={18} c="#fff"/>
+      </button>}
+      <div style={{flex:1}}>
+        <div style={{fontSize:back?18:22,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif"}}>{title}</div>
+        {sub && <div style={{fontSize:12,color:'rgba(255,255,255,.55)',marginTop:2}}>{sub}</div>}
+      </div>
+      {action}
+    </div>
+  </div>
+)
+
+// ── Cadastro ─────────────────────────────────────────────────────────────────
+function CadastroScreen({ voltar }) {
+  const [form, setForm] = useState({nome:'',email:'',senha:'',confirma:'',telefone:'',cpf:''})
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+  const [ok, setOk] = useState(false)
+  const f = k => e => setForm(p=>({...p,[k]:e.target.value}))
+
+  async function handleCadastro(e) {
+    e.preventDefault()
+    if (!form.nome||!form.email||!form.senha){setErro('Preencha nome, e-mail e senha.');return}
+    if (form.senha!==form.confirma){setErro('As senhas não coincidem.');return}
+    if (form.senha.length<6){setErro('Senha precisa ter pelo menos 6 caracteres.');return}
+    setLoading(true);setErro('')
+    const {error} = await sb.auth.signUp({email:form.email,password:form.senha})
+    if (error){setErro(error.message);setLoading(false);return}
+    await sb.from('pacientes').insert([{nome:form.nome,email:form.email,telefone:form.telefone||null,cpf:form.cpf||null,ativo:true}])
+    setOk(true);setLoading(false)
+  }
+
+  if (ok) return (
+    <div style={{height:'100%',background:'var(--grad)',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',padding:32,textAlign:'center'}}>
+      <div style={{width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,marginBottom:20}}>✅</div>
+      <div style={{fontSize:24,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif",marginBottom:8}}>Cadastro realizado!</div>
+      <div style={{fontSize:14,color:'rgba(255,255,255,.6)',marginBottom:32,lineHeight:1.6}}>Sua conta foi criada com sucesso. Faça login para continuar.</div>
+      <Btn onClick={voltar} style={{background:'#fff',color:'var(--p)',width:'auto',padding:'14px 32px'}}>Ir para o login</Btn>
+    </div>
+  )
+
+  return (
+    <div style={{height:'100%',overflowY:'auto',background:'var(--bg)'}}>
+      <div style={{background:'var(--grad)',padding:'48px 20px 32px',textAlign:'center',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-20,right:-20,width:100,height:100,borderRadius:'50%',background:'rgba(255,255,255,.06)'}}/>
+        <button onClick={voltar} style={{position:'absolute',top:52,left:20,width:36,height:36,borderRadius:10,background:'rgba(255,255,255,.15)',border:'none',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <Ico n="back" s={18} c="#fff"/>
+        </button>
+        <div style={{fontSize:22,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif"}}>Criar conta</div>
+        <div style={{fontSize:13,color:'rgba(255,255,255,.55)',marginTop:4}}>Preencha seus dados abaixo</div>
+      </div>
+      <div style={{background:'#fff',borderRadius:'24px 24px 0 0',marginTop:-12,padding:'28px 20px 60px',minHeight:'75%'}}>
+        <form onSubmit={handleCadastro}>
+          <Input label="Nome completo *" type="text" placeholder="Seu nome completo" value={form.nome} onChange={f('nome')}/>
+          <Input label="E-mail *" type="email" placeholder="seu@email.com" value={form.email} onChange={f('email')}/>
+          <Input label="CPF" type="text" placeholder="000.000.000-00" value={form.cpf} onChange={f('cpf')}/>
+          <Input label="Telefone" type="tel" placeholder="(11) 99999-9999" value={form.telefone} onChange={f('telefone')}/>
+          <Input label="Senha *" type="password" placeholder="Mínimo 6 caracteres" value={form.senha} onChange={f('senha')}/>
+          <Input label="Confirmar senha *" type="password" placeholder="Repita a senha" value={form.confirma} onChange={f('confirma')}/>
+          {erro && <div style={{background:'#FEE2E2',color:'#991B1B',borderRadius:10,padding:'10px 14px',fontSize:13,marginBottom:16}}>{erro}</div>}
+          <Btn disabled={loading}>{loading?'Cadastrando...':'Criar conta'}</Btn>
+          <Btn variant="ghost" onClick={voltar} style={{marginTop:10}}>Já tenho conta</Btn>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Login ────────────────────────────────────────────────────────────────────
+function LoginScreen() {
+  const {signIn} = useAuth()
+  const [email,setEmail]=useState('')
+  const [senha,setSenha]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [erro,setErro]=useState('')
+  const [cadastro,setCadastro]=useState(false)
+
+  if (cadastro) return <CadastroScreen voltar={()=>setCadastro(false)}/>
+
+  async function handleLogin(e) {
+    e.preventDefault()
+    if(!email||!senha){setErro('Preencha todos os campos.');return}
+    setLoading(true);setErro('')
+    const {error} = await signIn(email,senha)
+    if(error) setErro('E-mail ou senha inválidos.')
+    setLoading(false)
+  }
+
+  return (
+    <div style={{height:'100%',background:'var(--grad)',display:'flex',flexDirection:'column',justifyContent:'space-between',padding:'64px 24px 40px',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',top:-60,right:-60,width:200,height:200,borderRadius:'50%',background:'rgba(255,255,255,.05)'}}/>
+      <div style={{position:'absolute',bottom:100,left:-40,width:140,height:140,borderRadius:'50%',background:'rgba(255,255,255,.04)'}}/>
+
+      <div className="fu" style={{textAlign:'center',position:'relative'}}>
+        <div style={{width:76,height:76,borderRadius:24,background:'rgba(255,255,255,.15)',backdropFilter:'blur(10px)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',border:'1px solid rgba(255,255,255,.2)'}}>
+          <span style={{fontSize:30,fontWeight:900,color:'#fff',fontFamily:"'Playfair Display',serif",lineHeight:1}}>V+</span>
+        </div>
+        <div style={{fontSize:30,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif",marginBottom:6}}>Clínica Vida+</div>
+        <div style={{fontSize:14,color:'rgba(255,255,255,.5)',letterSpacing:.3}}>Portal do Paciente</div>
+      </div>
+
+      <div className="fu fu1" style={{background:'#fff',borderRadius:24,padding:28,boxShadow:'0 24px 60px rgba(0,0,0,.15)',position:'relative'}}>
+        <div style={{fontSize:22,fontWeight:800,color:'var(--text)',marginBottom:4,fontFamily:"'Playfair Display',serif"}}>Bem-vindo!</div>
+        <div style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>Acesse sua conta para gerenciar consultas</div>
+        <form onSubmit={handleLogin}>
+          <Input label="E-mail" type="email" placeholder="seu@email.com" value={email} onChange={e=>setEmail(e.target.value)}/>
+          <Input label="Senha" type="password" placeholder="••••••••" value={senha} onChange={e=>setSenha(e.target.value)}/>
+          {erro && <div style={{background:'#FEE2E2',color:'#991B1B',borderRadius:10,padding:'10px 14px',fontSize:13,marginBottom:16}}>{erro}</div>}
+          <Btn disabled={loading}>{loading?'Entrando...':'Entrar'}</Btn>
+        </form>
+        <div style={{textAlign:'center',fontSize:13,color:'var(--muted)',marginTop:18}}>
+          Não tem conta?{' '}
+          <span onClick={()=>setCadastro(true)} style={{color:'var(--p)',fontWeight:700,cursor:'pointer'}}>Cadastre-se grátis</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Home ─────────────────────────────────────────────────────────────────────
+function HomeScreen({navigate}) {
+  const {paciente} = useAuth()
+  const [consultas,setConsultas]=useState([])
+  const [msgs,setMsgs]=useState(0)
+  const [loading,setLoading]=useState(true)
+
+  useEffect(()=>{fetchDados()},[paciente])
+
+  async function fetchDados() {
+    if(!paciente) return
+    const hoje = new Date().toISOString().split('T')[0]
+    const [{data:cons},{data:m}] = await Promise.all([
+      sb.from('consultas').select('*,medico:profiles(nome)').eq('paciente_id',paciente.id).gte('data',hoje).order('data').order('hora').limit(4),
+      sb.from('mensagens').select('id').eq('paciente_id',paciente.id).eq('remetente','clinica').eq('lida',false)
+    ])
+    setConsultas(cons||[])
+    setMsgs(m?.length||0)
+    setLoading(false)
+  }
+
+  const proxima = consultas[0]
+  const hora_atual = new Date().getHours()
+  const saudacao = hora_atual<12?'Bom dia':hora_atual<18?'Boa tarde':'Boa noite'
+
+  return (
+    <div style={{height:'100%',overflowY:'auto',background:'var(--bg)'}}>
+      {/* Header */}
+      <div style={{background:'var(--grad)',padding:'48px 20px 60px',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-40,right:-40,width:160,height:160,borderRadius:'50%',background:'rgba(255,255,255,.05)'}}/>
+        <div style={{position:'absolute',bottom:-20,left:20,width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,.04)'}}/>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',position:'relative'}}>
+          <div>
+            <div style={{fontSize:13,color:'rgba(255,255,255,.5)',marginBottom:2}}>{saudacao} 👋</div>
+            <div style={{fontSize:24,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif"}}>{paciente?.nome?.split(' ')[0]}</div>
+          </div>
+          <button onClick={()=>navigate('chat')} style={{width:44,height:44,borderRadius:14,background:'rgba(255,255,255,.12)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
+            <Ico n="chat" s={20} c="#fff"/>
+            {msgs>0 && <span style={{position:'absolute',top:-5,right:-5,background:'#EF4444',color:'#fff',borderRadius:50,minWidth:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,animation:'pulse 2s infinite'}}>{msgs}</span>}
+          </button>
+        </div>
+      </div>
+
+      <div style={{padding:'0 16px 100px',marginTop:-40}}>
+        {/* Próxima consulta */}
+        {loading ? (
+          <div style={{background:'#fff',borderRadius:20,padding:24,marginBottom:14,height:120,background:'linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)',backgroundSize:'200px 100%',animation:'shimmer 1.5s infinite'}}/>
+        ) : proxima ? (
+          <div className="fu" style={{background:'#fff',borderRadius:20,padding:20,marginBottom:14,boxShadow:'0 8px 32px rgba(37,99,235,.1)',border:'1px solid rgba(37,99,235,.08)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:'var(--green)'}}/>
+              <span style={{fontSize:11,fontWeight:700,color:'var(--green)',textTransform:'uppercase',letterSpacing:.5}}>Próxima consulta</span>
+            </div>
+            <div style={{fontSize:19,fontWeight:800,color:'var(--text)',marginBottom:4}}>{fmtD(proxima.data)}</div>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
+              <Ico n="clock" s={13} c="var(--muted)"/>
+              <span style={{fontSize:13,color:'var(--sub)'}}>{h(proxima.hora)} · Dr(a). {proxima.medico?.nome}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <Tag s={proxima.status}/>
+              <span style={{fontSize:11,color:'var(--muted)'}}>{proxima.tipo}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="fu" style={{background:'#fff',borderRadius:20,padding:24,marginBottom:14,textAlign:'center',boxShadow:'0 4px 16px rgba(0,0,0,.04)'}}>
+            <div style={{fontSize:36,marginBottom:8}}>📭</div>
+            <div style={{fontSize:14,color:'var(--muted)'}}>Nenhuma consulta agendada</div>
+            <button onClick={()=>navigate('agendar')} style={{marginTop:14,background:'var(--p3)',color:'var(--p)',border:'none',borderRadius:10,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>+ Agendar consulta</button>
+          </div>
+        )}
+
+        {/* Cards de ação */}
+        <div className="fu fu1" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          {[
+            {ico:'cal',label:'Consultas',sub:'Ver histórico',bg:'#EFF6FF',ic:'#2563EB',action:'consultas'},
+            {ico:'chat',label:'Chat',sub:msgs>0?`${msgs} nova(s)`:'Fale conosco',bg:'#F0FDF4',ic:'#16A34A',action:'chat'},
+            {ico:'plus',label:'Agendar',sub:'Nova consulta',bg:'#FFF7ED',ic:'#D97706',action:'agendar'},
+            {ico:'file',label:'Resultados',sub:'Meus exames',bg:'#FDF4FF',ic:'#9333EA',action:'resultados'},
+          ].map(item=>(
+            <button key={item.label} onClick={()=>navigate(item.action)} style={{background:item.bg,border:'none',borderRadius:16,padding:'16px 14px',textAlign:'left',position:'relative',transition:'transform .2s'}}
+              onMouseDown={e=>e.currentTarget.style.transform='scale(.97)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
+              <div style={{width:38,height:38,borderRadius:12,background:'rgba(255,255,255,.7)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:10}}>
+                <Ico n={item.ico} s={18} c={item.ic}/>
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:'var(--text)'}}>{item.label}</div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{item.sub}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Lista próximas */}
+        {consultas.length>1 && (
+          <div className="fu fu2">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Próximas consultas</div>
+              <button onClick={()=>navigate('consultas')} style={{fontSize:12,color:'var(--p)',fontWeight:600,background:'none',border:'none',cursor:'pointer'}}>Ver todas →</button>
+            </div>
+            {consultas.slice(1).map(c=>(
+              <div key={c.id} style={{background:'#fff',borderRadius:14,padding:'14px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12,boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
+                <div style={{width:44,height:44,borderRadius:12,background:'var(--p3)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <span style={{fontSize:16,fontWeight:800,color:'var(--p)',lineHeight:1}}>{new Date(c.data+'T12:00:00').getDate()}</span>
+                  <span style={{fontSize:9,color:'var(--muted)',textTransform:'uppercase'}}>{new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR',{month:'short'})}</span>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'var(--p)'}}>{h(c.hora)}</div>
+                  <div style={{fontSize:13,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>Dr(a). {c.medico?.nome}</div>
+                  <div style={{fontSize:11,color:'var(--muted)'}}>{c.tipo}</div>
+                </div>
+                <Tag s={c.status}/>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Agendar ──────────────────────────────────────────────────────────────────
+function AgendarScreen({navigate}) {
+  const {paciente} = useAuth()
+  const [medicos,setMedicos]=useState([])
+  const [form,setForm]=useState({medico_id:'',tipo:'Psicoterapia',data:'',hora:''})
+  const [loading,setLoading]=useState(false)
+  const [ok,setOk]=useState(false)
+  const [toast,setToast]=useState('')
+  const f = k => e => setForm(p=>({...p,[k]:e.target.value}))
+
+  useEffect(()=>{
+    sb.from('profiles').select('id,nome,especialidade').eq('tipo','medico').then(({data})=>setMedicos(data||[]))
+  },[])
+
+  async function handleAgendar(e) {
+    e.preventDefault()
+    if(!form.medico_id||!form.data||!form.hora){setToast('Preencha todos os campos.');setTimeout(()=>setToast(''),3000);return}
+    setLoading(true)
+    const {error} = await sb.from('consultas').insert([{
+      paciente_id:paciente.id, medico_id:form.medico_id,
+      tipo:form.tipo, data:form.data, hora:form.hora,
+      status:'aguardando', criado_por:paciente.id
+    }])
+    if(error){setToast('Erro ao agendar: '+error.message);setTimeout(()=>setToast(''),3000)}
+    else setOk(true)
+    setLoading(false)
+  }
+
+  const tipos = ['Psicoterapia','Avaliação Psicológica','Consulta Psiquiátrica','Neuropsicologia','Psicologia Infantil']
+
+  if(ok) return (
+    <div style={{height:'100%',background:'var(--grad)',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',padding:32,textAlign:'center'}}>
+      <div style={{fontSize:64,marginBottom:20}}>🎉</div>
+      <div style={{fontSize:24,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif",marginBottom:8}}>Solicitação enviada!</div>
+      <div style={{fontSize:14,color:'rgba(255,255,255,.6)',marginBottom:32,lineHeight:1.6}}>Sua consulta foi solicitada e aguarda confirmação da clínica.</div>
+      <Btn onClick={()=>navigate('home')} style={{background:'#fff',color:'var(--p)',width:'auto',padding:'14px 32px'}}>Voltar ao início</Btn>
+    </div>
+  )
+
+  return (
+    <div style={{height:'100%',overflowY:'auto',background:'var(--bg)'}}>
+      <Toast msg={toast} type="error"/>
+      <Header title="Agendar Consulta" sub="Escolha o profissional e horário" back={()=>navigate('home')}/>
+      <div style={{background:'#fff',borderRadius:'24px 24px 0 0',marginTop:-12,padding:'24px 20px 60px',minHeight:'75%'}}>
+        <form onSubmit={handleAgendar}>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,display:'block',marginBottom:6}}>Profissional *</label>
+            <select value={form.medico_id} onChange={f('medico_id')} style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:12,padding:'13px 16px',fontSize:14,outline:'none',color:'var(--text)',background:'#fff',appearance:'none'}}>
+              <option value="">Selecionar profissional...</option>
+              {medicos.map(m=><option key={m.id} value={m.id}>Dr(a). {m.nome}{m.especialidade?` — ${m.especialidade}`:''}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,display:'block',marginBottom:6}}>Tipo de consulta</label>
+            <select value={form.tipo} onChange={f('tipo')} style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:12,padding:'13px 16px',fontSize:14,outline:'none',color:'var(--text)',background:'#fff',appearance:'none'}}>
+              {tipos.map(t=><option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <Input label="Data *" type="date" value={form.data} onChange={f('data')}/>
+          <Input label="Horário *" type="time" value={form.hora} onChange={f('hora')}/>
+          <div style={{background:'var(--ybg)',borderRadius:12,padding:'12px 14px',marginBottom:20,fontSize:13,color:'var(--yellow)'}}>
+            ⚠️ A consulta precisa ser confirmada pela clínica.
+          </div>
+          <Btn disabled={loading}>{loading?'Enviando...':'Solicitar consulta'}</Btn>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Consultas ─────────────────────────────────────────────────────────────────
+function ConsultasScreen({navigate}) {
+  const {paciente} = useAuth()
+  const [consultas,setConsultas]=useState([])
+  const [loading,setLoading]=useState(true)
+  const [filtro,setFiltro]=useState('futuras')
+  const [modal,setModal]=useState(null)
+  const [novaData,setNovaData]=useState('')
+  const [novaHora,setNovaHora]=useState('')
+  const [motivo,setMotivo]=useState('')
+  const [saving,setSaving]=useState(false)
+  const [toast,setToast]=useState({msg:'',type:'success'})
+
+  useEffect(()=>{fetchConsultas()},[paciente])
+
+  async function fetchConsultas() {
+    if(!paciente) return
+    const {data} = await sb.from('consultas').select('*,medico:profiles(nome)').eq('paciente_id',paciente.id).order('data',{ascending:false})
+    setConsultas(data||[])
+    setLoading(false)
+  }
+
+  function showToast(msg,type='success'){setToast({msg,type});setTimeout(()=>setToast({msg:'',type:'success'}),3500)}
+
+  async function handleSolicitar() {
+    const {tipo,consulta} = modal
+    if(tipo==='reagendamento'&&(!novaData||!novaHora)){showToast('Informe nova data e horário.','error');return}
+    setSaving(true)
+    await sb.from('solicitacoes').insert([{consulta_id:consulta.id,tipo,nova_data:novaData||null,nova_hora:novaHora||null,motivo:motivo||null}])
+    await sb.from('consultas').update({status:tipo==='cancelamento'?'cancelamento_pendente':'reagendamento_pendente'}).eq('id',consulta.id)
+    setModal(null);setNovaData('');setNovaHora('');setMotivo('')
+    fetchConsultas()
+    showToast('Solicitação enviada! Aguarde aprovação.')
+    setSaving(false)
+  }
+
+  const hoje = new Date().toISOString().split('T')[0]
+  const futuras = consultas.filter(c=>c.data>=hoje&&!['cancelada','realizada'].includes(c.status))
+  const passadas = consultas.filter(c=>c.data<hoje||['cancelada','realizada'].includes(c.status))
+  const lista = filtro==='futuras'?futuras:passadas
+
+  return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)',position:'relative'}}>
+      <Toast msg={toast.msg} type={toast.type}/>
+      <Header title="Minhas Consultas" sub={`${lista.length} consulta(s)`}/>
+
+      <div style={{display:'flex',gap:8,padding:'12px 16px',background:'#fff',borderBottom:'1px solid var(--border)'}}>
+        {[['futuras',`Próximas (${futuras.length})`],['passadas',`Histórico (${passadas.length})`]].map(([k,l])=>(
+          <button key={k} onClick={()=>setFiltro(k)} style={{flex:1,padding:'10px',borderRadius:12,border:'none',fontSize:13,fontWeight:700,cursor:'pointer',background:filtro===k?'var(--p)':'#F1F5F9',color:filtro===k?'#fff':'var(--sub)',transition:'all .2s'}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'12px 16px 100px'}}>
+        {loading && <div style={{textAlign:'center',padding:40,color:'var(--muted)'}}>Carregando...</div>}
+        {!loading&&lista.length===0 && (
+          <div style={{textAlign:'center',padding:48}}>
+            <div style={{fontSize:44,marginBottom:12}}>📭</div>
+            <div style={{fontSize:15,fontWeight:600,color:'var(--text)',marginBottom:4}}>Nenhuma consulta aqui</div>
+            <div style={{fontSize:13,color:'var(--muted)',marginBottom:20}}>
+              {filtro==='futuras'?'Que tal agendar uma consulta?':'Seu histórico aparecerá aqui.'}
+            </div>
+            {filtro==='futuras'&&<button onClick={()=>navigate('agendar')} style={{background:'var(--grad)',color:'#fff',border:'none',borderRadius:12,padding:'12px 24px',fontSize:14,fontWeight:700,cursor:'pointer'}}>+ Agendar consulta</button>}
+          </div>
+        )}
+        {lista.map((c,i)=>(
+          <div key={c.id} className="fu" style={{animationDelay:`${i*.05}s`,background:'#fff',borderRadius:16,padding:18,marginBottom:10,boxShadow:'0 2px 12px rgba(0,0,0,.05)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{fmtDL(c.data)}</div>
+                <div style={{display:'flex',alignItems:'center',gap:4,marginTop:3}}>
+                  <Ico n="clock" s={12} c="var(--p)"/>
+                  <span style={{fontSize:13,color:'var(--p)',fontWeight:600}}>{h(c.hora)}</span>
+                </div>
+              </div>
+              <Tag s={c.status}/>
+            </div>
+            <div style={{fontSize:14,fontWeight:600,color:'var(--text)',marginBottom:2}}>Dr(a). {c.medico?.nome}</div>
+            <div style={{fontSize:12,color:'var(--muted)',marginBottom:!['cancelada','realizada','cancelamento_pendente'].includes(c.status)?14:0}}>{c.tipo}</div>
+            {!['cancelada','realizada','cancelamento_pendente'].includes(c.status)&&(
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setModal({consulta:c,tipo:'reagendamento'})} style={{flex:1,background:'var(--p3)',border:'none',borderRadius:10,padding:'10px',fontSize:12,fontWeight:700,color:'var(--p)',cursor:'pointer'}}>📅 Reagendar</button>
+                <button onClick={()=>setModal({consulta:c,tipo:'cancelamento'})} style={{flex:1,background:'var(--rbg)',border:'none',borderRadius:10,padding:'10px',fontSize:12,fontWeight:700,color:'var(--red)',cursor:'pointer'}}>✕ Cancelar</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {modal&&(
+        <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,.5)',zIndex:100,display:'flex',alignItems:'flex-end'}} onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div style={{background:'#fff',borderRadius:'24px 24px 0 0',padding:24,width:'100%',animation:'slideUp .35s cubic-bezier(.16,1,.3,1)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <div style={{fontSize:17,fontWeight:800,color:'var(--text)'}}>{modal.tipo==='cancelamento'?'❌ Cancelamento':'📅 Reagendamento'}</div>
+              <button onClick={()=>setModal(null)} style={{background:'var(--bg)',border:'none',borderRadius:10,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}><Ico n="x" s={16} c="var(--muted)"/></button>
+            </div>
+            <div style={{background:'var(--ybg)',borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:13,color:'var(--yellow)'}}>⚠️ Requer aprovação da clínica.</div>
+            {modal.tipo==='reagendamento'&&(
+              <>
+                <Input label="Nova data" type="date" value={novaData} onChange={e=>setNovaData(e.target.value)}/>
+                <Input label="Novo horário" type="time" value={novaHora} onChange={e=>setNovaHora(e.target.value)}/>
+              </>
+            )}
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,display:'block',marginBottom:6}}>Motivo (opcional)</label>
+              <textarea value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Descreva o motivo..." rows={3} style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:12,padding:'12px 14px',fontSize:14,outline:'none',resize:'none',fontFamily:'inherit',color:'var(--text)'}}/>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <Btn variant="ghost" onClick={()=>setModal(null)} style={{flex:1}}>Voltar</Btn>
+              <Btn onClick={handleSolicitar} disabled={saving} style={{flex:1}}>{saving?'Enviando...':'Confirmar'}</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+function ChatScreen() {
+  const {paciente} = useAuth()
+  const [msgs,setMsgs]=useState([])
+  const [texto,setTexto]=useState('')
+  const [sending,setSending]=useState(false)
+  const scrollRef = useRef(null)
+
+  useEffect(()=>{
+    if(!paciente) return
+    fetchMsgs()
+    marcarLidas()
+    const ch = sb.channel('chat-'+paciente.id)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'mensagens',filter:`paciente_id=eq.${paciente.id}`},
+        p=>{setMsgs(prev=>[...prev,p.new]);setTimeout(()=>scrollRef.current?.scrollTo({top:9999,behavior:'smooth'}),100)})
+      .subscribe()
+    return ()=>sb.removeChannel(ch)
+  },[paciente])
+
+  async function fetchMsgs() {
+    const {data} = await sb.from('mensagens').select('*').eq('paciente_id',paciente.id).order('criado_em')
+    setMsgs(data||[])
+    setTimeout(()=>scrollRef.current?.scrollTo({top:9999}),200)
+  }
+
+  async function marcarLidas() {
+    await sb.from('mensagens').update({lida:true}).eq('paciente_id',paciente.id).eq('remetente','clinica')
+  }
+
+  async function handleEnviar(e) {
+    e.preventDefault()
+    if(!texto.trim()||!paciente) return
+    setSending(true)
+    await sb.from('mensagens').insert([{paciente_id:paciente.id,remetente:'paciente',conteudo:texto.trim(),lida:false}])
+    setTexto('')
+    setSending(false)
+  }
+
+  let lastDate = null
+
+  return (
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+      <Header title="Chat com a Clínica" sub="Resposta em até 1 dia útil"/>
+
+      <div ref={scrollRef} style={{flex:1,overflowY:'auto',padding:16}}>
+        {msgs.length===0&&(
+          <div style={{textAlign:'center',padding:'48px 20px'}}>
+            <div style={{width:72,height:72,borderRadius:'50%',background:'var(--p3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}>
+              <Ico n="chat" s={28} c="var(--p)"/>
+            </div>
+            <div style={{fontSize:15,fontWeight:700,color:'var(--text)',marginBottom:4}}>Nenhuma mensagem ainda</div>
+            <div style={{fontSize:13,color:'var(--muted)'}}>Inicie uma conversa com a clínica!</div>
+          </div>
+        )}
+        {msgs.map(m=>{
+          const d = new Date(m.criado_em).toLocaleDateString('pt-BR',{day:'numeric',month:'short'})
+          const showDate = d!==lastDate
+          lastDate=d
+          const isMe = m.remetente==='paciente'
+          return (
+            <div key={m.id}>
+              {showDate&&<div style={{textAlign:'center',margin:'14px 0'}}><span style={{background:'#E2E8F0',color:'var(--sub)',fontSize:11,padding:'3px 12px',borderRadius:50}}>{d}</span></div>}
+              <div style={{display:'flex',justifyContent:isMe?'flex-end':'flex-start',marginBottom:10,gap:8,alignItems:'flex-end'}}>
+                {!isMe&&<div style={{width:30,height:30,borderRadius:'50%',background:'var(--grad)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800,color:'#fff',flexShrink:0}}>V+</div>}
+                <div style={{maxWidth:'75%',background:isMe?'var(--p)':'#fff',borderRadius:isMe?'18px 18px 4px 18px':'18px 18px 18px 4px',padding:'11px 14px',boxShadow:'0 2px 8px rgba(0,0,0,.06)'}}>
+                  <div style={{fontSize:14,color:isMe?'#fff':'var(--text)',lineHeight:1.5}}>{m.conteudo}</div>
+                  <div style={{fontSize:10,color:isMe?'rgba(255,255,255,.5)':'var(--muted)',marginTop:4,textAlign:'right'}}>{fmtT(m.criado_em)}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <form onSubmit={handleEnviar} style={{display:'flex',gap:10,padding:'12px 16px',background:'#fff',borderTop:'1px solid var(--border)'}}>
+        <input value={texto} onChange={e=>setTexto(e.target.value)} placeholder="Digite uma mensagem..." style={{flex:1,background:'var(--bg)',border:'1.5px solid var(--border)',borderRadius:20,padding:'11px 16px',fontSize:14,outline:'none',color:'var(--text)'}}/>
+        <button type="submit" disabled={!texto.trim()||sending} style={{width:44,height:44,borderRadius:'50%',background:texto.trim()?'var(--p)':'#E2E8F0',border:'none',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'background .2s'}}>
+          <Ico n="send" s={16} c="#fff"/>
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ── Resultados ────────────────────────────────────────────────────────────────
+function ResultadosScreen({navigate}) {
+  const {paciente} = useAuth()
+  const [resultados,setResultados]=useState([])
+  const [loading,setLoading]=useState(true)
+
+  useEffect(()=>{
+    if(!paciente) return
+    // Busca mensagens do tipo resultado (remetente clinica com arquivo)
+    sb.from('mensagens').select('*').eq('paciente_id',paciente.id).eq('remetente','clinica').order('criado_em',{ascending:false})
+      .then(({data})=>{setResultados(data||[]);setLoading(false)})
+  },[paciente])
+
+  return (
+    <div style={{height:'100%',overflowY:'auto',background:'var(--bg)'}}>
+      <Header title="Resultados" sub="Documentos e exames" back={()=>navigate('home')}/>
+      <div style={{background:'#fff',borderRadius:'24px 24px 0 0',marginTop:-12,padding:'20px 16px 60px',minHeight:'75%'}}>
+        {loading&&<div style={{textAlign:'center',padding:40,color:'var(--muted)'}}>Carregando...</div>}
+        {!loading&&(
+          <div style={{textAlign:'center',padding:'48px 20px'}}>
+            <div style={{width:72,height:72,borderRadius:'50%',background:'#F5F3FF',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}>
+              <Ico n="file" s={28} c="#9333EA"/>
+            </div>
+            <div style={{fontSize:15,fontWeight:700,color:'var(--text)',marginBottom:4}}>Nenhum resultado ainda</div>
+            <div style={{fontSize:13,color:'var(--muted)',lineHeight:1.6}}>Quando a clínica enviar documentos ou resultados de exames, eles aparecerão aqui.</div>
+          </div>
+        )}
+        <div style={{background:'var(--ybg)',borderRadius:12,padding:'12px 14px',marginTop:16,fontSize:13,color:'var(--yellow)'}}>
+          💡 Para solicitar resultados, use o chat para falar com a clínica.
+        </div>
+        <button onClick={()=>navigate('chat')} style={{width:'100%',background:'var(--grad)',color:'#fff',border:'none',borderRadius:14,padding:14,fontSize:14,fontWeight:700,cursor:'pointer',marginTop:16}}>
+          Ir para o Chat
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Perfil ────────────────────────────────────────────────────────────────────
+function PerfilScreen({navigate}) {
+  const {paciente,signOut,refresh} = useAuth()
+  const [editando,setEditando]=useState(false)
+  const [form,setForm]=useState({})
+  const [saving,setSaving]=useState(false)
+  const [toast,setToast]=useState({msg:'',type:'success'})
+  const f = k => e => setForm(p=>({...p,[k]:e.target.value}))
+
+  useEffect(()=>{
+    if(paciente) setForm({nome:paciente.nome||'',telefone:paciente.telefone||'',cpf:paciente.cpf||'',data_nascimento:paciente.data_nascimento||''})
+  },[paciente])
+
+  function showToast(msg,type='success'){setToast({msg,type});setTimeout(()=>setToast({msg:'',type:'success'}),3500)}
+
+  async function handleSalvar() {
+    setSaving(true)
+    const {error} = await sb.from('pacientes').update({
+      nome:form.nome, telefone:form.telefone||null, cpf:form.cpf||null, data_nascimento:form.data_nascimento||null
+    }).eq('id',paciente.id)
+    if(error) showToast('Erro ao salvar: '+error.message,'error')
+    else { showToast('Dados atualizados com sucesso!'); setEditando(false); refresh() }
+    setSaving(false)
+  }
+
+  const idade = paciente?.data_nascimento ? Math.floor((new Date()-new Date(paciente.data_nascimento))/(365.25*24*3600*1000)) : null
+
+  const info = [
+    {label:'E-mail',value:paciente?.email,edit:false},
+    {label:'CPF',value:paciente?.cpf||'Não informado',key:'cpf',edit:true},
+    {label:'Telefone',value:paciente?.telefone||'Não informado',key:'telefone',edit:true},
+    {label:'Data de nascimento',value:paciente?.data_nascimento?new Date(paciente.data_nascimento+'T12:00:00').toLocaleDateString('pt-BR'):'Não informado',key:'data_nascimento',edit:true,type:'date'},
+    {label:'Convênio',value:paciente?.convenio||'Não informado',edit:false},
+  ]
+
+  return (
+    <div style={{height:'100%',overflowY:'auto',background:'var(--bg)',position:'relative'}}>
+      <Toast msg={toast.msg} type={toast.type}/>
+
+      {/* Header */}
+      <div style={{background:'var(--grad)',padding:'48px 20px 48px',textAlign:'center',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-30,right:-30,width:120,height:120,borderRadius:'50%',background:'rgba(255,255,255,.05)'}}/>
+        <div style={{width:80,height:80,borderRadius:'50%',background:'rgba(255,255,255,.15)',border:'2px solid rgba(255,255,255,.25)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',fontSize:26,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif"}}>
+          {paciente?.nome?.slice(0,2).toUpperCase()}
+        </div>
+        <div style={{fontSize:20,fontWeight:800,color:'#fff',fontFamily:"'Playfair Display',serif"}}>{paciente?.nome}</div>
+        {idade&&<div style={{fontSize:13,color:'rgba(255,255,255,.5)',marginTop:4}}>{idade} anos</div>}
+        <div style={{display:'inline-block',background:'rgba(255,255,255,.12)',color:'#fff',fontSize:12,fontWeight:600,padding:'5px 16px',borderRadius:50,marginTop:10}}>
+          {paciente?.ativo?'✓ Paciente ativo':'Inativo'}
+        </div>
+      </div>
+
+      <div style={{padding:'16px 16px 100px'}}>
+        {/* Dados */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5}}>Meus dados</div>
+          <button onClick={()=>setEditando(!editando)} style={{display:'flex',alignItems:'center',gap:6,background:editando?'var(--rbg)':'var(--p3)',color:editando?'var(--red)':'var(--p)',border:'none',borderRadius:10,padding:'6px 14px',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            {editando?<><Ico n="x" s={14} c="var(--red)"/> Cancelar</>:<><Ico n="edit" s={14} c="var(--p)"/> Editar</>}
+          </button>
+        </div>
+
+        <div style={{background:'#fff',borderRadius:16,overflow:'hidden',marginBottom:14,boxShadow:'0 2px 12px rgba(0,0,0,.04)'}}>
+          {editando ? (
+            <div style={{padding:'18px 16px'}}>
+              <Input label="Nome completo" value={form.nome} onChange={f('nome')}/>
+              <Input label="CPF" value={form.cpf} onChange={f('cpf')} placeholder="000.000.000-00"/>
+              <Input label="Telefone" value={form.telefone} onChange={f('telefone')} placeholder="(11) 99999-9999"/>
+              <Input label="Data de nascimento" type="date" value={form.data_nascimento} onChange={f('data_nascimento')}/>
+              <div style={{display:'flex',gap:10,marginTop:4}}>
+                <Btn variant="ghost" onClick={()=>setEditando(false)} style={{flex:1}}>Cancelar</Btn>
+                <Btn onClick={handleSalvar} disabled={saving} style={{flex:1}}>{saving?'Salvando...':'Salvar'}</Btn>
+              </div>
+            </div>
+          ) : (
+            info.map((item,i)=>(
+              <div key={item.label} style={{padding:'14px 16px',borderBottom:i<info.length-1?'1px solid var(--border)':'none'}}>
+                <div style={{fontSize:11,fontWeight:700,color:'var(--muted)',marginBottom:3,textTransform:'uppercase',letterSpacing:.4}}>{item.label}</div>
+                <div style={{fontSize:14,color:'var(--text)',fontWeight:500}}>{item.value}</div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Ações */}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <button onClick={()=>navigate('resultados')} style={{background:'#fff',border:'1.5px solid var(--border)',borderRadius:14,padding:'14px 16px',fontSize:14,fontWeight:600,color:'var(--text)',cursor:'pointer',display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
+            <div style={{width:36,height:36,borderRadius:10,background:'#F5F3FF',display:'flex',alignItems:'center',justifyContent:'center'}}><Ico n="file" s={18} c="#9333EA"/></div>
+            Meus resultados
+          </button>
+          <button onClick={()=>navigate('chat')} style={{background:'#fff',border:'1.5px solid var(--border)',borderRadius:14,padding:'14px 16px',fontSize:14,fontWeight:600,color:'var(--text)',cursor:'pointer',display:'flex',alignItems:'center',gap:10,textAlign:'left'}}>
+            <div style={{width:36,height:36,borderRadius:10,background:'#F0FDF4',display:'flex',alignItems:'center',justifyContent:'center'}}><Ico n="chat" s={18} c="#16A34A"/></div>
+            Falar com a clínica
+          </button>
+          <button onClick={()=>{if(confirm('Deseja sair da conta?'))signOut()}} style={{background:'var(--rbg)',border:'none',borderRadius:14,padding:'14px 16px',fontSize:14,fontWeight:700,color:'var(--red)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            <Ico n="out" s={18} c="var(--red)"/> Sair da conta
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tab Bar ───────────────────────────────────────────────────────────────────
+function TabBar({active,navigate,badge}) {
+  const tabs=[
+    {id:'home',ico:'home',label:'Início'},
+    {id:'consultas',ico:'cal',label:'Consultas'},
+    {id:'chat',ico:'chat',label:'Chat',badge},
+    {id:'perfil',ico:'user',label:'Perfil'},
+  ]
+  return (
+    <div style={{position:'absolute',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid var(--border)',display:'flex',paddingBottom:20,paddingTop:10,zIndex:50,boxShadow:'0 -4px 20px rgba(0,0,0,.05)'}}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>navigate(t.id)} style={{flex:1,border:'none',background:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:4,position:'relative',padding:'2px 0'}}>
+          <div style={{position:'relative',width:24,height:24,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {active===t.id?(
+              <div style={{position:'absolute',width:40,height:40,borderRadius:12,background:'var(--p3)',top:'50%',left:'50%',transform:'translate(-50%,-50%)'}}/>
+            ):null}
+            <div style={{position:'relative'}}><Ico n={t.ico} s={22} c={active===t.id?'var(--p)':'#94A3B8'} sw={active===t.id?2.5:2}/></div>
+            {t.badge>0&&<span style={{position:'absolute',top:-5,right:-8,background:'#EF4444',color:'#fff',borderRadius:50,minWidth:16,height:16,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700}}>{t.badge}</span>}
+          </div>
+          <span style={{fontSize:10,fontWeight:active===t.id?700:500,color:active===t.id?'var(--p)':'#94A3B8'}}>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function AppInner() {
+  const {user,paciente,loading} = useAuth()
+  const [screen,setScreen]=useState('home')
+  const [badge,setBadge]=useState(0)
+
+  useEffect(()=>{
+    if(!paciente) return
+    fetchBadge()
+    const ch = sb.channel('badge-'+paciente.id)
+      .on('postgres_changes',{event:'*',schema:'public',table:'mensagens',filter:`paciente_id=eq.${paciente.id}`},fetchBadge)
+      .subscribe()
+    return ()=>sb.removeChannel(ch)
+  },[paciente])
+
+  async function fetchBadge() {
+    if(!paciente) return
+    const {data} = await sb.from('mensagens').select('id').eq('paciente_id',paciente.id).eq('remetente','clinica').eq('lida',false)
+    setBadge(data?.length||0)
+  }
+
+  if(loading) return (
+    <div style={{height:'100%',background:'var(--grad)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
+      <div style={{fontSize:32,fontWeight:900,color:'#fff',fontFamily:"'Playfair Display',serif"}}>V+</div>
+      <div style={{width:36,height:36,border:'3px solid rgba(255,255,255,.2)',borderTop:'3px solid #fff',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
+    </div>
+  )
+
+  if(!user) return <LoginScreen/>
+
+  const hasTab = ['home','consultas','chat','perfil'].includes(screen)
+  const screens = {home:HomeScreen,consultas:ConsultasScreen,chat:ChatScreen,perfil:PerfilScreen,agendar:AgendarScreen,resultados:ResultadosScreen}
+  const Screen = screens[screen]||HomeScreen
+
+  return (
+    <div style={{height:'100%',position:'relative'}}>
+      <Screen navigate={s=>{setScreen(s);if(s==='chat')setBadge(0)}}/>
+      {hasTab&&<TabBar active={screen} navigate={s=>{setScreen(s);if(s==='chat')setBadge(0)}} badge={badge}/>}
+    </div>
+  )
+}
+
+function App() {
+  return <AuthProvider><AppInner/></AuthProvider>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>)
+</script>
+</body>
+</html>
