@@ -1,252 +1,195 @@
-import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../contexts/AuthContext'
-import './Pages.css'
-import './Chat.css'
+.chat-page {
+  display: flex;
+  height: calc(100vh - 0px);
+  overflow: hidden;
+}
 
-export default function Chat() {
-  const { profile } = useAuth()
-  const [conversas, setConversas] = useState([])
-  const [ativa, setAtiva] = useState(null)
-  const [mensagens, setMensagens] = useState([])
-  const [texto, setTexto] = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const bottomRef = useRef(null)
-  const fileRef = useRef(null)
+.chat-list {
+  width: 300px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  flex-shrink: 0;
+  overflow-y: auto;
+}
 
-  useEffect(() => {
-    fetchConversas()
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
-  }, [])
+.chat-list-header {
+  padding: 16px 18px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-  useEffect(() => {
-    if (!ativa) return
-    fetchMensagens(ativa.id)
-    marcarLidas(ativa.id)
+.chat-list-header h3 { font-size: 15px; font-weight: 700; }
+.chat-count { font-size: 11px; color: var(--muted); background: var(--bg); padding: 2px 8px; border-radius: 20px; }
 
-    const channel = supabase
-      .channel('chat-' + ativa.id)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'mensagens',
-        filter: `paciente_id=eq.${ativa.id}`
-      }, payload => {
-        setMensagens(prev => [...prev, payload.new])
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-        if (payload.new.remetente === 'paciente') {
-          notificarBrowser(ativa.nome, payload.new.conteudo || '📎 Anexo')
-          fetchConversas()
-        }
-      })
-      .subscribe()
+.chat-search-wrap { padding: 0 12px 10px; }
+.chat-search {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+}
+.chat-search:focus { border-color: var(--p); }
 
-    return () => supabase.removeChannel(channel)
-  }, [ativa])
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: .15s;
+}
+.chat-list-item:hover { background: var(--bg); }
+.chat-list-item.active { background: var(--p3); }
 
-  function notificarBrowser(nome, mensagem) {
-    if (document.visibilityState === 'visible') return
-    if (Notification.permission === 'granted') {
-      new Notification(`💬 ${nome}`, { body: mensagem, icon: '/favicon.ico' })
-    }
-  }
+.chat-item-info { flex: 1; min-width: 0; }
+.chat-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.chat-item-name { font-size: 13px; font-weight: 600; }
+.chat-item-hora { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.chat-item-bottom { display: flex; justify-content: space-between; align-items: center; }
+.chat-item-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 
-  async function fetchConversas() {
-    const { data } = await supabase
-      .from('mensagens')
-      .select('paciente_id, paciente:pacientes(id, nome), lida, remetente')
-      .order('criado_em', { ascending: false })
+.chat-av {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
 
-    const map = {}
-    data?.forEach(m => {
-      const pid = m.paciente_id
-      if (!map[pid]) map[pid] = { ...m.paciente, unread: 0 }
-      if (!m.lida && m.remetente === 'paciente') map[pid].unread++
-    })
-    setConversas(Object.values(map))
-  }
+.chat-av-lg {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+  flex-shrink: 0; overflow: hidden;
+}
 
-  async function fetchMensagens(pacienteId) {
-    const { data } = await supabase
-      .from('mensagens')
-      .select('*')
-      .eq('paciente_id', pacienteId)
-      .order('criado_em')
-    setMensagens(data || [])
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-  }
+.msg-av {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+  flex-shrink: 0; align-self: flex-end; overflow: hidden;
+}
 
-  async function marcarLidas(pacienteId) {
-    await supabase.from('mensagens').update({ lida: true }).eq('paciente_id', pacienteId).eq('remetente', 'paciente')
-    fetchConversas()
-  }
+.clinica-av { background: #0047AB !important; }
 
-  async function handleEnviar() {
-    if (!texto.trim() || !ativa || enviando) return
-    setEnviando(true)
-    await supabase.from('mensagens').insert([{
-      paciente_id: ativa.id,
-      remetente: 'clinica',
-      conteudo: texto.trim(),
-      lida: true,
-    }])
-    setTexto('')
-    setEnviando(false)
-  }
+.chat-window { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
-  async function handleAnexo(e) {
-    const file = e.target.files[0]
-    if (!file || !ativa) return
+.chat-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
 
-    // Bloqueia áudio
-    if (file.type.startsWith('audio/')) {
-      alert('Envio de áudio não é permitido.')
-      return
-    }
+.chat-win-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card);
+}
+.chat-win-nome { font-weight: 700; font-size: 15px; }
+.chat-win-status { font-size: 11px; color: var(--muted); }
 
-    setEnviando(true)
-    const ext = file.name.split('.').pop()
-    const path = `${ativa.id}/${Date.now()}.${ext}`
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg);
+}
 
-    const { error } = await supabase.storage.from('chat-anexos').upload(path, file)
-    if (error) { alert('Erro ao enviar arquivo.'); setEnviando(false); return }
+.chat-date-divider { display: flex; align-items: center; justify-content: center; margin: 12px 0; }
+.chat-date-divider span {
+  font-size: 11px; color: var(--muted);
+  background: #E5E7EB; padding: 3px 12px; border-radius: 50px;
+}
 
-    const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
+.msg-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
+.msg-row.me { flex-direction: row-reverse; }
+.msg-row.them { flex-direction: row; }
 
-    await supabase.from('mensagens').insert([{
-      paciente_id: ativa.id,
-      remetente: 'clinica',
-      conteudo: '',
-      anexo_url: urlData.publicUrl,
-      anexo_tipo: file.type,
-      anexo_nome: file.name,
-      lida: true,
-    }])
+.msg-col { display: flex; flex-direction: column; max-width: 60%; }
+.msg-row.me .msg-col { align-items: flex-end; }
+.msg-row.them .msg-col { align-items: flex-start; }
 
-    e.target.value = ''
-    setEnviando(false)
-  }
+.msg-bubble {
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 14px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}
+.msg-row.me .msg-bubble {
+  background: var(--p); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.msg-row.them .msg-bubble {
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
 
-  function handleKey(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() }
-  }
+.msg-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
 
-  const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
+.chat-input-bar {
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  display: flex; gap: 10px; align-items: flex-end;
+  background: var(--card);
+}
 
-  function renderAnexo(m) {
-    if (!m.anexo_url) return null
-    const tipo = m.anexo_tipo || ''
+.chat-textarea {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-size: 14px; font-family: inherit;
+  outline: none; resize: none; max-height: 120px;
+  color: var(--text); background: var(--bg);
+}
+.chat-textarea:focus { border-color: var(--p); }
 
-    if (tipo.startsWith('image/')) {
-      return (
-        <a href={m.anexo_url} target="_blank" rel="noreferrer">
-          <img src={m.anexo_url} alt={m.anexo_nome} className="msg-img" />
-        </a>
-      )
-    }
+.btn-clip {
+  background: none; border: none;
+  font-size: 22px; cursor: pointer;
+  padding: 6px; border-radius: 8px;
+  transition: .15s; flex-shrink: 0;
+}
+.btn-clip:hover { background: var(--bg); }
+.btn-clip:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    return (
-      <a href={m.anexo_url} target="_blank" rel="noreferrer" className="msg-doc">
-        <span className="msg-doc-icon">📄</span>
-        <span className="msg-doc-nome">{m.anexo_nome}</span>
-      </a>
-    )
-  }
+.btn-send {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--p); color: #fff;
+  border: none; font-size: 16px;
+  cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: .15s;
+}
+.btn-send:hover { opacity: 0.85; }
+.btn-send:disabled { background: #D1D5DB; cursor: not-allowed; }
 
-  let lastDate = null
+.msg-img {
+  max-width: 220px; max-height: 200px;
+  border-radius: 10px; display: block; cursor: pointer;
+}
 
-  return (
-    <div className="chat-page">
-      <div className="chat-list">
-        <div className="chat-list-header">
-          <h3>Conversas</h3>
-          <span className="chat-count">{conversas.filter(c => c.unread > 0).length} não lidas</span>
-        </div>
-        {conversas.length === 0 && <div className="empty" style={{ padding: 20 }}>Nenhuma conversa ainda.</div>}
-        {conversas.map(c => (
-          <div key={c.id} className={`chat-list-item${ativa?.id === c.id ? ' active' : ''}`} onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}>
-            <div className="chat-av">{c.nome?.slice(0, 2).toUpperCase()}</div>
-            <div className="chat-item-info">
-              <div className="chat-item-name">{c.nome}</div>
-              <div className="chat-item-sub">Paciente</div>
-            </div>
-            {c.unread > 0 && <span className="unread">{c.unread}</span>}
-          </div>
-        ))}
-      </div>
+.msg-doc {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: rgba(0,0,0,0.08);
+  border-radius: 10px; text-decoration: none;
+  color: inherit; font-size: 13px; max-width: 220px;
+}
+.msg-doc:hover { background: rgba(0,0,0,0.15); }
+.msg-doc-icon { font-size: 20px; }
+.msg-doc-nome { word-break: break-all; font-weight: 500; }
 
-      <div className="chat-window">
-        {!ativa ? (
-          <div className="chat-empty">
-            <div style={{ fontSize: 40 }}>💬</div>
-            <div style={{ fontSize: 15, color: 'var(--muted)', marginTop: 12 }}>Selecione uma conversa para começar</div>
-          </div>
-        ) : (
-          <>
-            <div className="chat-win-header">
-              <div className="chat-av">{ativa.nome?.slice(0, 2).toUpperCase()}</div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{ativa.nome}</div>
-                <div style={{ fontSize: 11, color: 'var(--success)' }}>● Paciente</div>
-              </div>
-            </div>
-
-            <div className="chat-messages">
-              {mensagens.map(m => {
-                const msgDate = fmtData(m.criado_em)
-                const showDate = msgDate !== lastDate
-                lastDate = msgDate
-
-                return (
-                  <div key={m.id}>
-                    {showDate && (
-                      <div className="chat-date-divider"><span>{msgDate}</span></div>
-                    )}
-                    <div className={`msg-row ${m.remetente === 'clinica' ? 'me' : 'them'}`}>
-                      <div className="msg-bubble">
-                        {renderAnexo(m)}
-                        {m.conteudo && <span>{m.conteudo}</span>}
-                      </div>
-                      <div className="msg-time">
-                        {m.remetente === 'clinica' ? 'Clínica' : ativa.nome} · {fmtHora(m.criado_em)}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-              <div ref={bottomRef} />
-            </div>
-
-            <div className="chat-input-bar">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,.pdf,.doc,.docx"
-                style={{ display: 'none' }}
-                onChange={handleAnexo}
-              />
-              <button className="btn-clip" onClick={() => fileRef.current?.click()} title="Anexar arquivo" disabled={enviando}>
-                📎
-              </button>
-              <textarea
-                className="chat-textarea"
-                placeholder="Digite uma mensagem... (Enter para enviar)"
-                value={texto}
-                onChange={e => setTexto(e.target.value)}
-                onKeyDown={handleKey}
-                rows={1}
-                disabled={enviando}
-              />
-              <button className="btn-primary" onClick={handleEnviar} disabled={!texto.trim() || enviando}>
-                {enviando ? '...' : 'Enviar'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
+.unread {
+  background: var(--p); color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 20px;
+  flex-shrink: 0;
 }
