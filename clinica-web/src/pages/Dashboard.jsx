@@ -6,36 +6,44 @@ import './Pages.css'
 export default function Dashboard() {
   const { profile } = useAuth()
   const [stats, setStats] = useState({ hoje: 0, pacientes: 0, pendentes: 0, msgs: 0 })
-  const [consultasHoje, setConsultasHoje] = useState([])
+  const [consultas, setConsultas] = useState([])
+  const [consultasFiltradas, setConsultasFiltradas] = useState([])
   const [aprovacoes, setAprovacoes] = useState([])
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filtro, setFiltro] = useState('hoje')
+  const [dataCustom, setDataCustom] = useState('')
 
   useEffect(() => {
     fetchDashboard()
   }, [])
 
+  useEffect(() => {
+    aplicarFiltro(filtro, consultas)
+  }, [filtro, dataCustom, consultas])
+
   async function fetchDashboard() {
     const hoje = new Date().toISOString().split('T')[0]
 
-    const [{ data: consultas }, { data: pacientes }, { data: solics }, { data: msgs }] =
+    const [{ data: todasConsultas }, { data: pacientes }, { data: solics }, { data: msgs }] =
       await Promise.all([
-        supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').eq('data', hoje).order('hora'),
+        supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('data', { ascending: false }).order('hora'),
         supabase.from('pacientes').select('id').eq('ativo', true),
         supabase.from('solicitacoes').select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(nome))').eq('status', 'pendente'),
         supabase.from('mensagens').select('paciente_id, paciente:pacientes(nome)').eq('lida', false).eq('remetente', 'paciente'),
       ])
 
-    setConsultasHoje(consultas || [])
+    const consultasHoje = todasConsultas?.filter(c => c.data === hoje) || []
+
+    setConsultas(todasConsultas || [])
     setAprovacoes(solics || [])
     setStats({
-      hoje: consultas?.length || 0,
+      hoje: consultasHoje.length,
       pacientes: pacientes?.length || 0,
       pendentes: solics?.length || 0,
       msgs: msgs?.length || 0,
     })
 
-    // agrupa msgs por paciente
     const grouped = {}
     msgs?.forEach(m => {
       if (!grouped[m.paciente_id]) grouped[m.paciente_id] = { ...m.paciente, count: 0, paciente_id: m.paciente_id }
@@ -45,11 +53,31 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  function aplicarFiltro(tipo, lista) {
+    const hoje = new Date().toISOString().split('T')[0]
+    const agora = new Date()
+
+    if (tipo === 'hoje') {
+      setConsultasFiltradas(lista.filter(c => c.data === hoje))
+    } else if (tipo === 'semana') {
+      const inicio = new Date(agora)
+      inicio.setDate(agora.getDate() - agora.getDay())
+      const fim = new Date(inicio)
+      fim.setDate(inicio.getDate() + 6)
+      setConsultasFiltradas(lista.filter(c => c.data >= inicio.toISOString().split('T')[0] && c.data <= fim.toISOString().split('T')[0]))
+    } else if (tipo === 'mes') {
+      const mes = hoje.slice(0, 7)
+      setConsultasFiltradas(lista.filter(c => c.data?.startsWith(mes)))
+    } else if (tipo === 'todas') {
+      setConsultasFiltradas(lista)
+    } else if (tipo === 'data' && dataCustom) {
+      setConsultasFiltradas(lista.filter(c => c.data === dataCustom))
+    }
+  }
+
   async function handleAprovacao(id, aprovado) {
     const campo = profile?.tipo === 'medico' ? 'aprovado_medico' : 'aprovado_admin'
     await supabase.from('solicitacoes').update({ [campo]: aprovado }).eq('id', id)
-
-    // verifica se ambos aprovaram
     const { data } = await supabase.from('solicitacoes').select('*').eq('id', id).single()
     if (data?.aprovado_medico && data?.aprovado_admin) {
       await supabase.from('solicitacoes').update({ status: 'aprovada' }).eq('id', id)
@@ -115,16 +143,48 @@ export default function Dashboard() {
       <div className="dash-grid">
         <div className="card">
           <div className="card-head">
-            <h3>Consultas de hoje</h3>
+            <h3>Consultas</h3>
             <a href="/agenda">Ver agenda →</a>
           </div>
+
+          {/* FILTRO */}
+          <div style={{ display: 'flex', gap: '8px', padding: '0 16px 12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {['hoje', 'semana', 'mes', 'todas', 'data'].map(op => (
+              <button
+                key={op}
+                onClick={() => setFiltro(op)}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  border: '1px solid #d1d5db',
+                  background: filtro === op ? '#2563eb' : '#fff',
+                  color: filtro === op ? '#fff' : '#374151',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: filtro === op ? 600 : 400,
+                }}
+              >
+                {op === 'hoje' ? 'Hoje' : op === 'semana' ? 'Esta semana' : op === 'mes' ? 'Este mês' : op === 'todas' ? 'Todas' : 'Data específica'}
+              </button>
+            ))}
+            {filtro === 'data' && (
+              <input
+                type="date"
+                value={dataCustom}
+                onChange={e => setDataCustom(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }}
+              />
+            )}
+          </div>
+
           <div className="card-body">
-            {consultasHoje.length === 0 ? (
-              <div className="empty">Nenhuma consulta hoje.</div>
+            {consultasFiltradas.length === 0 ? (
+              <div className="empty">Nenhuma consulta encontrada.</div>
             ) : (
               <table className="tbl">
                 <thead>
                   <tr>
+                    <th>Data</th>
                     <th>Horário</th>
                     <th>Paciente</th>
                     <th>Profissional</th>
@@ -132,12 +192,13 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {consultasHoje.map(c => (
+                  {consultasFiltradas.map(c => (
                     <tr key={c.id}>
+                      <td>{c.data ? new Date(c.data + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
                       <td>{c.hora?.slice(0, 5)}</td>
                       <td>
                         <div className="td-user">
-                          <div className="av">{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>
+                          <div className="av">{c.paciente?.nome?.slice(0, 2).toUpperCase()}</div>
                           {c.paciente?.nome}
                         </div>
                       </td>
@@ -158,7 +219,7 @@ export default function Dashboard() {
                 <h3>⏳ Aprovações pendentes</h3>
                 <a href="/aprovacoes">Ver todas →</a>
               </div>
-              {aprovacoes.slice(0,3).map(s => (
+              {aprovacoes.slice(0, 3).map(s => (
                 <div key={s.id} className="aprov-item">
                   <div className="aprov-ico">{s.tipo === 'cancelamento' ? '❌' : '📅'}</div>
                   <div className="aprov-info">
@@ -182,7 +243,7 @@ export default function Dashboard() {
               </div>
               {chats.map(c => (
                 <div key={c.paciente_id} className="chat-preview-item" onClick={() => window.location.href = '/chat'}>
-                  <div className="chat-av">{c.nome?.slice(0,2).toUpperCase()}</div>
+                  <div className="chat-av">{c.nome?.slice(0, 2).toUpperCase()}</div>
                   <div className="chat-info">
                     <h4>{c.nome}</h4>
                     <p>Nova mensagem</p>
