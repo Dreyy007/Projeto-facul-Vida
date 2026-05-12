@@ -10,7 +10,9 @@ export default function Chat() {
   const [ativa, setAtiva] = useState(null)
   const [mensagens, setMensagens] = useState([])
   const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const bottomRef = useRef(null)
+  const fileRef = useRef(null)
 
   useEffect(() => {
     fetchConversas()
@@ -35,7 +37,7 @@ export default function Chat() {
         setMensagens(prev => [...prev, payload.new])
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
         if (payload.new.remetente === 'paciente') {
-          notificarBrowser(ativa.nome, payload.new.conteudo)
+          notificarBrowser(ativa.nome, payload.new.conteudo || '📎 Anexo')
           fetchConversas()
         }
       })
@@ -47,10 +49,7 @@ export default function Chat() {
   function notificarBrowser(nome, mensagem) {
     if (document.visibilityState === 'visible') return
     if (Notification.permission === 'granted') {
-      new Notification(`💬 ${nome}`, {
-        body: mensagem,
-        icon: '/favicon.ico',
-      })
+      new Notification(`💬 ${nome}`, { body: mensagem, icon: '/favicon.ico' })
     }
   }
 
@@ -85,7 +84,8 @@ export default function Chat() {
   }
 
   async function handleEnviar() {
-    if (!texto.trim() || !ativa) return
+    if (!texto.trim() || !ativa || enviando) return
+    setEnviando(true)
     await supabase.from('mensagens').insert([{
       paciente_id: ativa.id,
       remetente: 'clinica',
@@ -93,6 +93,40 @@ export default function Chat() {
       lida: true,
     }])
     setTexto('')
+    setEnviando(false)
+  }
+
+  async function handleAnexo(e) {
+    const file = e.target.files[0]
+    if (!file || !ativa) return
+
+    // Bloqueia áudio
+    if (file.type.startsWith('audio/')) {
+      alert('Envio de áudio não é permitido.')
+      return
+    }
+
+    setEnviando(true)
+    const ext = file.name.split('.').pop()
+    const path = `${ativa.id}/${Date.now()}.${ext}`
+
+    const { error } = await supabase.storage.from('chat-anexos').upload(path, file)
+    if (error) { alert('Erro ao enviar arquivo.'); setEnviando(false); return }
+
+    const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
+
+    await supabase.from('mensagens').insert([{
+      paciente_id: ativa.id,
+      remetente: 'clinica',
+      conteudo: '',
+      anexo_url: urlData.publicUrl,
+      anexo_tipo: file.type,
+      anexo_nome: file.name,
+      lida: true,
+    }])
+
+    e.target.value = ''
+    setEnviando(false)
   }
 
   function handleKey(e) {
@@ -101,6 +135,26 @@ export default function Chat() {
 
   const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
+
+  function renderAnexo(m) {
+    if (!m.anexo_url) return null
+    const tipo = m.anexo_tipo || ''
+
+    if (tipo.startsWith('image/')) {
+      return (
+        <a href={m.anexo_url} target="_blank" rel="noreferrer">
+          <img src={m.anexo_url} alt={m.anexo_nome} className="msg-img" />
+        </a>
+      )
+    }
+
+    return (
+      <a href={m.anexo_url} target="_blank" rel="noreferrer" className="msg-doc">
+        <span className="msg-doc-icon">📄</span>
+        <span className="msg-doc-nome">{m.anexo_nome}</span>
+      </a>
+    )
+  }
 
   let lastDate = null
 
@@ -149,12 +203,13 @@ export default function Chat() {
                 return (
                   <div key={m.id}>
                     {showDate && (
-                      <div className="chat-date-divider">
-                        <span>{msgDate}</span>
-                      </div>
+                      <div className="chat-date-divider"><span>{msgDate}</span></div>
                     )}
                     <div className={`msg-row ${m.remetente === 'clinica' ? 'me' : 'them'}`}>
-                      <div className="msg-bubble">{m.conteudo}</div>
+                      <div className="msg-bubble">
+                        {renderAnexo(m)}
+                        {m.conteudo && <span>{m.conteudo}</span>}
+                      </div>
                       <div className="msg-time">
                         {m.remetente === 'clinica' ? 'Clínica' : ativa.nome} · {fmtHora(m.criado_em)}
                       </div>
@@ -166,6 +221,16 @@ export default function Chat() {
             </div>
 
             <div className="chat-input-bar">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,.pdf,.doc,.docx"
+                style={{ display: 'none' }}
+                onChange={handleAnexo}
+              />
+              <button className="btn-clip" onClick={() => fileRef.current?.click()} title="Anexar arquivo" disabled={enviando}>
+                📎
+              </button>
               <textarea
                 className="chat-textarea"
                 placeholder="Digite uma mensagem... (Enter para enviar)"
@@ -173,8 +238,11 @@ export default function Chat() {
                 onChange={e => setTexto(e.target.value)}
                 onKeyDown={handleKey}
                 rows={1}
+                disabled={enviando}
               />
-              <button className="btn-primary" onClick={handleEnviar} disabled={!texto.trim()}>Enviar</button>
+              <button className="btn-primary" onClick={handleEnviar} disabled={!texto.trim() || enviando}>
+                {enviando ? '...' : 'Enviar'}
+              </button>
             </div>
           </>
         )}
