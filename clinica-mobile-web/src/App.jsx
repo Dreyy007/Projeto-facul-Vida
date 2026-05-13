@@ -7,6 +7,7 @@ import Consultas from './pages/Consultas'
 import Chat from './pages/Chat'
 import Perfil from './pages/Perfil'
 import Agendar from './pages/Agendar'
+import Resultados from './pages/Resultados'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="chat" element={<Chat />} />
             <Route path="perfil" element={<Perfil />} />
             <Route path="agendar" element={<Agendar />} />
+            <Route path="resultados" element={<Resultados />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

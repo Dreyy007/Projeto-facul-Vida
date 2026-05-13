@@ -117,3 +117,27 @@ CREATE POLICY "Equipe acessa documentos" ON documentos FOR ALL TO authenticated 
 --
 -- INSERT INTO profiles (id, nome, email, tipo)
 -- VALUES ('UUID_DO_USUARIO', 'Seu Nome', 'seu@email.com', 'admin');
+
+-- ============================================
+-- TABELA RESULTADOS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS resultados (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  paciente_id UUID REFERENCES pacientes(id) NOT NULL,
+  medico_id UUID REFERENCES profiles(id),
+  nome TEXT NOT NULL,
+  categoria TEXT NOT NULL DEFAULT 'Outro',
+  conteudo TEXT,
+  arquivo_url TEXT,
+  arquivo_nome TEXT,
+  arquivo_tipo TEXT,
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE resultados ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Equipe acessa resultados" ON resultados FOR ALL TO authenticated USING (true);
+
+-- Storage bucket para arquivos de resultados
+-- No painel Supabase vá em Storage > New Bucket
+-- Nome: resultados | Public: true

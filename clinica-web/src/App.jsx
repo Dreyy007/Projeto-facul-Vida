@@ -11,6 +11,7 @@ import Chat from './pages/Chat'
 import Usuarios from './pages/Usuarios'
 import Relatorios from './pages/Relatorios'
 import Configuracoes from './pages/Configuracoes'
+import Resultados from './pages/Resultados'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route path="configuracoes" element={<Configuracoes />} />
+            <Route path="resultados" element={<Resultados />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

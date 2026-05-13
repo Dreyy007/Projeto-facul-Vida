@@ -117,7 +117,7 @@ export default function Chat() {
     await supabase.from('mensagens').insert([{
       paciente_id: ativa.id,
       remetente: 'clinica',
-      conteudo: '',
+      conteudo: file.name,
       anexo_url: urlData.publicUrl,
       anexo_tipo: file.type,
       anexo_nome: file.name,
