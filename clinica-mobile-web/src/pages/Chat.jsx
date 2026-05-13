@@ -6,12 +6,15 @@ const BLUE = '#0047AB'
 const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
 
+const INATIVIDADE_AVISO_MS  = 90  * 60 * 1000  // 1h30
+const INATIVIDADE_ENCERRA_MS = 120 * 60 * 1000  // 2h
+
 const BOT_STEPS = [
-  { key: 'intro',   msg: (p)        => `Olá, ${p.nome?.split(' ')[0]}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?` },
-  { key: 'cpf',     msg: ()         => `Qual é o seu **CPF**? (somente números)` },
-  { key: 'nasc',    msg: ()         => `Qual é a sua **data de nascimento**? (DD/MM/AAAA)` },
-  { key: 'tel',     msg: ()         => `Qual é o seu **telefone** de contato?` },
-  { key: 'confirm', msg: (p, dados) => `Perfeito! Confirmei seus dados:\n\n👤 ${p.nome}\n📋 CPF: ${dados.cpf}\n🎂 Nascimento: ${dados.nasc}\n📱 Telefone: ${dados.tel}\n\nAgora pode digitar sua mensagem — nossa equipe responderá em breve! 😊` },
+  { key: 'intro',   msg: p        => `Olá, ${p.nome?.split(' ')[0]}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?` },
+  { key: 'cpf',     msg: ()      => `Qual é o seu **CPF**? (somente números)` },
+  { key: 'nasc',    msg: ()      => `Qual é a sua **data de nascimento**? (DD/MM/AAAA)` },
+  { key: 'tel',     msg: ()      => `Qual é o seu **telefone** de contato?` },
+  { key: 'confirm', msg: (p, d) => `Perfeito! Confirmei seus dados:\n\n👤 ${p.nome}\n📋 CPF: ${d.cpf}\n🎂 Nascimento: ${d.nasc}\n📱 Telefone: ${d.tel}\n\nAgora pode digitar sua mensagem — nossa equipe responderá em breve! 😊` },
 ]
 
 export default function Chat() {
@@ -21,26 +24,95 @@ export default function Chat() {
   const [botStep, setBotStep] = useState(0)
   const [botDados, setBotDados] = useState({})
   const [botPronto, setBotPronto] = useState(false)
+  const [conversa, setConversa] = useState(null) // { id, encerrada }
   const [texto, setTexto] = useState('')
   const [sending, setSending] = useState(false)
   const [showAnexo, setShowAnexo] = useState(false)
   const scrollRef = useRef(null)
   const fileRef = useRef(null)
   const imageRef = useRef(null)
+  const iniciouBot = useRef(false)
 
   useEffect(() => {
     if (!paciente) return
-    checkBotStatus()
+    checkStatus()
   }, [paciente])
 
-  async function checkBotStatus() {
-    const { data } = await supabase.from('mensagens').select('id').eq('paciente_id', paciente.id).limit(1)
-    if (data && data.length > 0) {
-      setBotPronto(true)
-      fetchMensagens()
-    } else {
-      startBot()
+  async function checkStatus() {
+    // Busca última mensagem do paciente
+    const { data: msgs } = await supabase
+      .from('mensagens')
+      .select('*')
+      .eq('paciente_id', paciente.id)
+      .order('criado_em', { ascending: false })
+      .limit(1)
+
+    if (!msgs || msgs.length === 0) {
+      // Nunca conversou — inicia bot (uma única vez)
+      if (!iniciouBot.current) {
+        iniciouBot.current = true
+        startBot()
+      }
+      return
     }
+
+    const ultima = msgs[0]
+    const agora = Date.now()
+    const tempoUltima = agora - new Date(ultima.criado_em).getTime()
+
+    // Verifica se já foi encerrada
+    if (ultima.tipo === 'encerramento') {
+      setBotPronto(false)
+      setConversa({ encerrada: true })
+      fetchMensagens()
+      return
+    }
+
+    // Já tem histórico — carrega normalmente
+    setBotPronto(true)
+    fetchMensagens()
+
+    // Verifica inatividade
+    if (tempoUltima >= INATIVIDADE_ENCERRA_MS) {
+      // Já passou 2h — encerra agora
+      await encerrarConversa()
+    } else if (tempoUltima >= INATIVIDADE_AVISO_MS) {
+      // Passou 1h30 — manda aviso se ainda não mandou
+      await verificarEMandarAviso()
+    }
+  }
+
+  async function verificarEMandarAviso() {
+    // Checa se já existe mensagem de aviso recente
+    const { data } = await supabase
+      .from('mensagens')
+      .select('id')
+      .eq('paciente_id', paciente.id)
+      .eq('tipo', 'aviso_inatividade')
+      .order('criado_em', { ascending: false })
+      .limit(1)
+
+    if (data && data.length > 0) return // já avisou
+
+    await supabase.from('mensagens').insert([{
+      paciente_id: paciente.id,
+      remetente: 'clinica',
+      conteudo: '⚠️ Olá! Notamos que você está inativo(a) há algum tempo. Sua conversa será encerrada em **30 minutos** caso não haja interação. Se precisar de ajuda, é só responder!',
+      tipo: 'aviso_inatividade',
+      lida: false,
+    }])
+  }
+
+  async function encerrarConversa() {
+    await supabase.from('mensagens').insert([{
+      paciente_id: paciente.id,
+      remetente: 'clinica',
+      conteudo: '🔒 Esta conversa foi **encerrada automaticamente** por inatividade. Quando quiser retomar, é só enviar uma mensagem e iniciaremos um novo atendimento!',
+      tipo: 'encerramento',
+      lida: false,
+    }])
+    setConversa({ encerrada: true })
+    setBotPronto(false)
   }
 
   function startBot() {
@@ -50,13 +122,12 @@ export default function Chat() {
     }, 600)
   }
 
-  function addBotMsg(texto) {
-    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'bot', conteudo: texto, criado_em: new Date().toISOString() }])
+  function addBotMsg(t) {
+    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'bot', conteudo: t, criado_em: new Date().toISOString() }])
     scrollDown()
   }
-
-  function addUserBotMsg(texto) {
-    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: texto, criado_em: new Date().toISOString() }])
+  function addUserBotMsg(t) {
+    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, criado_em: new Date().toISOString() }])
     scrollDown()
   }
 
@@ -73,18 +144,23 @@ export default function Chat() {
     } else if (botStep === 3) {
       const dados = { ...botDados, tel: resposta }
       setBotDados(dados)
-      await supabase.from('pacientes').update({
-        cpf: dados.cpf?.replace(/\D/g, ''),
-        data_nascimento: parseDateBR(dados.nasc),
-        telefone: dados.tel,
-      }).eq('id', paciente.id)
+      await supabase.from('pacientes').update({ cpf: dados.cpf?.replace(/\D/g, ''), data_nascimento: parseDateBR(dados.nasc), telefone: dados.tel }).eq('id', paciente.id)
       setTimeout(() => {
         addBotMsg(BOT_STEPS[4].msg(paciente, dados))
-        setBotStep(4)
-        setBotPronto(true)
-        fetchMensagens()
+        setBotStep(4); setBotPronto(true); fetchMensagens()
       }, 800)
     }
+  }
+
+  // Reinicia conversa após encerramento
+  async function reiniciarConversa() {
+    setConversa(null)
+    setBotMsgs([])
+    setBotStep(0)
+    setBotDados({})
+    setBotPronto(false)
+    iniciouBot.current = true
+    startBot()
   }
 
   function parseDateBR(str) {
@@ -103,17 +179,12 @@ export default function Chat() {
 
   useEffect(() => {
     if (!paciente || !botPronto) return
-    const channel = supabase
-      .channel('chat-' + paciente.id)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'mensagens',
-        filter: `paciente_id=eq.${paciente.id}`
-      }, payload => {
+    const channel = supabase.channel('chat-' + paciente.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `paciente_id=eq.${paciente.id}` }, payload => {
         setMensagens(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
         scrollDown()
         if (payload.new.remetente === 'clinica') supabase.from('mensagens').update({ lida: true }).eq('id', payload.new.id)
-      })
-      .subscribe()
+      }).subscribe()
     return () => supabase.removeChannel(channel)
   }, [paciente, botPronto])
 
@@ -124,16 +195,20 @@ export default function Chat() {
     e?.preventDefault()
     const msg = texto.trim()
     if (!msg) return
-    if (!botPronto && botStep >= 1 && botStep <= 3) {
-      setTexto('')
-      await handleBotResposta(msg)
+
+    // Se conversa encerrada — reinicia
+    if (conversa?.encerrada) {
+      await reiniciarConversa()
       return
     }
+
+    if (!botPronto && botStep >= 1 && botStep <= 3) { setTexto(''); await handleBotResposta(msg); return }
     if (!botPronto || sending) return
-    setTexto('')
-    setSending(true)
+    setTexto(''); setSending(true)
     await supabase.from('mensagens').insert([{ paciente_id: paciente.id, remetente: 'paciente', conteudo: msg, lida: false }])
     setSending(false)
+
+    // Após enviar — cancela aviso de inatividade se existir (deleta ou ignora, a lógica continua pelo tempo)
   }
 
   async function uploadAnexo(file) {
@@ -144,30 +219,24 @@ export default function Chat() {
     const { error } = await supabase.storage.from('chat-anexos').upload(path, file, { contentType: file.type })
     if (error) { alert('Erro ao enviar arquivo.'); setSending(false); return }
     const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
-    await supabase.from('mensagens').insert([{
-      paciente_id: paciente.id, remetente: 'paciente', conteudo: '',
-      anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: false,
-    }])
+    await supabase.from('mensagens').insert([{ paciente_id: paciente.id, remetente: 'paciente', conteudo: '', anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: false }])
     setSending(false)
   }
 
   function renderConteudo(texto, isMe) {
     const parts = texto.split(/\*\*(.*?)\*\*/g)
-    return parts.map((p, i) =>
-      i % 2 === 1
-        ? <strong key={i} style={{ color: isMe ? '#fff' : '#0D1B2A' }}>{p}</strong>
-        : <span key={i}>{p}</span>
-    )
+    return parts.map((p, i) => i % 2 === 1 ? <strong key={i} style={{ color: isMe ? '#fff' : '#0D1B2A' }}>{p}</strong> : <span key={i}>{p}</span>)
   }
 
-  const todasMsgs = [...botMsgs, ...(botPronto ? mensagens : [])]
+  const todasMsgs = [...botMsgs, ...(botPronto || conversa?.encerrada ? mensagens : [])]
   let lastDate = null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#EEF2FF' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F0F4FF' }}>
+      {/* Header */}
       <div style={s.header}>
         <div style={s.headerBubble} />
-        <div style={s.clinicAvatar}><span style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>V+</span></div>
+        <div style={s.clinicAvatar}><span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>V+</span></div>
         <div style={{ flex: 1 }}>
           <p style={s.headerNome}>Clínica Vida+</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
@@ -175,15 +244,30 @@ export default function Chat() {
             <span style={s.headerStatus}>Equipe disponível agora</span>
           </div>
         </div>
-        <button style={s.headerAction}><span style={{ fontSize: 18 }}>📞</span></button>
+        <button style={s.headerAction}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l.86-.86a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+        </button>
       </div>
 
+      {/* Mensagens */}
       <div ref={scrollRef} style={s.messages}>
         {todasMsgs.map(m => {
           const msgDate = fmtData(m.criado_em)
           const showDate = msgDate !== lastDate
           lastDate = msgDate
           const isMe = m.remetente === 'paciente'
+          const isSystem = m.tipo === 'aviso_inatividade' || m.tipo === 'encerramento'
+
+          if (isSystem) {
+            return (
+              <div key={m.id} style={s.systemMsg}>
+                <p style={{ fontSize: 12, color: m.tipo === 'encerramento' ? '#991B1B' : '#92400E', textAlign: 'center', lineHeight: '18px' }}>
+                  {renderConteudo(m.conteudo, false)}
+                </p>
+              </div>
+            )
+          }
+
           return (
             <div key={m.id}>
               {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
@@ -211,18 +295,31 @@ export default function Chat() {
           )
         })}
 
-        {(sending || (!botPronto && botStep === 0)) && (
+        {(sending || (!botPronto && botStep === 0 && !conversa?.encerrada)) && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
             <div style={s.msgAvatar}><span style={{ fontSize: 8, fontWeight: 800, color: '#fff' }}>V+</span></div>
             <div style={{ ...s.bubbleThem, padding: '12px 16px' }}>
               <div style={{ display: 'flex', gap: 4 }}>
                 {[0, 0.2, 0.4].map((d, i) => (
-                  <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#aaa', display: 'inline-block', animation: `pulse 1.2s ${d}s infinite` }} />
+                  <span key={i} style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#CBD5E1', display: 'inline-block', animation: `pulse 1.2s ${d}s infinite` }} />
                 ))}
               </div>
             </div>
           </div>
         )}
+
+        {/* Banner conversa encerrada */}
+        {conversa?.encerrada && (
+          <div style={s.encerramentoBanner}>
+            <p style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 12 }}>
+              Esta conversa foi encerrada. Envie uma mensagem para iniciar um novo atendimento.
+            </p>
+            <button style={s.novaConversaBtn} onClick={reiniciarConversa}>
+              Iniciar nova conversa
+            </button>
+          </div>
+        )}
+
         <div style={{ height: 16 }} />
       </div>
 
@@ -243,64 +340,68 @@ export default function Chat() {
       <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={e => e.target.files[0] && uploadAnexo(e.target.files[0])} />
 
       <div style={s.inputBar}>
-        {botPronto && (
+        {botPronto && !conversa?.encerrada && (
           <button style={s.clipBtn} onClick={() => setShowAnexo(v => !v)}>
-            <span style={{ fontSize: 22 }}>📎</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
           </button>
         )}
         <textarea
-          style={s.input}
+          style={{ ...s.input, ...(conversa?.encerrada ? { color: '#9CA3AF' } : {}) }}
           value={texto}
           onChange={e => setTexto(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
-          placeholder={botPronto ? 'Escreva sua mensagem...' : 'Digite sua resposta...'}
+          placeholder={conversa?.encerrada ? 'Envie uma mensagem para reiniciar...' : botPronto ? 'Escreva sua mensagem...' : 'Digite sua resposta...'}
           rows={1}
           maxLength={500}
-          disabled={!botPronto && botStep === 0}
+          disabled={!botPronto && botStep === 0 && !conversa?.encerrada}
         />
         <button
           style={{ ...s.sendBtn, ...(!texto.trim() || sending ? s.sendBtnDisabled : {}) }}
           onClick={handleEnviar}
           disabled={!texto.trim() || sending}
         >
-          <span style={s.sendIcon}>➤</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(45deg)', marginLeft: 2 }}>
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
         </button>
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:.2}50%{opacity:1}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:.2;transform:scale(0.8)}50%{opacity:1;transform:scale(1)}}`}</style>
     </div>
   )
 }
 
 const s = {
-  header: { position: 'relative', backgroundColor: BLUE, padding: '48px 20px 14px', display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', flexShrink: 0 },
-  headerBubble: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: '#1a6fdf', top: -70, right: -40, opacity: 0.45 },
-  clinicAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid rgba(255,255,255,0.35)', flexShrink: 0 },
+  header: { position: 'relative', background: 'linear-gradient(135deg, #0047AB 0%, #1d6fef 100%)', padding: '48px 20px 14px', display: 'flex', alignItems: 'center', gap: 14, overflow: 'hidden', flexShrink: 0, boxShadow: '0 4px 20px rgba(0,71,171,0.2)' },
+  headerBubble: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.07)', top: -80, right: -50 },
+  clinicAvatar: { width: 46, height: 46, borderRadius: 23, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.3)', flexShrink: 0 },
   headerNome: { fontSize: 16, fontWeight: 700, color: '#fff' },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ADE80', display: 'inline-block' },
   headerStatus: { fontSize: 11, color: 'rgba(255,255,255,0.75)' },
-  headerAction: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' },
-  messages: { flex: 1, overflowY: 'auto', padding: 16 },
-  msgAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  bubble: { borderRadius: 18, padding: 12 },
-  bubbleMe: { backgroundColor: BLUE, borderBottomRightRadius: 4 },
-  bubbleThem: { backgroundColor: '#fff', borderBottomLeftRadius: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderRadius: 18, padding: 12 },
+  headerAction: { width: 38, height: 38, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0 },
+  messages: { flex: 1, overflowY: 'auto', padding: '12px 14px' },
+  msgAvatar: { width: 28, height: 28, borderRadius: 14, background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  bubble: { borderRadius: 18, padding: '10px 14px' },
+  bubbleMe: { background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', borderBottomRightRadius: 4 },
+  bubbleThem: { backgroundColor: '#fff', borderBottomLeftRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderRadius: 18, padding: '10px 14px' },
   bubbleText: { fontSize: 14, color: '#0D1B2A', lineHeight: '20px' },
   bubbleTextMe: { color: '#fff' },
   bubbleTime: { fontSize: 10, color: '#9CA3AF', marginTop: 5, textAlign: 'right' },
   bubbleTimeMe: { color: 'rgba(255,255,255,0.55)' },
-  dateRow: { display: 'flex', justifyContent: 'center', margin: '8px 0' },
-  dateText: { fontSize: 11, color: '#9CA3AF', backgroundColor: '#E0E7FF', padding: '4px 12px', borderRadius: 50 },
-  msgImg: { width: 200, height: 160, borderRadius: 10, objectFit: 'cover', marginBottom: 4, display: 'block' },
+  dateRow: { display: 'flex', justifyContent: 'center', margin: '10px 0' },
+  dateText: { fontSize: 11, color: '#6B7280', backgroundColor: 'rgba(255,255,255,0.8)', padding: '4px 14px', borderRadius: 50, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
+  systemMsg: { backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: 14, padding: '10px 16px', margin: '8px 0', border: '1px solid #E5E7EB' },
+  encerramentoBanner: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px', margin: '8px 0' },
+  novaConversaBtn: { background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: 'none', borderRadius: 12, padding: '10px 24px', fontSize: 13, color: '#fff', fontWeight: 700, cursor: 'pointer' },
+  msgImg: { width: 200, height: 160, borderRadius: 12, objectFit: 'cover', marginBottom: 4, display: 'block' },
   docRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, textDecoration: 'none' },
   docIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   anexoMenu: { backgroundColor: '#fff', borderTop: '1px solid #E5E7EB', display: 'flex', padding: 16, gap: 24, flexShrink: 0 },
   anexoOpt: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer' },
   anexoIconBox: { width: 54, height: 54, borderRadius: 16, backgroundColor: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   anexoLabel: { fontSize: 12, color: '#374151', fontWeight: 500 },
-  inputBar: { display: 'flex', alignItems: 'flex-end', padding: 12, backgroundColor: '#fff', borderTop: '1px solid #E5E7EB', gap: 10, flexShrink: 0 },
-  clipBtn: { width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer' },
-  input: { flex: 1, backgroundColor: '#EEF2FF', borderRadius: 22, padding: '10px 16px', fontSize: 14, color: '#0D1B2A', maxHeight: 100, border: 'none', outline: 'none', resize: 'none', fontFamily: 'inherit' },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0 },
-  sendBtnDisabled: { backgroundColor: '#D1D5DB' },
-  sendIcon: { color: '#fff', fontSize: 16 },
+  inputBar: { display: 'flex', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fff', borderTop: '1px solid #F3F4F6', gap: 10, flexShrink: 0 },
+  clipBtn: { width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0 },
+  input: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 22, padding: '10px 16px', fontSize: 14, color: '#0D1B2A', maxHeight: 100, border: 'none', outline: 'none', resize: 'none', fontFamily: 'inherit' },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0, boxShadow: '0 2px 8px rgba(0,71,171,0.3)' },
+  sendBtnDisabled: { background: '#E5E7EB', boxShadow: 'none' },
 }
