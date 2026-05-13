@@ -87,7 +87,6 @@ export default function ChatScreen() {
     <View style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0047AB" />
 
-      {/* Header azul */}
       <View style={s.header}>
         <View style={s.headerCircle} />
         <View style={s.headerAvatar}>
@@ -103,7 +102,7 @@ export default function ChatScreen() {
         <ScrollView
           ref={scrollRef}
           style={s.messages}
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
           {mensagens.length === 0 && (
@@ -169,7 +168,11 @@ export default function ChatScreen() {
             multiline
             maxLength={500}
           />
-          <TouchableOpacity style={[s.sendBtn, (!texto.trim() || sending) && s.sendBtnDisabled]} onPress={handleEnviar} disabled={!texto.trim() || sending}>
+          <TouchableOpacity
+            style={[s.sendBtn, (!texto.trim() || sending) && s.sendBtnDisabled]}
+            onPress={handleEnviar}
+            disabled={!texto.trim() || sending}
+          >
             <Text style={s.sendIcon}>➤</Text>
           </TouchableOpacity>
         </View>
