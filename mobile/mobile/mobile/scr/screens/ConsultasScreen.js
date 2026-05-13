@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, RefreshControl } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, RefreshControl, StatusBar } from 'react-native'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -48,17 +48,25 @@ export default function ConsultasScreen() {
 
   return (
     <View style={s.container}>
-      <View style={s.filtroBar}>
-        {['futuras', 'passadas'].map(f => (
-          <TouchableOpacity key={f} style={[s.filtroBtn, filtro === f && s.filtroBtnOn]} onPress={() => setFiltro(f)}>
-            <Text style={[s.filtroBtnText, filtro === f && s.filtroBtnTextOn]}>
-              {f === 'futuras' ? `Próximas (${futuras.length})` : `Histórico (${passadas.length})`}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <StatusBar barStyle="light-content" backgroundColor="#0047AB" />
+
+      {/* Header azul */}
+      <View style={s.header}>
+        <View style={s.headerCircle} />
+        <Text style={s.headerTitle}>Minhas Consultas</Text>
+        <Text style={s.headerSub}>{futuras.length} consulta(s)</Text>
+        <View style={s.tabs}>
+          {['futuras', 'passadas'].map(f => (
+            <TouchableOpacity key={f} style={[s.tab, filtro === f && s.tabOn]} onPress={() => setFiltro(f)}>
+              <Text style={[s.tabText, filtro === f && s.tabTextOn]}>
+                {f === 'futuras' ? `Próximas (${futuras.length})` : `Histórico (${passadas.length})`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
-      <ScrollView style={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchConsultas() }} />}>
+      <ScrollView style={s.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchConsultas() }} tintColor="#0047AB" />}>
         {lista.length === 0 && (
           <View style={s.empty}>
             <Text style={s.emptyIcon}>📭</Text>
@@ -69,7 +77,7 @@ export default function ConsultasScreen() {
         {lista.map(c => (
           <View key={c.id} style={s.card}>
             <View style={s.cardTop}>
-              <View style={s.cardDateBlock}>
+              <View>
                 <Text style={s.cardData}>{fmtData(c.data)}</Text>
                 <Text style={s.cardHora}>⏰ {c.hora?.slice(0, 5)}</Text>
               </View>
@@ -128,20 +136,23 @@ export default function ConsultasScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F4FA' },
-  filtroBar: { flexDirection: 'row', backgroundColor: '#fff', padding: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  filtroBtn: { flex: 1, padding: 11, borderRadius: 12, alignItems: 'center', backgroundColor: '#F3F4F6' },
-  filtroBtnOn: { backgroundColor: '#0047AB' },
-  filtroBtnText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
-  filtroBtnTextOn: { color: '#fff' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  header: { backgroundColor: '#0047AB', paddingTop: 52, paddingHorizontal: 20, paddingBottom: 0, overflow: 'hidden' },
+  headerCircle: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: '#1a6fdf', top: -60, right: -40, opacity: 0.5 },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 16 },
+  tabs: { flexDirection: 'row', gap: 8 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderTopLeftRadius: 12, borderTopRightRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)' },
+  tabOn: { backgroundColor: '#fff' },
+  tabText: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  tabTextOn: { color: '#0047AB' },
   list: { flex: 1, padding: 16 },
-  empty: { alignItems: 'center', paddingTop: 60, paddingBottom: 40 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A', marginBottom: 6 },
+  empty: { alignItems: 'center', paddingTop: 60 },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#0D1B2A', marginBottom: 4 },
   emptyText: { fontSize: 13, color: '#9CA3AF' },
-  card: { backgroundColor: '#fff', borderRadius: 18, padding: 18, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+  card: { backgroundColor: '#fff', borderRadius: 18, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  cardDateBlock: { flex: 1 },
   cardData: { fontSize: 14, fontWeight: '700', color: '#0D1B2A', marginBottom: 4 },
   cardHora: { fontSize: 13, color: '#0047AB', fontWeight: '600' },
   divider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 12 },
