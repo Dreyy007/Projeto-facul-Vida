@@ -28,7 +28,7 @@ const acoes = [
   },
   {
     icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
-    label: 'Agendar', sub: 'Nova consulta', bg: '#FFFBEB', color: '#D97706', to: '/consultas'
+    label: 'Agendar', sub: 'Nova consulta', bg: '#FFFBEB', color: '#D97706', to: '/agendar'
   },
   {
     icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
@@ -99,7 +99,7 @@ export default function Home() {
             <div style={s.semConsultaLeft}>
               <p style={s.semConsultaTitulo}>Nenhuma consulta agendada</p>
               <p style={s.semConsultaSub}>Que tal agendar sua próxima consulta?</p>
-              <button onClick={() => navigate('/consultas')} style={s.agendarBtn}>Agendar consulta</button>
+              <button onClick={() => navigate('/agendar')} style={s.agendarBtn}>Agendar consulta</button>
             </div>
             <div style={s.semConsultaIcon}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#BFDBFE" strokeWidth="1.2" strokeLinecap="round">
