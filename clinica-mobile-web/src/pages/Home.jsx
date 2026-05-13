@@ -67,12 +67,12 @@ export default function Home() {
         <div style={s.headerBg} />
         <div style={s.headerContent}>
           <div>
-            <p style={s.greeting}>{saudacao()}, 👋</p>
+            <p style={s.greeting}>{saudacao()} <span style={{ fontSize: 18 }}>👋</span></p>
             <p style={s.nome}>{paciente?.nome?.split(' ')[0] || 'Paciente'}</p>
             <p style={s.headerSub}>Como você está hoje?</p>
           </div>
           <button style={s.notifBtn} onClick={() => navigate('/chat')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={msgs > 0 ? '#0047AB' : '#6B7280'} strokeWidth="2" strokeLinecap="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={msgs > 0 ? '#fff' : 'rgba(255,255,255,0.9)'} strokeWidth="2" strokeLinecap="round">
               <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
             </svg>
             {msgs > 0 && <span style={s.badge}>{msgs}</span>}
@@ -165,10 +165,10 @@ const s = {
   header: { position: 'relative', overflow: 'hidden', marginBottom: 0 },
   headerBg: { position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0047AB 0%, #1d6fef 100%)' },
   headerContent: { position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '52px 16px 28px' },
-  greeting: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 500, marginBottom: 2 },
+  greeting: { fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: 500, marginBottom: 2 },
   nome: { fontSize: 30, fontWeight: 900, color: '#fff', marginBottom: 4, lineHeight: 1.1 },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
-  notifBtn: { position: 'relative', width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', flexShrink: 0 },
+  notifBtn: { position: 'relative', width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid rgba(255,255,255,0.4)', cursor: 'pointer', flexShrink: 0 },
   badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0047AB', fontSize: 9, fontWeight: 800, color: '#fff', padding: '0 3px' },
 
   proximaCard: { position: 'relative', marginTop: -1, marginBottom: 20, background: 'linear-gradient(135deg, #003d99 0%, #0055cc 100%)', borderRadius: '0 0 24px 24px', padding: '20px 20px 24px', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,71,171,0.25)' },
