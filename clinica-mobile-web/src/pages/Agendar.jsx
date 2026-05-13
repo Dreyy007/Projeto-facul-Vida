@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -16,6 +16,102 @@ function gerarHorarios(horaInicio, horaFim, intervalo) {
     atual += intervalo
   }
   return horarios
+}
+
+function CalendarioMes({ diasDisponiveis, dataSel, onSelect }) {
+  const disponiveisSet = new Set(diasDisponiveis)
+  const hoje = new Date()
+  const [mesAtual, setMesAtual] = useState(() => {
+    const d = diasDisponiveis[0] ? new Date(diasDisponiveis[0] + 'T12:00:00') : new Date()
+    return { mes: d.getMonth(), ano: d.getFullYear() }
+  })
+
+  const DIAS_SEMANA_LABEL = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+  const MESES_LABEL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+
+  const primeiroDia = new Date(mesAtual.ano, mesAtual.mes, 1).getDay()
+  const totalDias = new Date(mesAtual.ano, mesAtual.mes + 1, 0).getDate()
+
+  const cells = []
+  for (let i = 0; i < primeiroDia; i++) cells.push(null)
+  for (let d = 1; d <= totalDias; d++) cells.push(d)
+
+  function podeMesAnterior() {
+    return mesAtual.mes > hoje.getMonth() || mesAtual.ano > hoje.getFullYear()
+  }
+
+  function mudarMes(dir) {
+    setMesAtual(prev => {
+      let mes = prev.mes + dir
+      let ano = prev.ano
+      if (mes < 0) { mes = 11; ano-- }
+      if (mes > 11) { mes = 0; ano++ }
+      return { mes, ano }
+    })
+  }
+
+  return (
+    <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 16, border: '1px solid #F3F4F6', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <button
+          onClick={() => podeMesAnterior() && mudarMes(-1)}
+          style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid #E5E7EB', background: podeMesAnterior() ? '#fff' : '#F9FAFB', cursor: podeMesAnterior() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={podeMesAnterior() ? '#374151' : '#D1D5DB'} strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <p style={{ fontSize: 15, fontWeight: 800, color: '#0D1B2A' }}>{MESES_LABEL[mesAtual.mes]} {mesAtual.ano}</p>
+        <button
+          onClick={() => mudarMes(1)}
+          style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 8 }}>
+        {DIAS_SEMANA_LABEL.map(d => (
+          <p key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#9CA3AF' }}>{d}</p>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {cells.map((dia, i) => {
+          if (!dia) return <div key={`empty-${i}`} />
+          const dateStr = `${mesAtual.ano}-${String(mesAtual.mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+          const disponivel = disponiveisSet.has(dateStr)
+          const selecionado = dataSel === dateStr
+          const isHoje = dateStr === hoje.toISOString().split('T')[0]
+          return (
+            <button
+              key={dateStr}
+              disabled={!disponivel}
+              onClick={() => disponivel && onSelect(dateStr)}
+              style={{
+                height: 40, borderRadius: 12,
+                border: isHoje && !selecionado ? '2px solid #0047AB' : '1.5px solid transparent',
+                background: selecionado ? 'linear-gradient(135deg, #0047AB, #1a6fdf)' : disponivel ? '#EFF6FF' : 'transparent',
+                cursor: disponivel ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <p style={{ fontSize: 13, fontWeight: selecionado || disponivel ? 700 : 400, color: selecionado ? '#fff' : disponivel ? '#0047AB' : '#D1D5DB' }}>{dia}</p>
+            </button>
+          )
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#0047AB' }} />
+          <p style={{ fontSize: 11, color: '#6B7280' }}>Disponível</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#E5E7EB' }} />
+          <p style={{ fontSize: 11, color: '#6B7280' }}>Indisponível</p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function Agendar() {
@@ -37,11 +133,7 @@ export default function Agendar() {
   useEffect(() => { fetchMedicos() }, [])
 
   async function fetchMedicos() {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('tipo', 'medico')
-      .eq('ativo', true)
+    const { data } = await supabase.from('profiles').select('*').eq('tipo', 'medico').eq('ativo', true)
     setMedicos(data || [])
   }
 
@@ -50,23 +142,15 @@ export default function Agendar() {
     setDataSel('')
     setHorarioSel('')
     setLoadingDatas(true)
-
-    const { data: escalas } = await supabase
-      .from('escalas')
-      .select('dia_semana')
-      .eq('medico_id', medico.id)
-      .eq('ativo', true)
-
+    const { data: escalas } = await supabase.from('escalas').select('dia_semana').eq('medico_id', medico.id).eq('ativo', true)
     const diasComEscala = (escalas || []).map(e => e.dia_semana)
     const dias = []
     const hoje = new Date()
     for (let i = 1; i <= 90; i++) {
       const d = new Date(hoje)
       d.setDate(hoje.getDate() + i)
-      if (diasComEscala.includes(d.getDay())) {
-        dias.push(d.toISOString().split('T')[0])
-      }
-      if (dias.length >= 30) break
+      if (diasComEscala.includes(d.getDay())) dias.push(d.toISOString().split('T')[0])
+      if (dias.length >= 60) break
     }
     setDiasDisponiveis(dias)
     setLoadingDatas(false)
@@ -77,27 +161,11 @@ export default function Agendar() {
     setDataSel(data)
     setHorarioSel('')
     setLoadingHorarios(true)
-
     const diaSemana = new Date(data + 'T12:00:00').getDay()
-    const { data: escalas } = await supabase
-      .from('escalas')
-      .select('*')
-      .eq('medico_id', medicoSel.id)
-      .eq('dia_semana', diaSemana)
-      .eq('ativo', true)
-
+    const { data: escalas } = await supabase.from('escalas').select('*').eq('medico_id', medicoSel.id).eq('dia_semana', diaSemana).eq('ativo', true)
     let todosHorarios = []
-    ;(escalas || []).forEach(e => {
-      todosHorarios = [...todosHorarios, ...gerarHorarios(e.hora_inicio, e.hora_fim, e.intervalo_minutos)]
-    })
-
-    const { data: agendados } = await supabase
-      .from('consultas')
-      .select('hora')
-      .eq('medico_id', medicoSel.id)
-      .eq('data', data)
-      .not('status', 'in', '("cancelada")')
-
+    ;(escalas || []).forEach(e => { todosHorarios = [...todosHorarios, ...gerarHorarios(e.hora_inicio, e.hora_fim, e.intervalo_minutos)] })
+    const { data: agendados } = await supabase.from('consultas').select('hora').eq('medico_id', medicoSel.id).eq('data', data).not('status', 'in', '("cancelada")')
     const ocupados = (agendados || []).map(a => a.hora.slice(0, 5))
     setHorariosDisponiveis(todosHorarios.filter(h => !ocupados.includes(h)))
     setLoadingHorarios(false)
@@ -137,16 +205,10 @@ export default function Agendar() {
         <div style={{ backgroundColor: '#FEF3C7', borderRadius: 14, padding: '12px 16px', marginBottom: 32, border: '1px solid #FDE68A', width: '100%' }}>
           <p style={{ fontSize: 13, color: '#92400E', textAlign: 'center' }}>⏳ Aguardando confirmação da clínica</p>
         </div>
-        <button
-          style={{ width: '100%', background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: 'none', borderRadius: 14, padding: '15px 32px', fontSize: 15, color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-          onClick={() => navigate('/consultas')}
-        >
+        <button style={{ width: '100%', background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: 'none', borderRadius: 14, padding: '15px 32px', fontSize: 15, color: '#fff', fontWeight: 700, cursor: 'pointer', marginBottom: 10 }} onClick={() => navigate('/consultas')}>
           Ver minhas consultas
         </button>
-        <button
-          style={{ width: '100%', background: 'none', border: 'none', borderRadius: 14, padding: '12px', fontSize: 14, color: '#6B7280', fontWeight: 600, cursor: 'pointer', marginTop: 8 }}
-          onClick={() => navigate('/')}
-        >
+        <button style={{ width: '100%', background: 'none', border: 'none', borderRadius: 14, padding: '12px', fontSize: 14, color: '#6B7280', fontWeight: 600, cursor: 'pointer' }} onClick={() => navigate('/')}>
           Voltar ao início
         </button>
       </div>
@@ -155,7 +217,6 @@ export default function Agendar() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
-      {/* Header */}
       <div style={s.header}>
         <div style={s.headerCircle} />
         <button style={s.backBtn} onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)}>
@@ -204,33 +265,17 @@ export default function Agendar() {
               <div style={s.resumoAvatar}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#0D1B2A' }}>{medicoSel?.nome}</p>
                 <p style={{ fontSize: 11, color: '#6B7280' }}>{medicoSel?.especialidade}</p>
               </div>
             </div>
-
             <p style={s.sectionTitle}>Selecione a data</p>
             {loadingDatas && <p style={s.loadingText}>Carregando datas...</p>}
-            {!loadingDatas && diasDisponiveis.length === 0 && (
-              <p style={s.emptyText}>Nenhuma data disponível para este profissional.</p>
+            {!loadingDatas && diasDisponiveis.length === 0 && <p style={s.emptyText}>Nenhuma data disponível para este profissional.</p>}
+            {!loadingDatas && diasDisponiveis.length > 0 && (
+              <CalendarioMes diasDisponiveis={diasDisponiveis} dataSel={dataSel} onSelect={handleSelecionarData} />
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {diasDisponiveis.map(d => {
-                const dt = new Date(d + 'T12:00:00')
-                const diaSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dt.getDay()]
-                const dia = dt.getDate()
-                const mes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][dt.getMonth()]
-                const sel = dataSel === d
-                return (
-                  <button key={d} style={{ ...s.diaCard, ...(sel ? s.diaCardSel : {}) }} onClick={() => handleSelecionarData(d)}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: sel ? 'rgba(255,255,255,0.8)' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 }}>{diaSemana}</p>
-                    <p style={{ fontSize: 24, fontWeight: 900, color: sel ? '#fff' : '#0D1B2A', lineHeight: 1.1 }}>{dia}</p>
-                    <p style={{ fontSize: 10, color: sel ? 'rgba(255,255,255,0.8)' : '#6B7280', textTransform: 'uppercase' }}>{mes}</p>
-                  </button>
-                )
-              })}
-            </div>
           </div>
         )}
 
@@ -247,7 +292,6 @@ export default function Agendar() {
               </div>
               <button style={s.trocarBtn} onClick={() => setStep(2)}>Trocar data</button>
             </div>
-
             <p style={s.sectionTitle}>Selecione o horário</p>
             {loadingHorarios && <p style={s.loadingText}>Carregando horários...</p>}
             {!loadingHorarios && horariosDisponiveis.length === 0 && (
@@ -260,8 +304,7 @@ export default function Agendar() {
               {horariosDisponiveis.map(h => {
                 const sel = horarioSel === h
                 return (
-                  <button key={h} style={{ ...s.horarioCard, ...(sel ? s.horarioCardSel : {}) }}
-                    onClick={() => { setHorarioSel(h); setStep(4) }}>
+                  <button key={h} style={{ ...s.horarioCard, ...(sel ? s.horarioCardSel : {}) }} onClick={() => { setHorarioSel(h); setStep(4) }}>
                     <p style={{ fontSize: 16, fontWeight: 700, color: sel ? '#fff' : '#0D1B2A' }}>{h}</p>
                   </button>
                 )
@@ -274,7 +317,6 @@ export default function Agendar() {
         {step === 4 && (
           <div>
             <p style={s.sectionTitle}>Confirme o agendamento</p>
-
             <div style={s.confirmCard}>
               <div style={s.confirmRow}>
                 <div style={s.confirmIconBox}>
@@ -316,16 +358,13 @@ export default function Agendar() {
                 </div>
               </div>
             </div>
-
             <div style={s.avisoBox}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               <p style={{ fontSize: 13, color: '#92400E', marginLeft: 8 }}>Seu agendamento ficará aguardando confirmação da clínica.</p>
             </div>
-
             <button style={{ ...s.confirmarBtn, opacity: saving ? 0.7 : 1 }} onClick={handleConfirmar} disabled={saving}>
               {saving ? 'Agendando...' : 'Confirmar agendamento'}
             </button>
-
             <button style={s.voltarBtn} onClick={() => setStep(3)}>Voltar e escolher outro horário</button>
           </div>
         )}
@@ -356,8 +395,6 @@ const s = {
   resumoCard: { backgroundColor: '#EFF6FF', borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, border: '1px solid #DBEAFE' },
   resumoAvatar: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   trocarBtn: { background: 'none', border: '1px solid #BFDBFE', borderRadius: 10, padding: '5px 12px', fontSize: 12, color: '#0047AB', fontWeight: 600, cursor: 'pointer', flexShrink: 0 },
-  diaCard: { backgroundColor: '#fff', borderRadius: 16, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, border: '1.5px solid #F3F4F6', cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' },
-  diaCardSel: { background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: '1.5px solid #0047AB' },
   horarioCard: { backgroundColor: '#fff', borderRadius: 14, padding: '16px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #F3F4F6', cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' },
   horarioCardSel: { background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: '1.5px solid #0047AB' },
   confirmCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 14, border: '1px solid #F3F4F6', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
