@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, StatusBar } from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -41,67 +40,77 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="light-content" />
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDados() }} tintColor="#fff" />} showsVerticalScrollIndicator={false}>
-
-        {/* Header */}
-        <LinearGradient colors={['#0047AB', '#1a6fdf']} style={s.header}>
-          <View style={s.headerRow}>
-            <View>
-              <Text style={s.greeting}>{saudacao()} 👋</Text>
-              <Text style={s.nome}>{paciente?.nome?.split(' ')[0]}</Text>
-            </View>
-            <TouchableOpacity style={s.chatBtn} onPress={() => navigation.navigate('Chat')}>
-              <Text style={s.chatBtnIcon}>💬</Text>
-              {msgs > 0 && <View style={s.badge}><Text style={s.badgeText}>{msgs}</Text></View>}
-            </TouchableOpacity>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDados() }} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header branco */}
+        <View style={s.header}>
+          <View>
+            <Text style={s.greeting}>{saudacao()} 👋</Text>
+            <Text style={s.nome}>{paciente?.nome?.split(' ')[0]}</Text>
           </View>
+          <TouchableOpacity style={s.chatBtn} onPress={() => navigation.navigate('Chat')}>
+            <Text style={s.chatBtnIcon}>🔔</Text>
+            {msgs > 0 && <View style={s.badge}><Text style={s.badgeText}>{msgs}</Text></View>}
+          </TouchableOpacity>
+        </View>
 
-          {/* Próxima consulta dentro do header */}
-          {proxima ? (
-            <View style={s.proximaCard}>
-              <Text style={s.proximaLabel}>● PRÓXIMA CONSULTA</Text>
-              <Text style={s.proximaData}>{fmtData(proxima.data)}</Text>
-              <Text style={s.proximaHora}>⏰ {hora(proxima.hora)} · Dr(a). {proxima.medico?.nome}</Text>
-              <View style={s.proximaRow}>
-                <Text style={s.proximaTipo}>{proxima.tipo}</Text>
-                <View style={[s.statusTag, { backgroundColor: statusBg[proxima.status] || '#F3F4F6' }]}>
-                  <Text style={[s.statusText, { color: statusColor[proxima.status] || '#374151' }]}>{statusLabel[proxima.status] || proxima.status}</Text>
-                </View>
+        {/* Card azul próxima consulta */}
+        {proxima ? (
+          <View style={s.proximaCard}>
+            <View style={s.proximaCircle} />
+            <Text style={s.proximaLabel}>● PRÓXIMA CONSULTA</Text>
+            <Text style={s.proximaData}>{fmtData(proxima.data)}</Text>
+            <Text style={s.proximaHora}>⏰ {hora(proxima.hora)} · Dr(a). {proxima.medico?.nome}</Text>
+            <View style={s.proximaRow}>
+              <Text style={s.proximaTipo}>{proxima.tipo}</Text>
+              <View style={[s.statusTagDark, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Text style={s.statusTagDarkText}>{statusLabel[proxima.status] || proxima.status}</Text>
               </View>
             </View>
-          ) : (
-            <View style={s.semConsultaCard}>
-              <Text style={s.semConsultaText}>Nenhuma consulta agendada</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Consultas')}>
-                <Text style={s.semConsultaLink}>Agendar →</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </LinearGradient>
+          </View>
+        ) : (
+          <View style={s.semConsultaCard}>
+            <Text style={s.semConsultaEmoji}>📭</Text>
+            <Text style={s.semConsultaText}>Nenhuma consulta agendada</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Consultas')}>
+              <Text style={s.semConsultaLink}>Agendar →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* Cards de ação */}
-        <View style={s.acoes}>
-          <TouchableOpacity style={s.acaoCard} onPress={() => navigation.navigate('Consultas')}>
-            <View style={[s.acaoIcon, { backgroundColor: '#EFF6FF' }]}><Text style={s.acaoEmoji}>📋</Text></View>
-            <Text style={s.acaoLabel}>Consultas</Text>
-            <Text style={s.acaoSub}>Ver histórico</Text>
+        {/* Título ações */}
+        <View style={s.acoesHeader}>
+          <Text style={s.acoesTitle}>Ações rápidas</Text>
+        </View>
+
+        {/* Grid 2x2 com borda */}
+        <View style={s.grid}>
+          <TouchableOpacity style={s.gridCard} onPress={() => navigation.navigate('Consultas')}>
+            <View style={[s.gridIcon, { backgroundColor: '#EFF6FF' }]}><Text style={s.gridEmoji}>📋</Text></View>
+            <Text style={s.gridLabel}>Consultas</Text>
+            <Text style={s.gridSub}>Ver histórico</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.acaoCard} onPress={() => navigation.navigate('Chat')}>
-            <View style={[s.acaoIcon, { backgroundColor: '#F0FDF4' }]}><Text style={s.acaoEmoji}>💬</Text></View>
-            <Text style={s.acaoLabel}>Chat</Text>
-            <Text style={s.acaoSub}>Fale conosco</Text>
-            {msgs > 0 && <View style={s.acaoBadge}><Text style={s.acaoBadgeText}>{msgs}</Text></View>}
+
+          <TouchableOpacity style={s.gridCard} onPress={() => navigation.navigate('Chat')}>
+            <View style={[s.gridIcon, { backgroundColor: '#F0FDF4' }]}><Text style={s.gridEmoji}>💬</Text></View>
+            <Text style={s.gridLabel}>Chat</Text>
+            <Text style={s.gridSub}>Fale conosco</Text>
+            {msgs > 0 && <View style={s.gridBadge}><Text style={s.gridBadgeText}>{msgs}</Text></View>}
           </TouchableOpacity>
-          <TouchableOpacity style={s.acaoCard} onPress={() => navigation.navigate('Consultas')}>
-            <View style={[s.acaoIcon, { backgroundColor: '#FFF7ED' }]}><Text style={s.acaoEmoji}>➕</Text></View>
-            <Text style={s.acaoLabel}>Agendar</Text>
-            <Text style={s.acaoSub}>Nova consulta</Text>
+
+          <TouchableOpacity style={s.gridCard} onPress={() => navigation.navigate('Consultas')}>
+            <View style={[s.gridIcon, { backgroundColor: '#FFF7ED' }]}><Text style={s.gridEmoji}>➕</Text></View>
+            <Text style={s.gridLabel}>Agendar</Text>
+            <Text style={s.gridSub}>Nova consulta</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.acaoCard} onPress={() => navigation.navigate('Perfil')}>
-            <View style={[s.acaoIcon, { backgroundColor: '#FAF5FF' }]}><Text style={s.acaoEmoji}>📄</Text></View>
-            <Text style={s.acaoLabel}>Resultados</Text>
-            <Text style={s.acaoSub}>Meus exames</Text>
+
+          <TouchableOpacity style={s.gridCard} onPress={() => navigation.navigate('Perfil')}>
+            <View style={[s.gridIcon, { backgroundColor: '#FAF5FF' }]}><Text style={s.gridEmoji}>📄</Text></View>
+            <Text style={s.gridLabel}>Resultados</Text>
+            <Text style={s.gridSub}>Meus exames</Text>
           </TouchableOpacity>
         </View>
 
@@ -126,7 +135,7 @@ export default function HomeScreen({ navigation }) {
                   <Text style={s.consultaTipo}>{c.tipo}</Text>
                 </View>
                 <View style={[s.statusTag, { backgroundColor: statusBg[c.status] || '#F3F4F6' }]}>
-                  <Text style={[s.statusText, { color: statusColor[c.status] || '#374151', fontSize: 10 }]}>{statusLabel[c.status] || c.status}</Text>
+                  <Text style={[s.statusText, { color: statusColor[c.status] || '#374151' }]}>{statusLabel[c.status] || c.status}</Text>
                 </View>
               </View>
             ))}
@@ -139,39 +148,47 @@ export default function HomeScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F4FA' },
-  header: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 28 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  greeting: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
-  nome: { fontSize: 26, fontWeight: '800', color: '#fff', marginTop: 2 },
-  chatBtn: { width: 46, height: 46, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  chatBtnIcon: { fontSize: 22 },
-  badge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#0047AB' },
+  container: { flex: 1, backgroundColor: '#fff' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 20, backgroundColor: '#fff' },
+  greeting: { fontSize: 13, color: '#9CA3AF', fontWeight: '500' },
+  nome: { fontSize: 26, fontWeight: '800', color: '#0D1B2A', marginTop: 2 },
+  chatBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  chatBtnIcon: { fontSize: 20 },
+  badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   badgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  proximaCard: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 18, padding: 18 },
-  proximaLabel: { fontSize: 10, fontWeight: '800', color: '#93C5FD', letterSpacing: 1, marginBottom: 6 },
-  proximaData: { fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  proximaHora: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 12 },
+
+  proximaCard: { marginHorizontal: 20, marginBottom: 24, backgroundColor: '#0047AB', borderRadius: 22, padding: 22, overflow: 'hidden' },
+  proximaCircle: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: '#1a6fdf', top: -30, right: -30, opacity: 0.5 },
+  proximaLabel: { fontSize: 10, fontWeight: '800', color: '#93C5FD', letterSpacing: 1, marginBottom: 8 },
+  proximaData: { fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 6 },
+  proximaHora: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 14 },
   proximaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   proximaTipo: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
-  semConsultaCard: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  semConsultaText: { fontSize: 14, color: 'rgba(255,255,255,0.7)' },
-  semConsultaLink: { fontSize: 14, color: '#93C5FD', fontWeight: '700' },
-  statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 50 },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  acoes: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, gap: 12 },
-  acaoCard: { width: '47%', backgroundColor: '#fff', borderRadius: 18, padding: 18, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
-  acaoIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  acaoEmoji: { fontSize: 22 },
-  acaoLabel: { fontSize: 14, fontWeight: '700', color: '#0D1B2A', marginBottom: 2 },
-  acaoSub: { fontSize: 11, color: '#9CA3AF' },
-  acaoBadge: { position: 'absolute', top: 14, right: 14, backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
-  acaoBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  section: { paddingHorizontal: 16 },
+  statusTagDark: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 50 },
+  statusTagDarkText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+
+  semConsultaCard: { marginHorizontal: 20, marginBottom: 24, backgroundColor: '#F8FAFC', borderRadius: 22, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed' },
+  semConsultaEmoji: { fontSize: 36, marginBottom: 10 },
+  semConsultaText: { fontSize: 14, color: '#6B7280', marginBottom: 10 },
+  semConsultaLink: { fontSize: 14, color: '#0047AB', fontWeight: '700' },
+
+  acoesHeader: { paddingHorizontal: 20, marginBottom: 12 },
+  acoesTitle: { fontSize: 17, fontWeight: '800', color: '#0D1B2A' },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, gap: 12, marginBottom: 28 },
+  gridCard: { width: '47%', backgroundColor: '#fff', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#E5E7EB' },
+  gridIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  gridEmoji: { fontSize: 22 },
+  gridLabel: { fontSize: 14, fontWeight: '700', color: '#0D1B2A', marginBottom: 3 },
+  gridSub: { fontSize: 11, color: '#9CA3AF' },
+  gridBadge: { position: 'absolute', top: 14, right: 14, backgroundColor: '#EF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center' },
+  gridBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+
+  section: { paddingHorizontal: 20 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: '#0D1B2A' },
   sectionLink: { fontSize: 13, color: '#0047AB', fontWeight: '600' },
-  consultaItem: { backgroundColor: '#fff', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  consultaItem: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E5E7EB' },
   consultaDate: { width: 48, height: 48, backgroundColor: '#EFF6FF', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   consultaDay: { fontSize: 20, fontWeight: '800', color: '#0047AB', lineHeight: 22 },
   consultaMon: { fontSize: 10, color: '#6B7280', textTransform: 'uppercase', fontWeight: '600' },
@@ -179,4 +196,6 @@ const s = StyleSheet.create({
   consultaHora: { fontSize: 13, fontWeight: '700', color: '#0047AB' },
   consultaMed: { fontSize: 13, color: '#0D1B2A', fontWeight: '500' },
   consultaTipo: { fontSize: 11, color: '#9CA3AF' },
+  statusTag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 50 },
+  statusText: { fontSize: 10, fontWeight: '700' },
 })
