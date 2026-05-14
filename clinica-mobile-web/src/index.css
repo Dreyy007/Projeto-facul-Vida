@@ -19,8 +19,6 @@
   --p3: #EFF6FF;
   --nav-bg: #ffffff;
   --nav-border: #E5E7EB;
-  --input-bg: #F1F5F9;
-  --shadow: rgba(0,0,0,0.06);
 }
 
 /* ============ TEMA ESCURO ============ */
@@ -38,15 +36,21 @@
   --p3: #1a2f5c;
   --nav-bg: #161b27;
   --nav-border: #2a3349;
-  --input-bg: #1e2435;
-  --shadow: rgba(0,0,0,0.3);
 }
 
-html, body {
+/* Trava bounce do iOS no body */
+html {
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: #e5e7eb;
+  background: #f1f5f9;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -60,16 +64,18 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: background 0.3s, color 0.3s;
 }
 
+/* Área de conteúdo — só ela scrolla */
 .page-content {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
 }
 
+/* Navbar sempre colada ao fundo */
 .navbar {
   flex-shrink: 0;
   display: flex;
