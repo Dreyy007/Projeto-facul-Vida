@@ -56,6 +56,36 @@ export default function Chat() {
       return
     }
 
+    // Verifica se bot já foi iniciado mas não concluído (paciente saiu no meio)
+    const { data: botMsgsDb } = await supabase
+      .from('mensagens')
+      .select('*')
+      .eq('paciente_id', paciente.id)
+      .eq('tipo', 'bot')
+      .order('criado_em')
+    
+    const botConcluido = botMsgsDb?.some(m => m.remetente === 'clinica' && m.conteudo?.includes('Agora pode digitar'))
+    
+    if (botMsgsDb && botMsgsDb.length > 0 && !botConcluido) {
+      // Bot iniciado mas não concluído — retoma de onde parou
+      const respostas = botMsgsDb.filter(m => m.remetente === 'paciente')
+      const step = respostas.length + 1
+      const dados = {}
+      if (respostas[0]) dados.cpf = respostas[0].conteudo
+      if (respostas[1]) dados.nasc = respostas[1].conteudo
+      if (respostas[2]) dados.tel = respostas[2].conteudo
+      setBotDados(dados)
+      setBotStep(step)
+      setMensagens(botMsgsDb)
+      scrollDown(true)
+      // Manda próxima pergunta do bot
+      if (!iniciouBot.current) {
+        iniciouBot.current = true
+        setTimeout(() => { addBotMsg(BOT_STEPS[step].msg()); }, 800)
+      }
+      return
+    }
+
     const ultima = msgs[0]
     const agora = Date.now()
     const tempoUltima = agora - new Date(ultima.criado_em).getTime()
@@ -122,12 +152,20 @@ export default function Chat() {
     }, 600)
   }
 
-  function addBotMsg(t) {
-    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'bot', conteudo: t, criado_em: new Date().toISOString() }])
+  async function addBotMsg(t) {
+    // Salva no banco E no state
+    const msg = { paciente_id: paciente.id, remetente: 'clinica', conteudo: t, tipo: 'bot', lida: true }
+    const { data } = await supabase.from('mensagens').insert([msg]).select().single()
+    if (data) setMensagens(prev => [...prev, data])
+    else setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'clinica', conteudo: t, criado_em: new Date().toISOString() }])
     scrollDown()
   }
-  function addUserBotMsg(t) {
-    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, criado_em: new Date().toISOString() }])
+  async function addUserBotMsg(t) {
+    // Salva no banco E no state
+    const msg = { paciente_id: paciente.id, remetente: 'paciente', conteudo: t, tipo: 'bot', lida: true }
+    const { data } = await supabase.from('mensagens').insert([msg]).select().single()
+    if (data) setMensagens(prev => [...prev, data])
+    else setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, criado_em: new Date().toISOString() }])
     scrollDown()
   }
 
@@ -160,6 +198,7 @@ export default function Chat() {
     setBotDados({})
     setBotPronto(false)
     iniciouBot.current = true
+    // Histórico mantido — só reinicia o fluxo do bot
     startBot()
   }
 
@@ -228,7 +267,7 @@ export default function Chat() {
     return parts.map((p, i) => i % 2 === 1 ? <strong key={i} style={{ color: isMe ? '#fff' : '#0D1B2A' }}>{p}</strong> : <span key={i}>{p}</span>)
   }
 
-  const todasMsgs = [...botMsgs, ...(botPronto || conversa?.encerrada ? mensagens : [])]
+  const todasMsgs = botPronto || conversa?.encerrada ? mensagens : [...botMsgs, ...mensagens]
   let lastDate = null
 
   return (
@@ -326,11 +365,24 @@ export default function Chat() {
       {showAnexo && botPronto && (
         <div style={s.anexoMenu}>
           <button style={s.anexoOpt} onClick={() => imageRef.current?.click()}>
-            <div style={s.anexoIconBox}><span style={{ fontSize: 26 }}>🖼️</span></div>
+            <div style={s.anexoIconBox}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </div>
             <span style={s.anexoLabel}>Foto</span>
           </button>
           <button style={s.anexoOpt} onClick={() => fileRef.current?.click()}>
-            <div style={s.anexoIconBox}><span style={{ fontSize: 26 }}>📄</span></div>
+            <div style={s.anexoIconBox}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+            </div>
             <span style={s.anexoLabel}>Documento</span>
           </button>
         </div>
@@ -395,10 +447,10 @@ const s = {
   msgImg: { width: 200, height: 160, borderRadius: 12, objectFit: 'cover', marginBottom: 4, display: 'block' },
   docRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, textDecoration: 'none' },
   docIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  anexoMenu: { backgroundColor: '#fff', borderTop: '1px solid #E5E7EB', display: 'flex', padding: 16, gap: 24, flexShrink: 0 },
-  anexoOpt: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer' },
-  anexoIconBox: { width: 54, height: 54, borderRadius: 16, backgroundColor: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  anexoLabel: { fontSize: 12, color: '#374151', fontWeight: 500 },
+  anexoMenu: { backgroundColor: '#fff', borderTop: '1px solid #E5E7EB', display: 'flex', padding: '16px 24px', gap: 20, flexShrink: 0 },
+  anexoOpt: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: 'none', background: 'none', cursor: 'pointer' },
+  anexoIconBox: { width: 70, height: 70, borderRadius: 20, backgroundColor: '#EEF6FF', border: '1.5px dashed #93C5FD', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  anexoLabel: { fontSize: 12, color: '#0047AB', fontWeight: 600 },
   inputBar: { display: 'flex', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fff', borderTop: '1px solid #F3F4F6', gap: 10, flexShrink: 0 },
   clipBtn: { width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0 },
   input: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 22, padding: '10px 16px', fontSize: 14, color: '#0D1B2A', maxHeight: 100, border: 'none', outline: 'none', resize: 'none', fontFamily: 'inherit' },
