@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTheme } from '../contexts/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
 
 export default function Configuracoes() {
   const { profile } = useAuth()
+  const { tema, setTema } = useTheme()
   const [aba, setAba] = useState('perfil')
   const [formPerfil, setFormPerfil] = useState({ nome: '', crp_crm: '', especialidade: '' })
   const [formSenha, setFormSenha] = useState({ atual: '', nova: '', confirma: '' })
@@ -91,6 +93,7 @@ export default function Configuracoes() {
           {[
             ['perfil', '👤 Meu perfil'],
             ['senha', '🔒 Alterar senha'],
+            ['aparencia', '🎨 Aparência'],
             ...(isAdmin ? [['clinica', '🏥 Dados da clínica'], ['consultas', '📋 Tipos de consulta']] : []),
           ].map(([k, l]) => (
             <div
@@ -185,6 +188,55 @@ export default function Configuracoes() {
               </div>
               <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--warn)' }}>
                 ⚠️ Esses dados são informativos. Para salvar persistentemente, adicione uma tabela <strong>config_clinica</strong> no Supabase.
+              </div>
+            </div>
+          )}
+
+          {/* Aparência */}
+          {aba === 'aparencia' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Aparência</h3>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Escolha o tema do painel interno</p>
+              </div>
+              <div style={{ display: 'flex', gap: 16 }}>
+                {[
+                  { key: 'claro', label: 'Claro', icon: (active) => (
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill={active ? '#0047AB' : 'none'} stroke="#0047AB" strokeWidth="1.8" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="4"/>
+                      <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                      <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                  )},
+                  { key: 'escuro', label: 'Escuro', icon: (active) => (
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill={active ? '#0047AB' : 'none'} stroke="#0047AB" strokeWidth="1.8" strokeLinecap="round">
+                      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                  )},
+                  { key: 'sistema', label: 'Sistema', icon: (active) => (
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="1.8" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="9"/>
+                      <line x1="12" y1="3" x2="12" y2="21"/>
+                      <path d="M12 3a9 9 0 010 18" fill={active ? '#0047AB' : 'none'}/>
+                    </svg>
+                  )},
+                ].map(op => {
+                  const active = tema === op.key
+                  return (
+                    <button key={op.key} onClick={() => setTema(op.key)} style={{
+                      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+                      padding: '24px 16px', borderRadius: 16, cursor: 'pointer', transition: 'all .15s',
+                      border: active ? '2px solid var(--p)' : '1.5px dashed var(--border)',
+                      backgroundColor: active ? 'var(--p3)' : 'transparent',
+                      maxWidth: 140,
+                    }}>
+                      {op.icon(active)}
+                      <span style={{ fontSize: 14, fontWeight: 700, color: active ? 'var(--p)' : 'var(--muted)' }}>{op.label}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}

@@ -2,11 +2,40 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ===== TEMA CLARO (padrão) ===== */
+body, body[data-theme="claro"] {
+  --bg: #F0F4FA;
+  --card-bg: #ffffff;
+  --text: #0D1B2A;
+  --muted: #6B7280;
+  --border: #E2E8F4;
+  --sidebar-bg: #0D1B2A;
+  --sidebar-text: rgba(255,255,255,0.75);
+  --sidebar-active: rgba(255,255,255,0.12);
+  --p: #0047AB;
+  --p3: #EFF6FF;
+}
+
+/* ===== TEMA ESCURO ===== */
+body[data-theme="escuro"] {
+  --bg: #0f1117;
+  --card-bg: #1a2035;
+  --text: #f0f4ff;
+  --muted: #6b7a99;
+  --border: #2a3349;
+  --sidebar-bg: #0a0f1a;
+  --sidebar-text: rgba(255,255,255,0.65);
+  --sidebar-active: rgba(255,255,255,0.08);
+  --p: #4d8ef0;
+  --p3: #1a2f5c;
+}
+
 body {
   font-family: 'DM Sans', sans-serif;
-  background: #F0F4FA;
-  color: #0D1B2A;
+  background: var(--bg, #F0F4FA);
+  color: var(--text, #0D1B2A);
   -webkit-font-smoothing: antialiased;
+  transition: background 0.3s, color 0.3s;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
