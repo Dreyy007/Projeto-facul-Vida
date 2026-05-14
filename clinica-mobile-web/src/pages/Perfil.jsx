@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTheme } from '../contexts/ThemeContext'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -6,6 +7,7 @@ import { supabase } from '../lib/supabase'
 export default function Perfil() {
   const navigate = useNavigate()
   const { paciente, signOut } = useAuth()
+  const { tema, setTema } = useTheme()
 
   function handleLogout() {
     if (window.confirm('Deseja sair da sua conta?')) signOut()

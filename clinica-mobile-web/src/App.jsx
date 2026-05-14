@@ -28,7 +28,8 @@ function PublicRoute({ children }) {
 
 export default function App() {
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -44,5 +45,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+      </ThemeProvider>
   )
 }

@@ -78,8 +78,8 @@ export default function Layout() {
 
       <nav style={{
         display: 'flex',
-        backgroundColor: '#fff',
-        borderTop: '1px solid #E5E7EB',
+        backgroundColor: 'var(--nav-bg, #fff)',
+        borderTop: '1px solid var(--nav-border, #E5E7EB)',
         height: 80,
         flexShrink: 0,
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -98,8 +98,8 @@ export default function Layout() {
             >
               <div style={{
                 width: 52, height: 52, borderRadius: 16,
-                border: active ? '1.5px solid #0047AB' : '1.5px dashed #BFDBFE',
-                backgroundColor: active ? '#EFF6FF' : 'transparent',
+                border: active ? '1.5px solid var(--p, #0047AB)' : '1.5px dashed var(--border, #BFDBFE)',
+                backgroundColor: active ? 'var(--p3, #EFF6FF)' : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'all 0.2s',
               }}>
