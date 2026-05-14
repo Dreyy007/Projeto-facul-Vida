@@ -10,9 +10,10 @@ export default function Configuracoes() {
   const [aba, setAba] = useState('perfil')
   const [formPerfil, setFormPerfil] = useState({ nome: '', crp_crm: '', especialidade: '' })
   const [formSenha, setFormSenha] = useState({ atual: '', nova: '', confirma: '' })
-  const [tipos, setTipos] = useState(['Psicoterapia', 'Avaliação Psicológica', 'Consulta Psiquiátrica', 'Neuropsicologia', 'Psicologia Infantil'])
+  const [tipos, setTipos] = useState([])
   const [novoTipo, setNovoTipo] = useState('')
   const [saving, setSaving] = useState(false)
+  const [formClinica, setFormClinica] = useState({ nome: 'Clínica Vida+', cnpj: '', telefone: '(11) 3333-3333', email: 'contato@clinicavida.com.br', endereco: '' })
   const [msgOk, setMsgOk] = useState('')
   const [msgErr, setMsgErr] = useState('')
 
@@ -20,7 +21,26 @@ export default function Configuracoes() {
     if (profile) {
       setFormPerfil({ nome: profile.nome || '', crp_crm: profile.crp_crm || '', especialidade: profile.especialidade || '' })
     }
+    fetchConfigClinica()
+    fetchTipos()
   }, [profile])
+
+  async function fetchTipos() {
+    const { data } = await supabase.from('tipos_consulta').select('id, nome').eq('ativo', true).order('nome')
+    setTipos(data || [])
+  }
+
+  async function fetchConfigClinica() {
+    const { data } = await supabase.from('config_clinica').select('*').eq('id', 1).single()
+    if (data) setFormClinica({ nome: data.nome || '', cnpj: data.cnpj || '', telefone: data.telefone || '', email: data.email || '', endereco: data.endereco || '' })
+  }
+
+  async function salvarClinica() {
+    setSaving(true)
+    const { error } = await supabase.from('config_clinica').upsert({ id: 1, ...formClinica, atualizado_em: new Date().toISOString() })
+    notify(!error, error ? 'Erro ao salvar: ' + error.message : 'Dados da clínica salvos com sucesso!')
+    setSaving(false)
+  }
 
   function notify(ok, msg) {
     if (ok) { setMsgOk(msg); setTimeout(() => setMsgOk(''), 3000) }
@@ -52,16 +72,17 @@ export default function Configuracoes() {
     setSaving(false)
   }
 
-  function adicionarTipo() {
+  async function adicionarTipo() {
     const t = novoTipo.trim()
-    if (!t || tipos.includes(t)) return
-    setTipos(prev => [...prev, t])
-    setNovoTipo('')
-    notify(true, 'Tipo adicionado. (Salvo localmente — integre ao banco se necessário)')
+    if (!t) return
+    const { error } = await supabase.from('tipos_consulta').insert([{ nome: t }])
+    if (!error) { setNovoTipo(''); fetchTipos(); notify(true, 'Tipo adicionado!') }
+    else notify(false, 'Erro: ' + error.message)
   }
 
-  function removerTipo(tipo) {
-    setTipos(prev => prev.filter(t => t !== tipo))
+  async function removerTipo(id) {
+    await supabase.from('tipos_consulta').update({ ativo: false }).eq('id', id)
+    fetchTipos()
   }
 
   const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
@@ -180,14 +201,16 @@ export default function Configuracoes() {
                 <p style={{ fontSize: 13, color: 'var(--muted)' }}>Informações gerais exibidas no sistema</p>
               </div>
               <div className="form-grid">
-                <div className="fld"><label>Nome da clínica</label><input defaultValue="Clínica Vida+" /></div>
-                <div className="fld"><label>CNPJ</label><input placeholder="00.000.000/0001-00" /></div>
-                <div className="fld"><label>Telefone</label><input placeholder="(11) 3333-3333" /></div>
-                <div className="fld"><label>E-mail de contato</label><input type="email" placeholder="contato@clinicavidamais.com.br" /></div>
-                <div className="fld" style={{ gridColumn: '1/-1' }}><label>Endereço</label><input placeholder="Rua, número, bairro, cidade – UF" /></div>
+                <div className="fld"><label>Nome da clínica</label><input value={formClinica.nome} onChange={e => setFormClinica(p => ({ ...p, nome: e.target.value }))} /></div>
+                <div className="fld"><label>CNPJ</label><input value={formClinica.cnpj} onChange={e => setFormClinica(p => ({ ...p, cnpj: e.target.value }))} placeholder="00.000.000/0001-00" /></div>
+                <div className="fld"><label>Telefone</label><input value={formClinica.telefone} onChange={e => setFormClinica(p => ({ ...p, telefone: e.target.value }))} placeholder="(11) 3333-3333" /></div>
+                <div className="fld"><label>E-mail de contato</label><input type="email" value={formClinica.email} onChange={e => setFormClinica(p => ({ ...p, email: e.target.value }))} placeholder="contato@clinicavida.com.br" /></div>
+                <div className="fld" style={{ gridColumn: '1/-1' }}><label>Endereço</label><input value={formClinica.endereco} onChange={e => setFormClinica(p => ({ ...p, endereco: e.target.value }))} placeholder="Rua, número, bairro, cidade – UF" /></div>
               </div>
-              <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--warn)' }}>
-                ⚠️ Esses dados são informativos. Para salvar persistentemente, adicione uma tabela <strong>config_clinica</strong> no Supabase.
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn-primary" onClick={salvarClinica} disabled={saving}>
+                  {saving ? 'Salvando...' : 'Salvar dados da clínica'}
+                </button>
               </div>
             </div>
           )}
@@ -250,10 +273,10 @@ export default function Configuracoes() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {tipos.map(t => (
-                  <div key={t} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
-                    <span>{t}</span>
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
+                    <span>{t.nome}</span>
                     <button
-                      onClick={() => removerTipo(t)}
+                      onClick={() => removerTipo(t.id)}
                       style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                     >Remover</button>
                   </div>
@@ -269,9 +292,7 @@ export default function Configuracoes() {
                 />
                 <button className="btn-primary" onClick={adicionarTipo} disabled={!novoTipo.trim()}>Adicionar</button>
               </div>
-              <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--warn)' }}>
-                ⚠️ Para persistir os tipos no banco, crie uma tabela <strong>tipos_consulta</strong> no Supabase e adapte as queries de Agenda.
-              </div>
+
             </div>
           )}
         </div>

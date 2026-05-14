@@ -16,6 +16,7 @@ export default function Resultados() {
   const [filtroCat, setFiltroCat] = useState('todos')
   const [form, setForm] = useState({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
   const [arquivo, setArquivo] = useState(null)
+  const [buscaPac, setBuscaPac] = useState('')
   const fileRef = useRef(null)
 
   useEffect(() => { fetchAll() }, [])
@@ -23,8 +24,8 @@ export default function Resultados() {
   async function fetchAll() {
     setLoading(true)
     const [{ data: res }, { data: pac }] = await Promise.all([
-      supabase.from('resultados').select('*, paciente:pacientes(nome)').order('criado_em', { ascending: false }),
-      supabase.from('pacientes').select('id, nome').eq('ativo', true).order('nome'),
+      supabase.from('resultados').select('*, paciente:pacientes(nome, cpf)').order('criado_em', { ascending: false }),
+      supabase.from('pacientes').select('id, nome, cpf').eq('ativo', true).order('nome'),
     ])
     setResultados(res || [])
     setPacientes(pac || [])
@@ -65,6 +66,7 @@ export default function Resultados() {
       setModal(false)
       setForm({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
       setArquivo(null)
+      setBuscaPac('')
       fetchAll()
     }
     setSaving(false)
@@ -77,7 +79,7 @@ export default function Resultados() {
   }
 
   const filtered = resultados.filter(r => {
-    const matchSearch = !search || r.nome.toLowerCase().includes(search.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !search || r.nome.toLowerCase().includes(search.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(search.toLowerCase()) || r.paciente?.cpf?.replace(/\D/g,'').includes(search.replace(/\D/g,''))
     const matchCat = filtroCat === 'todos' || r.categoria === filtroCat
     return matchSearch && matchCat
   })
@@ -99,7 +101,7 @@ export default function Resultados() {
       {/* Filtros */}
       <div className="card" style={{ padding: '14px 18px' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="search-input" placeholder="🔍 Buscar por paciente ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
+          <input className="search-input" placeholder="🔍 Buscar por paciente, CPF ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
           <select value={filtroCat} onChange={e => setFiltroCat(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
             <option value="todos">Todas as categorias</option>
             {categorias.map(c => <option key={c} value={c}>{c}</option>)}
@@ -177,7 +179,7 @@ export default function Resultados() {
                 <label>Paciente *</label>
                 <select value={form.paciente_id} onChange={e => setForm({ ...form, paciente_id: e.target.value })}>
                   <option value="">Selecionar...</option>
-                  {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}{p.cpf ? ` — CPF: ${p.cpf}` : ''}</option>)}
                 </select>
               </div>
               <div className="fld">

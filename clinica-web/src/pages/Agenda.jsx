@@ -265,7 +265,7 @@ export default function Agenda() {
               </div>
               <div className="fld"><label>Tipo</label>
                 <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}>
-                  {['Psicoterapia', 'Avaliação Psicológica', 'Consulta Psiquiátrica', 'Neuropsicologia', 'Psicologia Infantil'].map(t => <option key={t}>{t}</option>)}
+                  {tiposConsulta.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="fld"><label>Sala</label>
