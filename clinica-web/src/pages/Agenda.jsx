@@ -7,16 +7,16 @@ export default function Agenda() {
   const { profile } = useAuth()
   const [consultas, setConsultas] = useState([])
   const [pacientes, setPacientes] = useState([])
-  const [medicos, setMedicos] = useState([])
+  const [psicologos, setPsicologos] = useState([])
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(new Date().toISOString().split('T')[0])
   const [modal, setModal] = useState(false)
   const [modalSolic, setModalSolic] = useState(null)
-  const [form, setForm] = useState({ paciente_id: '', medico_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
+  const [form, setForm] = useState({ paciente_id: '', psicologo_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
   const [saving, setSaving] = useState(false)
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
-  const [filtroMedico, setFiltroMedico] = useState('todos')
+  const [filtroPsicologo, setFiltroPsicologo] = useState('todos')
   const [busca, setBusca] = useState('')
   const [viewMode, setViewMode] = useState('dia')
 
@@ -26,7 +26,7 @@ export default function Agenda() {
   async function fetchConsultas() {
     setLoading(true)
     let query = supabase.from('consultas')
-      .select('*, paciente:pacientes(nome), medico:profiles(nome, especialidade, crp_crm)')
+      .select('*, paciente:pacientes(nome), psicologo:psicologos(nome, especialidade, crp)')
       .order('data').order('hora')
 
     if (viewMode === 'dia') {
@@ -45,19 +45,19 @@ export default function Agenda() {
   }
 
   async function fetchSelects() {
-    const [{ data: p }, { data: m }] = await Promise.all([
+    const [{ data: p }, { data: ps }] = await Promise.all([
       supabase.from('pacientes').select('id, nome').eq('ativo', true).order('nome'),
-      supabase.from('profiles').select('id, nome, especialidade').eq('tipo', 'medico').order('nome'),
+      supabase.from('psicologos').select('id, nome, especialidade'),
     ])
     setPacientes(p || [])
-    setMedicos(m || [])
+    setPsicologos(ps || [])
   }
 
   async function handleAgendar() {
     setSaving(true)
     const { error } = await supabase.from('consultas').insert([{
       paciente_id: form.paciente_id,
-      medico_id: form.medico_id,
+      psicologo_id: form.psicologo_id,
       tipo: form.tipo,
       data: form.data,
       hora: form.hora,
@@ -67,7 +67,7 @@ export default function Agenda() {
     }])
     if (!error) {
       setModal(false)
-      setForm({ paciente_id: '', medico_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
+      setForm({ paciente_id: '', psicologo_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
       fetchConsultas()
     } else alert('Erro: ' + error.message)
     setSaving(false)
@@ -96,9 +96,9 @@ export default function Agenda() {
   const filtered = consultas.filter(c => {
     const matchStatus = filtroStatus === 'todos' || c.status === filtroStatus
     const matchTipo = filtroTipo === 'todos' || c.tipo === filtroTipo
-    const matchMed = filtroMedico === 'todos' || c.medico_id === filtroMedico
-    const matchBusca = !busca || c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) || c.medico?.nome?.toLowerCase().includes(busca.toLowerCase())
-    return matchStatus && matchTipo && matchMed && matchBusca
+    const matchPs = filtroPsicologo === 'todos' || c.psicologo_id === filtroPsicologo
+    const matchBusca = !busca || c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) || c.psicologo?.nome?.toLowerCase().includes(busca.toLowerCase())
+    return matchStatus && matchTipo && matchPs && matchBusca
   })
 
   const dataLabel = viewMode === 'todos' ? 'Todas as consultas'
@@ -150,15 +150,15 @@ export default function Agenda() {
               {tipos.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           )}
-          {medicos.length > 0 && (
-            <select value={filtroMedico} onChange={e => setFiltroMedico(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
+          {psicologos.length > 0 && (
+            <select value={filtroPsicologo} onChange={e => setFiltroPsicologo(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
               <option value="todos">Todos os profissionais</option>
-              {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              {psicologos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           )}
-          {(filtroStatus !== 'todos' || filtroTipo !== 'todos' || filtroMedico !== 'todos' || busca) && (
+          {(filtroStatus !== 'todos' || filtroTipo !== 'todos' || filtroPsicologo !== 'todos' || busca) && (
             <button className="btn-outline" style={{ fontSize: 12, padding: '8px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
-              onClick={() => { setFiltroStatus('todos'); setFiltroTipo('todos'); setFiltroMedico('todos'); setBusca('') }}>
+              onClick={() => { setFiltroStatus('todos'); setFiltroTipo('todos'); setFiltroPsicologo('todos'); setBusca('') }}>
               ✕ Limpar
             </button>
           )}
@@ -205,8 +205,8 @@ export default function Agenda() {
                         {c.paciente?.nome}
                       </div>
                     </td>
-                    <td style={{ fontWeight: 500 }}>{c.medico?.nome || '—'}</td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.medico?.especialidade || '—'}</td>
+                    <td style={{ fontWeight: 500 }}>{c.psicologo?.nome || '—'}</td>
+                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.psicologo?.especialidade || '—'}</td>
                     <td style={{ fontSize: 12 }}>{c.tipo}</td>
                     <td>
                       {c.sala
@@ -258,9 +258,9 @@ export default function Agenda() {
                 </select>
               </div>
               <div className="fld"><label>Profissional *</label>
-                <select value={form.medico_id} onChange={e => setForm({ ...form, medico_id: e.target.value })}>
+                <select value={form.psicologo_id} onChange={e => setForm({ ...form, psicologo_id: e.target.value })}>
                   <option value="">Selecionar...</option>
-                  {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}{m.especialidade ? ` — ${m.especialidade}` : ''}</option>)}
+                  {psicologos.map(p => <option key={p.id} value={p.id}>{p.nome}{p.especialidade ? ` — ${p.especialidade}` : ''}</option>)}
                 </select>
               </div>
               <div className="fld"><label>Tipo</label>
@@ -280,7 +280,7 @@ export default function Agenda() {
             </div>
             <div className="modal-btns">
               <button className="btn-outline" onClick={() => setModal(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleAgendar} disabled={saving || !form.paciente_id || !form.medico_id || !form.data || !form.hora}>
+              <button className="btn-primary" onClick={handleAgendar} disabled={saving || !form.paciente_id || !form.psicologo_id || !form.data || !form.hora}>
                 {saving ? 'Agendando...' : 'Confirmar agendamento'}
               </button>
             </div>
@@ -294,10 +294,10 @@ export default function Agenda() {
           <div className="modal">
             <h2>{modalSolic.tipo === 'cancelamento' ? 'Solicitar Cancelamento' : 'Solicitar Reagendamento'}</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-              Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.medico?.nome}
+              Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.psicologo?.nome}
             </p>
             <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>
-              ⚠️ Requer aprovação do profissional responsável e do administrador.
+              ⚠️ Requer aprovação do médico responsável e do administrador.
             </div>
             <div className="form-grid">
               {modalSolic.tipo === 'reagendamento' && (

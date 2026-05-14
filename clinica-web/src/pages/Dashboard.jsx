@@ -24,11 +24,18 @@ export default function Dashboard() {
 
   async function fetchDashboard() {
     const hoje = new Date().toISOString().split('T')[0]
+    const isMedico = profile?.tipo === 'medico'
+
+    let consultasQuery = supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('data', { ascending: false }).order('hora')
+    if (isMedico) consultasQuery = consultasQuery.eq('medico_id', profile.id)
+
+    let pacientesQuery = supabase.from('pacientes').select('id').eq('ativo', true)
+    if (isMedico) pacientesQuery = pacientesQuery.eq('medico_id', profile.id)
 
     const [{ data: todasConsultas }, { data: pacientes }, { data: solics }, { data: msgs }] =
       await Promise.all([
-        supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('data', { ascending: false }).order('hora'),
-        supabase.from('pacientes').select('id').eq('ativo', true),
+        consultasQuery,
+        pacientesQuery,
         supabase.from('solicitacoes').select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(nome))').eq('status', 'pendente'),
         supabase.from('mensagens').select('paciente_id, paciente:pacientes(nome)').eq('lida', false).eq('remetente', 'paciente'),
       ])
