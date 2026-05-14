@@ -39,75 +39,64 @@ export default function Chat() {
   }, [paciente])
 
   async function checkStatus() {
-    // Busca última mensagem do paciente
+    if (iniciouBot.current) return
+    iniciouBot.current = true
+
+    // Busca todas as mensagens do paciente
     const { data: msgs } = await supabase
       .from('mensagens')
       .select('*')
       .eq('paciente_id', paciente.id)
-      .order('criado_em', { ascending: false })
-      .limit(1)
+      .order('criado_em')
 
+    // Nunca conversou — inicia bot do zero
     if (!msgs || msgs.length === 0) {
-      // Nunca conversou — inicia bot (uma única vez)
-      if (!iniciouBot.current) {
-        iniciouBot.current = true
-        startBot()
-      }
+      startBot()
       return
     }
 
-    // Verifica se bot já foi iniciado mas não concluído (paciente saiu no meio)
-    const { data: botMsgsDb } = await supabase
-      .from('mensagens')
-      .select('*')
-      .eq('paciente_id', paciente.id)
-      .eq('tipo', 'bot')
-      .order('criado_em')
-    
-    const botConcluido = botMsgsDb?.some(m => m.remetente === 'clinica' && m.conteudo?.includes('Agora pode digitar'))
-    
-    if (botMsgsDb && botMsgsDb.length > 0 && !botConcluido) {
-      // Bot iniciado mas não concluído — retoma de onde parou
-      const respostas = botMsgsDb.filter(m => m.remetente === 'paciente')
-      const step = respostas.length + 1
+    // Verifica se bot foi concluído
+    const botConcluido = msgs.some(m => m.remetente === 'clinica' && m.conteudo?.includes('Agora pode digitar'))
+
+    if (!botConcluido) {
+      // Bot iniciado mas não concluído — retoma
+      const respostas = msgs.filter(m => m.remetente === 'paciente' && m.tipo === 'bot')
+      const step = Math.min(respostas.length + 1, 3)
       const dados = {}
       if (respostas[0]) dados.cpf = respostas[0].conteudo
       if (respostas[1]) dados.nasc = respostas[1].conteudo
       if (respostas[2]) dados.tel = respostas[2].conteudo
       setBotDados(dados)
       setBotStep(step)
-      setMensagens(botMsgsDb)
+      setMensagens(msgs)
       scrollDown(true)
-      // Manda próxima pergunta do bot
-      if (!iniciouBot.current) {
-        iniciouBot.current = true
-        setTimeout(() => { addBotMsg(BOT_STEPS[step].msg()); }, 800)
+      // Só manda próxima pergunta se ainda falta resposta
+      if (step <= 3) {
+        setTimeout(() => addBotMsg(BOT_STEPS[step].msg()), 800)
       }
       return
     }
 
-    const ultima = msgs[0]
-    const agora = Date.now()
-    const tempoUltima = agora - new Date(ultima.criado_em).getTime()
+    // Bot concluído — carrega histórico normalmente
+    const ultima = msgs[msgs.length - 1]
+    const tempoUltima = Date.now() - new Date(ultima.criado_em).getTime()
 
-    // Verifica se já foi encerrada
     if (ultima.tipo === 'encerramento') {
       setBotPronto(false)
       setConversa({ encerrada: true })
-      fetchMensagens()
+      setMensagens(msgs)
+      scrollDown(true)
       return
     }
 
-    // Já tem histórico — carrega normalmente
     setBotPronto(true)
-    fetchMensagens()
+    setMensagens(msgs)
+    scrollDown(true)
+    await supabase.from('mensagens').update({ lida: true }).eq('paciente_id', paciente.id).eq('remetente', 'clinica').eq('lida', false)
 
-    // Verifica inatividade
     if (tempoUltima >= INATIVIDADE_ENCERRA_MS) {
-      // Já passou 2h — encerra agora
       await encerrarConversa()
     } else if (tempoUltima >= INATIVIDADE_AVISO_MS) {
-      // Passou 1h30 — manda aviso se ainda não mandou
       await verificarEMandarAviso()
     }
   }
@@ -152,20 +141,12 @@ export default function Chat() {
     }, 600)
   }
 
-  async function addBotMsg(t) {
-    // Salva no banco E no state
-    const msg = { paciente_id: paciente.id, remetente: 'clinica', conteudo: t, tipo: 'bot', lida: true }
-    const { data } = await supabase.from('mensagens').insert([msg]).select().single()
-    if (data) setMensagens(prev => [...prev, data])
-    else setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'clinica', conteudo: t, criado_em: new Date().toISOString() }])
+  function addBotMsg(t) {
+    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'clinica', conteudo: t, tipo: 'bot', criado_em: new Date().toISOString() }])
     scrollDown()
   }
-  async function addUserBotMsg(t) {
-    // Salva no banco E no state
-    const msg = { paciente_id: paciente.id, remetente: 'paciente', conteudo: t, tipo: 'bot', lida: true }
-    const { data } = await supabase.from('mensagens').insert([msg]).select().single()
-    if (data) setMensagens(prev => [...prev, data])
-    else setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, criado_em: new Date().toISOString() }])
+  function addUserBotMsg(t) {
+    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, tipo: 'bot', criado_em: new Date().toISOString() }])
     scrollDown()
   }
 
@@ -182,9 +163,23 @@ export default function Chat() {
     } else if (botStep === 3) {
       const dados = { ...botDados, tel: resposta }
       setBotDados(dados)
+      // Salva paciente
       await supabase.from('pacientes').update({ cpf: dados.cpf?.replace(/\D/g, ''), data_nascimento: parseDateBR(dados.nasc), telefone: dados.tel }).eq('id', paciente.id)
+      const msgFinal = BOT_STEPS[4].msg(paciente, dados)
+      // Salva TODAS as msgs do bot no banco de uma vez
+      const msgsParaSalvar = [
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: BOT_STEPS[0].msg(paciente), tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: BOT_STEPS[1].msg(), tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'paciente', conteudo: botDados.cpf || dados.cpf, tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: BOT_STEPS[2].msg(), tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'paciente', conteudo: botDados.nasc || dados.nasc, tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: BOT_STEPS[3].msg(), tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'paciente', conteudo: resposta, tipo: 'bot', lida: true },
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: msgFinal, tipo: 'bot', lida: true },
+      ]
+      await supabase.from('mensagens').insert(msgsParaSalvar)
       setTimeout(() => {
-        addBotMsg(BOT_STEPS[4].msg(paciente, dados))
+        addBotMsg(msgFinal)
         setBotStep(4); setBotPronto(true); fetchMensagens()
       }, 800)
     }
@@ -267,7 +262,7 @@ export default function Chat() {
     return parts.map((p, i) => i % 2 === 1 ? <strong key={i} style={{ color: isMe ? '#fff' : '#0D1B2A' }}>{p}</strong> : <span key={i}>{p}</span>)
   }
 
-  const todasMsgs = botPronto || conversa?.encerrada ? mensagens : [...botMsgs, ...mensagens]
+  const todasMsgs = (botPronto || conversa?.encerrada) ? mensagens : botMsgs
   let lastDate = null
 
   return (
