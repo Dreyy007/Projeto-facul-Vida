@@ -44,6 +44,7 @@ html {
   overflow: hidden;
   position: fixed;
   width: 100%;
+  background: #f1f5f9;
 }
 
 body {
@@ -75,13 +76,13 @@ body {
   overscroll-behavior: none;
 }
 
-/* Navbar sempre colada ao fundo */
+/* Navbar sempre colada ao fundo com safe area */
 .navbar {
   flex-shrink: 0;
   display: flex;
   background: var(--nav-bg, #fff);
   border-top: 1px solid var(--nav-border, #E5E7EB);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
 }
 
 ::-webkit-scrollbar { width: 4px; }
