@@ -221,7 +221,13 @@ export default function Agendar() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
       <div style={s.header}>
         <div style={s.headerCircle} />
-        <button style={s.backBtn} onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)}>
+        <button style={s.backBtn} onClick={() => {
+          if (step === 1) { navigate(-1); return }
+          if (step === 2) { setDataSel(null); setHorariosDisponiveis([]) }
+          if (step === 3) { setHorarioSel(null) }
+          if (step === 4) { setHorarioSel(null) }
+          setStep(step - 1)
+        }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <p style={s.headerTitle}>Agendar Consulta</p>
