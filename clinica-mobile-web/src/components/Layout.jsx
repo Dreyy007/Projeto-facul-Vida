@@ -1,5 +1,4 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
 
 function IconHome({ active }) {
   const c = active ? '#0047AB' : '#93C5FD'
@@ -55,65 +54,37 @@ const tabs = [
 export default function Layout() {
   const location = useLocation()
 
-  useEffect(() => {
-    function setVH() {
-      const vh = window.innerHeight * 0.01
-      document.documentElement.style.setProperty('--vh', `${vh}px`)
-    }
-    setVH()
-    window.addEventListener('resize', setVH)
-    window.addEventListener('orientationchange', setVH)
-    return () => {
-      window.removeEventListener('resize', setVH)
-      window.removeEventListener('orientationchange', setVH)
-    }
-  }, [])
-
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      display: 'flex', flexDirection: 'column',
-      background: 'var(--bg, #fff)',
-      maxWidth: 430, margin: '0 auto',
-    }}>
-      {/* Conteúdo */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+    <>
+      <div className="page-content">
         <Outlet />
       </div>
 
-      {/* Navbar fixa ao fundo */}
-      <nav style={{
-        display: 'flex',
-        backgroundColor: 'var(--nav-bg, #fff)',
-        borderTop: '1px solid var(--nav-border, #E5E7EB)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        flexShrink: 0,
-        zIndex: 100,
-      }}>
+      <nav className="navbar">
         {tabs.map(tab => {
           const active = tab.to === '/' ? location.pathname === '/' : location.pathname.startsWith(tab.to)
           return (
             <NavLink
               key={tab.to}
               to={tab.to}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, textDecoration: 'none', padding: '10px 0' }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, textDecoration: 'none', padding: '8px 0' }}
             >
               <div style={{
                 width: 48, height: 48, borderRadius: 14,
-                border: active ? '1.5px solid var(--p, #0047AB)' : '1.5px dashed #BFDBFE',
-                backgroundColor: active ? 'var(--p3, #EFF6FF)' : 'transparent',
+                border: active ? '1.5px solid #0047AB' : '1.5px dashed #BFDBFE',
+                backgroundColor: active ? '#EFF6FF' : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'all 0.2s',
               }}>
                 <tab.Icon active={active} />
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, color: active ? 'var(--p, #0047AB)' : '#93C5FD' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: active ? '#0047AB' : '#93C5FD' }}>
                 {tab.label}
               </span>
             </NavLink>
           )
         })}
       </nav>
-    </div>
+    </>
   )
 }

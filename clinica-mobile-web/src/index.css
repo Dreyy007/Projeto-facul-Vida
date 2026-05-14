@@ -21,7 +21,6 @@
   --nav-border: #E5E7EB;
   --input-bg: #F1F5F9;
   --shadow: rgba(0,0,0,0.06);
-  --header-grad: linear-gradient(135deg, #0047AB 0%, #1d6fef 100%);
 }
 
 /* ============ TEMA ESCURO ============ */
@@ -41,27 +40,42 @@
   --nav-border: #2a3349;
   --input-bg: #1e2435;
   --shadow: rgba(0,0,0,0.3);
-  --header-grad: linear-gradient(135deg, #0f2a6e 0%, #1a3d8f 100%);
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
   background: #e5e7eb;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 #root {
+  height: 100%;
   width: 100%;
   max-width: 430px;
-  min-height: 100vh;
+  margin: 0 auto;
   background: var(--bg, #fff);
-  position: relative;
-  overflow-x: hidden;
   color: var(--text, #0D1B2A);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   transition: background 0.3s, color 0.3s;
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.navbar {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--nav-bg, #fff);
+  border-top: 1px solid var(--nav-border, #E5E7EB);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 ::-webkit-scrollbar { width: 4px; }
