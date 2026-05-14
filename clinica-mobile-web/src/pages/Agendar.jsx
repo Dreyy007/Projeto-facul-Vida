@@ -167,7 +167,9 @@ export default function Agendar() {
     ;(escalas || []).forEach(e => { todosHorarios = [...todosHorarios, ...gerarHorarios(e.hora_inicio, e.hora_fim, e.intervalo_minutos)] })
     const { data: agendados } = await supabase.from('consultas').select('hora').eq('medico_id', medicoSel.id).eq('data', data).not('status', 'in', '("cancelada")')
     const ocupados = (agendados || []).map(a => a.hora.slice(0, 5))
-    setHorariosDisponiveis(todosHorarios.filter(h => !ocupados.includes(h)))
+    const disponiveis = [...new Set(todosHorarios.filter(h => !ocupados.includes(h)))]
+    disponiveis.sort((a, b) => a.localeCompare(b))
+    setHorariosDisponiveis(disponiveis)
     setLoadingHorarios(false)
     setStep(3)
   }
