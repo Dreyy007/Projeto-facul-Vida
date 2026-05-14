@@ -1,66 +1,43 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-
-const resultados = [
-  {
-    id: 1,
-    tipo: 'Hemograma Completo',
-    data: '2024-04-28',
-    medico: 'Dra. Ana Paula',
-    status: 'disponivel',
-    categoria: 'Exame de Sangue',
-    itens: [
-      { nome: 'Hemoglobina',    valor: '14,2 g/dL',  ref: '12,0–16,0',  ok: true },
-      { nome: 'Hematócrito',    valor: '42%',         ref: '36–46%',     ok: true },
-      { nome: 'Leucócitos',     valor: '7.200/mm³',   ref: '4.000–11.000', ok: true },
-      { nome: 'Plaquetas',      valor: '210.000/mm³', ref: '150.000–400.000', ok: true },
-      { nome: 'Glicose',        valor: '112 mg/dL',   ref: '70–99',      ok: false },
-    ],
-  },
-  {
-    id: 2,
-    tipo: 'Avaliação Psicológica',
-    data: '2024-04-10',
-    medico: 'Dr. Carlos Mendes',
-    status: 'disponivel',
-    categoria: 'Psicologia',
-    laudo: 'Paciente apresenta boa evolução no processo terapêutico. Redução significativa dos sintomas ansiosos relatados. Recomenda-se continuidade do acompanhamento semanal com reavaliação em 60 dias.',
-  },
-  {
-    id: 3,
-    tipo: 'Eletrocardiograma',
-    data: '2024-03-15',
-    medico: 'Dr. Ricardo Lima',
-    status: 'disponivel',
-    categoria: 'Cardiologia',
-    laudo: 'Ritmo sinusal normal. Frequência cardíaca de 72 bpm. Sem alterações significativas no traçado eletrocardiográfico. Exame dentro dos parâmetros normais para a faixa etária.',
-  },
-  {
-    id: 4,
-    tipo: 'Ressonância Magnética',
-    data: '2024-05-20',
-    medico: 'Dra. Fernanda Costa',
-    status: 'pendente',
-    categoria: 'Imagem',
-    laudo: null,
-  },
-]
+import { supabase } from '../lib/supabase'
 
 const catIcon = {
   'Exame de Sangue': { bg: '#FEF3C7', stroke: '#D97706' },
   'Psicologia':      { bg: '#F5F3FF', stroke: '#7C3AED' },
   'Cardiologia':     { bg: '#FEE2E2', stroke: '#DC2626' },
-  'Imagem':          { bg: '#EFF6FF', stroke: '#0047AB' },
+  'Neuropsicologia': { bg: '#EFF6FF', stroke: '#0047AB' },
+  'Imagem':          { bg: '#F0FDF4', stroke: '#059669' },
+  'Laudo':           { bg: '#FFF7ED', stroke: '#EA580C' },
+  'Outro':           { bg: '#F3F4F6', stroke: '#6B7280' },
 }
 
-const fmtData = d => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 
 export default function Resultados() {
   const { paciente } = useAuth()
+  const [resultados, setResultados] = useState([])
+  const [loading, setLoading] = useState(true)
   const [aberto, setAberto] = useState(null)
 
-  const disponíveis = resultados.filter(r => r.status === 'disponivel')
-  const pendentes   = resultados.filter(r => r.status === 'pendente')
+  useEffect(() => {
+    if (!paciente) return
+    fetchResultados()
+  }, [paciente])
+
+  async function fetchResultados() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('resultados')
+      .select('*')
+      .eq('paciente_id', paciente.id)
+      .order('criado_em', { ascending: false })
+    setResultados(data || [])
+    setLoading(false)
+  }
+
+  const laudos = resultados.filter(r => r.categoria === 'Laudo')
+  const exames = resultados.filter(r => r.categoria !== 'Laudo')
 
   return (
     <div style={{ backgroundColor: '#F8FAFC', minHeight: '100%' }}>
@@ -73,101 +50,120 @@ export default function Resultados() {
         <p style={s.sub}>Exames e laudos liberados pela clínica</p>
         <div style={s.statsRow}>
           <div style={s.statBox}>
-            <p style={s.statNum}>{disponíveis.length}</p>
-            <p style={s.statLabel}>Disponíveis</p>
+            <p style={s.statNum}>{exames.length}</p>
+            <p style={s.statLabel}>Exames</p>
           </div>
           <div style={s.statDivider} />
           <div style={s.statBox}>
-            <p style={s.statNum}>{pendentes.length}</p>
-            <p style={s.statLabel}>Pendentes</p>
+            <p style={s.statNum}>{laudos.length}</p>
+            <p style={s.statLabel}>Laudos</p>
           </div>
         </div>
       </div>
 
       <div style={{ padding: '16px 16px 40px' }}>
 
-        {/* Disponíveis */}
-        <p style={s.sectionTitle}>✅ Disponíveis</p>
-        {disponíveis.map(r => {
-          const ci = catIcon[r.categoria] || { bg: '#F3F4F6', stroke: '#6B7280' }
-          const isOpen = aberto === r.id
-          return (
-            <div key={r.id} style={s.card}>
-              <button style={s.cardBtn} onClick={() => setAberto(isOpen ? null : r.id)}>
-                <div style={{ ...s.catIcon, backgroundColor: ci.bg }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ci.stroke} strokeWidth="2" strokeLinecap="round">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-                  </svg>
-                </div>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <p style={s.cardTipo}>{r.tipo}</p>
-                  <p style={s.cardMeta}>{fmtData(r.data)} · {r.medico}</p>
-                  <span style={s.catTag}>{r.categoria}</span>
-                </div>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round"
-                  style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: '.2s', flexShrink: 0 }}>
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
+        {loading && (
+          <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 }}>
+            Carregando...
+          </div>
+        )}
 
-              {isOpen && (
-                <div style={s.detalhe}>
-                  <div style={s.divider} />
-                  {r.itens ? (
-                    <div>
-                      <p style={s.detalheLabel}>VALORES</p>
-                      {r.itens.map(item => (
-                        <div key={item.nome} style={s.itemRow}>
-                          <div style={{ flex: 1 }}>
-                            <p style={s.itemNome}>{item.nome}</p>
-                            <p style={s.itemRef}>Ref: {item.ref}</p>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <p style={{ ...s.itemValor, color: item.ok ? '#166534' : '#991B1B' }}>{item.valor}</p>
-                            <span style={{ ...s.itemTag, backgroundColor: item.ok ? '#DCFCE7' : '#FEE2E2', color: item.ok ? '#166534' : '#991B1B' }}>
-                              {item.ok ? '✓' : '↑'}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                      {r.itens.some(i => !i.ok) && (
-                        <div style={s.alertaBox}>
-                          <p style={s.alertaText}>⚠️ Alguns valores estão fora da referência. Consulte seu médico.</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <p style={s.detalheLabel}>LAUDO MÉDICO</p>
-                      <p style={s.laudoText}>{r.laudo}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {!loading && resultados.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#0D1B2A', marginBottom: 6 }}>Nenhum resultado ainda</p>
+            <p style={{ fontSize: 13, color: '#9CA3AF' }}>Seus exames e laudos aparecerão aqui quando forem liberados pela clínica.</p>
+          </div>
+        )}
 
-        {/* Pendentes */}
-        {pendentes.length > 0 && (
+        {/* Exames */}
+        {!loading && exames.length > 0 && (
           <>
-            <p style={{ ...s.sectionTitle, marginTop: 24 }}>⏳ Aguardando liberação</p>
-            {pendentes.map(r => {
+            <p style={s.sectionTitle}>🔬 Exames</p>
+            {exames.map(r => {
               const ci = catIcon[r.categoria] || { bg: '#F3F4F6', stroke: '#6B7280' }
+              const isOpen = aberto === r.id
               return (
-                <div key={r.id} style={{ ...s.card, opacity: 0.7 }}>
-                  <div style={s.cardBtn}>
+                <div key={r.id} style={s.card}>
+                  <button style={s.cardBtn} onClick={() => setAberto(isOpen ? null : r.id)}>
                     <div style={{ ...s.catIcon, backgroundColor: ci.bg }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ci.stroke} strokeWidth="2" strokeLinecap="round">
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
                       </svg>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={s.cardTipo}>{r.tipo}</p>
-                      <p style={s.cardMeta}>{fmtData(r.data)} · {r.medico}</p>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <p style={s.cardTipo}>{r.nome}</p>
+                      <p style={s.cardMeta}>{fmtData(r.criado_em)}</p>
+                      <span style={s.catTag}>{r.categoria}</span>
                     </div>
-                    <span style={{ backgroundColor: '#FEF9C3', color: '#854D0E', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 50 }}>Pendente</span>
-                  </div>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round"
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: '.2s', flexShrink: 0 }}>
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
+
+                  {isOpen && (
+                    <div style={s.detalhe}>
+                      <div style={s.divider} />
+                      {r.arquivo_url && (
+                        <a href={r.arquivo_url} target="_blank" rel="noreferrer" style={s.arquivoBtn}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                          </svg>
+                          📎 Ver arquivo anexo
+                        </a>
+                      )}
+                      {r.conteudo && (
+                        <div>
+                          <p style={s.detalheLabel}>OBSERVAÇÕES</p>
+                          <p style={s.laudoText}>{r.conteudo}</p>
+                        </div>
+                      )}
+                      {!r.arquivo_url && !r.conteudo && (
+                        <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>Sem detalhes adicionais.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </>
+        )}
+
+        {/* Laudos */}
+        {!loading && laudos.length > 0 && (
+          <>
+            <p style={{ ...s.sectionTitle, marginTop: 24 }}>📄 Laudos</p>
+            {laudos.map(r => {
+              const isOpen = aberto === r.id
+              return (
+                <div key={r.id} style={s.card}>
+                  <button style={s.cardBtn} onClick={() => setAberto(isOpen ? null : r.id)}>
+                    <div style={{ ...s.catIcon, backgroundColor: '#FFF7ED' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <p style={s.cardTipo}>{r.nome}</p>
+                      <p style={s.cardMeta}>{fmtData(r.criado_em)}</p>
+                      <span style={{ ...s.catTag, backgroundColor: '#FFF7ED', color: '#EA580C' }}>Laudo</span>
+                    </div>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round"
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: '.2s', flexShrink: 0 }}>
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  </button>
+                  {isOpen && (
+                    <div style={s.detalhe}>
+                      <div style={s.divider} />
+                      <p style={s.detalheLabel}>LAUDO MÉDICO</p>
+                      <p style={s.laudoText}>{r.conteudo}</p>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -206,14 +202,8 @@ const s = {
   detalhe: { padding: '0 18px 18px' },
   divider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 14 },
   detalheLabel: { fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1.5, marginBottom: 12 },
-  itemRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F9FAFB' },
-  itemNome: { fontSize: 13, fontWeight: 600, color: '#0D1B2A', marginBottom: 2 },
-  itemRef: { fontSize: 11, color: '#9CA3AF' },
-  itemValor: { fontSize: 14, fontWeight: 700 },
-  itemTag: { width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 },
-  alertaBox: { backgroundColor: '#FEF9C3', borderRadius: 10, padding: '10px 12px', marginTop: 12, border: '1px solid #FDE68A' },
-  alertaText: { fontSize: 12, color: '#854D0E', fontWeight: 500 },
   laudoText: { fontSize: 13, color: '#374151', lineHeight: '20px', backgroundColor: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #F3F4F6' },
+  arquivoBtn: { display: 'flex', alignItems: 'center', gap: 8, color: '#0047AB', fontSize: 13, fontWeight: 600, textDecoration: 'none', backgroundColor: '#EFF6FF', borderRadius: 10, padding: '10px 14px', marginBottom: 12 },
   avisoCard: { backgroundColor: '#EFF6FF', borderRadius: 14, padding: '12px 16px', marginTop: 20, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid #BFDBFE' },
   avisoText: { fontSize: 12, color: '#1d4ed8', lineHeight: '18px' },
 }
