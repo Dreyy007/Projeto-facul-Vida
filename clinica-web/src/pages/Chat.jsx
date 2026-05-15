@@ -14,6 +14,7 @@ export default function Chat() {
   const [busca, setBusca] = useState('')
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
+  const lastDateRef = useRef(null)
 
   useEffect(() => {
     fetchConversas()
@@ -168,7 +169,8 @@ export default function Chat() {
     c.nome?.toLowerCase().includes(busca.toLowerCase())
   )
 
-  let lastDate = null
+  // Reset lastDate a cada render das mensagens
+  lastDateRef.current = null
 
   return (
     <div className="chat-page">
@@ -230,8 +232,8 @@ export default function Chat() {
             <div className="chat-messages">
               {mensagens.map(m => {
                 const msgDate = fmtData(m.criado_em)
-                const showDate = msgDate !== lastDate
-                lastDate = msgDate
+                const showDate = msgDate !== lastDateRef.current
+                lastDateRef.current = msgDate
                 const isClinica = m.remetente === 'clinica'
 
                 return (
@@ -248,7 +250,7 @@ export default function Chat() {
                       <div className="msg-col">
                         <div className="msg-bubble">
                           {renderAnexo(m)}
-                          {m.conteudo && <span>{m.conteudo}</span>}
+                          {m.conteudo && <span style={{ whiteSpace: 'pre-line' }}>{m.conteudo}</span>}
                         </div>
                         <div className="msg-time">{fmtHora(m.criado_em)}</div>
                       </div>
