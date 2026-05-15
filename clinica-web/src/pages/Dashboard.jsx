@@ -119,7 +119,7 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p className="page-sub">Bem-vindo, {profile?.nome?.split(' ')[0]}!</p>
+          <p className="page-sub">Bem-vindo, {profile?.nome}!</p>
         </div>
         <button className="btn-primary" onClick={() => window.location.href = '/agenda'}>+ Nova consulta</button>
       </div>
