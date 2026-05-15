@@ -77,6 +77,14 @@ export default function PacienteDetalhe() {
     fetchAll()
   }
 
+  async function handleExcluirPaciente() {
+    if (!window.confirm(`Tem certeza que deseja EXCLUIR permanentemente o paciente? Todos os dados serão apagados e essa ação não pode ser desfeita.`)) return
+    if (!window.confirm("Confirme novamente: excluir tudo permanentemente?")) return
+    const { error } = await supabase.from("pacientes").delete().eq("id", id)
+    if (error) { alert("Erro ao excluir: " + error.message); return }
+    navigate("/pacientes")
+  }
+
   async function handleEnviarMsg() {
     if (!novaMsg.trim()) return
     await supabase.from('mensagens').insert([{ paciente_id: id, remetente: 'clinica', conteudo: novaMsg.trim(), lida: true }])
@@ -164,6 +172,9 @@ export default function PacienteDetalhe() {
             <button className="btn-outline" onClick={toggleAtivo}>{paciente.ativo ? 'Desativar' : 'Reativar'}</button>
           )}
           <button className="btn-primary" onClick={() => setEditando(true)}>Editar dados</button>
+          {profile?.tipo === 'admin' && (
+            <button className="btn-danger" style={{ padding: '7px 14px', fontSize: 13 }} onClick={handleExcluirPaciente}>Excluir paciente</button>
+          )}
         </div>
       </div>
 
