@@ -156,7 +156,7 @@ export default function PacienteDetalhe() {
               {paciente.nome.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <h1 style={{ fontFamily: 'Playfair Display,serif', fontSize: 22 }}>{paciente.nome}</h1>
+              <h1 style={{ fontFamily: 'General Sans, sans-serif', fontSize: 22 }}>{paciente.nome}</h1>
               <p className="page-sub">
                 {idade ? `${idade} anos · ` : ''}
                 {paciente.medico?.nome ? `Paciente de ${paciente.medico.nome}` : 'Sem profissional vinculado'}
