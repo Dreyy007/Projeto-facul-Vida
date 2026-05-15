@@ -9,6 +9,7 @@ import Chat from './pages/Chat'
 import Perfil from './pages/Perfil'
 import Agendar from './pages/Agendar'
 import Resultados from './pages/Resultados'
+import RedefinirSenha from './pages/RedefinirSenha'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -31,21 +32,22 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Home />} />
-            <Route path="consultas" element={<Consultas />} />
-            <Route path="chat" element={<Chat />} />
-            <Route path="perfil" element={<Perfil />} />
-            <Route path="agendar" element={<Agendar />} />
-            <Route path="resultados" element={<Resultados />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-      </ThemeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+            <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
+              <Route index element={<Home />} />
+              <Route path="consultas" element={<Consultas />} />
+              <Route path="chat" element={<Chat />} />
+              <Route path="perfil" element={<Perfil />} />
+              <Route path="agendar" element={<Agendar />} />
+              <Route path="resultados" element={<Resultados />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
