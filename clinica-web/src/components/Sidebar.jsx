@@ -94,7 +94,7 @@ export default function Sidebar() {
       <div className="sidebar-user">
         <div className="user-av">{initials}</div>
         <div className="user-info">
-          <div className="user-name">{primeiroNome}</div>
+          <div className="user-name">{partes.slice(0, 2).join(' ') || '...'}</div>
           <div className="user-role">{roleLabel[profile?.tipo] || ''}</div>
         </div>
         <div className="user-online" title="Online" />
