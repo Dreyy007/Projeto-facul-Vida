@@ -30,6 +30,17 @@ export default function PacienteDetalhe() {
 
   useEffect(() => { fetchAll() }, [id])
 
+  // Marca mensagens como lidas ao abrir a aba
+  useEffect(() => {
+    if (aba === 'mensagens') {
+      supabase.from('mensagens')
+        .update({ lida: true })
+        .eq('paciente_id', id)
+        .eq('lida', false)
+        .eq('remetente', 'paciente')
+    }
+  }, [aba, id])
+
   async function fetchAll() {
     const [{ data: pac }, { data: cons }, { data: msgs }, { data: meds }, { data: res }] = await Promise.all([
       supabase.from('pacientes').select('*, medico:profiles(id,nome)').eq('id', id).single(),
