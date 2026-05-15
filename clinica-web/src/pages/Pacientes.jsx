@@ -29,8 +29,7 @@ export default function Pacientes() {
 
   async function fetchAll() {
     let query = supabase.from('pacientes').select('*, medico:profiles(nome)').order('nome')
-    if (profile?.tipo === 'medico') query = query.eq('medico_id', profile.id)
-    const { data } = await query
+        const { data } = await query
     const { data: meds } = await supabase.from('profiles').select('id, nome').eq('tipo', 'medico')
     setPacientes(data || [])
     setMedicos(meds || [])
