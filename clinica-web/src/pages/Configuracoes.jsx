@@ -4,16 +4,18 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
 
+const roleClass = { admin: 'role-adm', coordenador: 'role-coo', medico: 'role-med', recepcionista: 'role-rec' }
+const roleLabel = { admin: 'Administrador', coordenador: 'Coordenador', medico: 'Médico / Psicólogo', recepcionista: 'Recepcionista' }
+
 export default function Configuracoes() {
   const { profile } = useAuth()
   const { tema, setTema } = useTheme()
   const [aba, setAba] = useState('perfil')
   const [formPerfil, setFormPerfil] = useState({ nome: '', crp_crm: '', especialidade: '' })
-  const [formSenha, setFormSenha] = useState({ atual: '', nova: '', confirma: '' })
+  const [formSenha, setFormSenha] = useState({ nova: '', confirma: '' })
   const [tipos, setTipos] = useState([])
   const [novoTipo, setNovoTipo] = useState('')
   const [saving, setSaving] = useState(false)
-  const [formClinica, setFormClinica] = useState({ nome: 'Clínica Vida+', cnpj: '', telefone: '(11) 3333-3333', email: 'contato@clinicavida.com.br', endereco: '' })
   const [msgOk, setMsgOk] = useState('')
   const [msgErr, setMsgErr] = useState('')
 
@@ -21,25 +23,22 @@ export default function Configuracoes() {
     if (profile) {
       setFormPerfil({ nome: profile.nome || '', crp_crm: profile.crp_crm || '', especialidade: profile.especialidade || '' })
     }
-    fetchConfigClinica()
-    fetchTipos()
   }, [profile])
 
+  useEffect(() => {
+    if (aba === 'consultas') fetchTipos()
+  }, [aba])
+
   async function fetchTipos() {
-    const { data } = await supabase.from('tipos_consulta').select('id, nome').eq('ativo', true).order('nome')
-    setTipos(data || [])
-  }
-
-  async function fetchConfigClinica() {
-    const { data } = await supabase.from('config_clinica').select('*').eq('id', 1).single()
-    if (data) setFormClinica({ nome: data.nome || '', cnpj: data.cnpj || '', telefone: data.telefone || '', email: data.email || '', endereco: data.endereco || '' })
-  }
-
-  async function salvarClinica() {
-    setSaving(true)
-    const { error } = await supabase.from('config_clinica').upsert({ id: 1, ...formClinica, atualizado_em: new Date().toISOString() })
-    notify(!error, error ? 'Erro ao salvar: ' + error.message : 'Dados da clínica salvos com sucesso!')
-    setSaving(false)
+    const { data } = await supabase.from('tipos_consulta').select('*').order('nome')
+    if (data) setTipos(data)
+    else setTipos([
+      { id: 'default-1', nome: 'Psicoterapia' },
+      { id: 'default-2', nome: 'Avaliação Psicológica' },
+      { id: 'default-3', nome: 'Consulta Psiquiátrica' },
+      { id: 'default-4', nome: 'Neuropsicologia' },
+      { id: 'default-5', nome: 'Psicologia Infantil' },
+    ])
   }
 
   function notify(ok, msg) {
@@ -64,7 +63,7 @@ export default function Configuracoes() {
     setSaving(true)
     const { error } = await supabase.auth.updateUser({ password: formSenha.nova })
     if (!error) {
-      setFormSenha({ atual: '', nova: '', confirma: '' })
+      setFormSenha({ nova: '', confirma: '' })
       notify(true, 'Senha alterada com sucesso!')
     } else {
       notify(false, 'Erro ao alterar senha: ' + error.message)
@@ -75,14 +74,18 @@ export default function Configuracoes() {
   async function adicionarTipo() {
     const t = novoTipo.trim()
     if (!t) return
+    if (tipos.some(x => x.nome.toLowerCase() === t.toLowerCase())) {
+      notify(false, 'Tipo já existe.'); return
+    }
     const { error } = await supabase.from('tipos_consulta').insert([{ nome: t }])
     if (!error) { setNovoTipo(''); fetchTipos(); notify(true, 'Tipo adicionado!') }
-    else notify(false, 'Erro: ' + error.message)
+    else notify(false, 'Erro ao adicionar: ' + error.message)
   }
 
   async function removerTipo(id) {
-    await supabase.from('tipos_consulta').update({ ativo: false }).eq('id', id)
-    fetchTipos()
+    const { error } = await supabase.from('tipos_consulta').delete().eq('id', id)
+    if (!error) { fetchTipos(); notify(true, 'Tipo removido.') }
+    else notify(false, 'Erro ao remover: ' + error.message)
   }
 
   const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
@@ -96,7 +99,6 @@ export default function Configuracoes() {
         </div>
       </div>
 
-      {/* Mensagens de feedback */}
       {msgOk && (
         <div style={{ background: 'var(--sbg)', color: 'var(--success)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
           ✅ {msgOk}
@@ -151,8 +153,9 @@ export default function Configuracoes() {
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{profile?.nome}</div>
                   <div style={{ fontSize: 13, color: 'var(--muted)' }}>{profile?.email}</div>
-                  <span className={{ admin: 'role-adm', coordenador: 'role-coo', medico: 'role-med', recepcionista: 'role-rec' }[profile?.tipo] || 'tag'}>
-                    {{ admin: 'Administrador', coordenador: 'Coordenador', medico: 'Médico / Psicólogo', recepcionista: 'Recepcionista' }[profile?.tipo]}
+                  {/* CORRIGIDO: era className={objeto} — agora é string */}
+                  <span className={roleClass[profile?.tipo] || 'tag'}>
+                    {roleLabel[profile?.tipo]}
                   </span>
                 </div>
               </div>
@@ -201,16 +204,14 @@ export default function Configuracoes() {
                 <p style={{ fontSize: 13, color: 'var(--muted)' }}>Informações gerais exibidas no sistema</p>
               </div>
               <div className="form-grid">
-                <div className="fld"><label>Nome da clínica</label><input value={formClinica.nome} onChange={e => setFormClinica(p => ({ ...p, nome: e.target.value }))} /></div>
-                <div className="fld"><label>CNPJ</label><input value={formClinica.cnpj} onChange={e => setFormClinica(p => ({ ...p, cnpj: e.target.value }))} placeholder="00.000.000/0001-00" /></div>
-                <div className="fld"><label>Telefone</label><input value={formClinica.telefone} onChange={e => setFormClinica(p => ({ ...p, telefone: e.target.value }))} placeholder="(11) 3333-3333" /></div>
-                <div className="fld"><label>E-mail de contato</label><input type="email" value={formClinica.email} onChange={e => setFormClinica(p => ({ ...p, email: e.target.value }))} placeholder="contato@clinicavida.com.br" /></div>
-                <div className="fld" style={{ gridColumn: '1/-1' }}><label>Endereço</label><input value={formClinica.endereco} onChange={e => setFormClinica(p => ({ ...p, endereco: e.target.value }))} placeholder="Rua, número, bairro, cidade – UF" /></div>
+                <div className="fld"><label>Nome da clínica</label><input defaultValue="Clínica Vida+" /></div>
+                <div className="fld"><label>CNPJ</label><input placeholder="00.000.000/0001-00" /></div>
+                <div className="fld"><label>Telefone</label><input placeholder="(11) 3333-3333" /></div>
+                <div className="fld"><label>E-mail de contato</label><input type="email" placeholder="contato@clinicavidamais.com.br" /></div>
+                <div className="fld" style={{ gridColumn: '1/-1' }}><label>Endereço</label><input placeholder="Rua, número, bairro, cidade – UF" /></div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn-primary" onClick={salvarClinica} disabled={saving}>
-                  {saving ? 'Salvando...' : 'Salvar dados da clínica'}
-                </button>
+              <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: 'var(--warn)' }}>
+                ⚠️ Para salvar esses dados, adicione a tabela <strong>config_clinica</strong> no Supabase (veja o schema abaixo).
               </div>
             </div>
           )}
@@ -264,7 +265,7 @@ export default function Configuracoes() {
             </div>
           )}
 
-          {/* Tipos de consulta */}
+          {/* Tipos de consulta — agora salva no banco */}
           {aba === 'consultas' && isAdmin && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
@@ -281,6 +282,7 @@ export default function Configuracoes() {
                     >Remover</button>
                   </div>
                 ))}
+                {tipos.length === 0 && <div className="empty">Nenhum tipo cadastrado.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <input
@@ -292,9 +294,9 @@ export default function Configuracoes() {
                 />
                 <button className="btn-primary" onClick={adicionarTipo} disabled={!novoTipo.trim()}>Adicionar</button>
               </div>
-
             </div>
           )}
+
         </div>
       </div>
     </div>

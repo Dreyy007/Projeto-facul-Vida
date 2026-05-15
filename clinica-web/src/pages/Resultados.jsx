@@ -16,7 +16,6 @@ export default function Resultados() {
   const [filtroCat, setFiltroCat] = useState('todos')
   const [form, setForm] = useState({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
   const [arquivo, setArquivo] = useState(null)
-  const [buscaPac, setBuscaPac] = useState('')
   const fileRef = useRef(null)
 
   useEffect(() => { fetchAll() }, [])
@@ -24,8 +23,9 @@ export default function Resultados() {
   async function fetchAll() {
     setLoading(true)
     const [{ data: res }, { data: pac }] = await Promise.all([
-      supabase.from('resultados').select('*, paciente:pacientes(nome, cpf)').order('criado_em', { ascending: false }),
-      supabase.from('pacientes').select('id, nome, cpf').eq('ativo', true).order('nome'),
+      // CORRIGIDO: adicionado join com profiles para buscar nome do médico
+      supabase.from('resultados').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('criado_em', { ascending: false }),
+      supabase.from('pacientes').select('id, nome').eq('ativo', true).order('nome'),
     ])
     setResultados(res || [])
     setPacientes(pac || [])
@@ -66,7 +66,6 @@ export default function Resultados() {
       setModal(false)
       setForm({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
       setArquivo(null)
-      setBuscaPac('')
       fetchAll()
     }
     setSaving(false)
@@ -79,12 +78,12 @@ export default function Resultados() {
   }
 
   const filtered = resultados.filter(r => {
-    const matchSearch = !search || r.nome.toLowerCase().includes(search.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(search.toLowerCase()) || r.paciente?.cpf?.replace(/\D/g,'').includes(search.replace(/\D/g,''))
+    const matchSearch = !search || r.nome.toLowerCase().includes(search.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(search.toLowerCase())
     const matchCat = filtroCat === 'todos' || r.categoria === filtroCat
     return matchSearch && matchCat
   })
 
-  const catColor = { 'Exame de Sangue': 'tp', 'Psicologia': 'tag' , 'Cardiologia': 'tr', 'Neuropsicologia': 'ta', 'Imagem': 'tg', 'Outro': 'tp' }
+  const catColor = { 'Exame de Sangue': 'tp', 'Psicologia': 'ta', 'Cardiologia': 'tr', 'Neuropsicologia': 'ta', 'Imagem': 'tg', 'Outro': 'tp' }
 
   if (loading) return <div className="page-loading">Carregando...</div>
 
@@ -101,7 +100,7 @@ export default function Resultados() {
       {/* Filtros */}
       <div className="card" style={{ padding: '14px 18px' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="search-input" placeholder="🔍 Buscar por paciente, CPF ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
+          <input className="search-input" placeholder="🔍 Buscar por paciente ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
           <select value={filtroCat} onChange={e => setFiltroCat(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
             <option value="todos">Todas as categorias</option>
             {categorias.map(c => <option key={c} value={c}>{c}</option>)}
@@ -123,7 +122,7 @@ export default function Resultados() {
                 <th>Exame / Laudo</th>
                 <th>Categoria</th>
                 <th>Arquivo</th>
-                <th>Laudo</th>
+                <th>Observações</th>
                 <th>Liberado por</th>
                 <th>Data</th>
                 <th>Ações</th>
@@ -152,6 +151,7 @@ export default function Resultados() {
                       : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                     }
                   </td>
+                  {/* CORRIGIDO: agora exibe o nome pois o join está correto */}
                   <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.medico?.nome || '—'}</td>
                   <td style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                     {new Date(r.criado_em).toLocaleDateString('pt-BR')}
@@ -176,48 +176,11 @@ export default function Resultados() {
             <h2>Novo Resultado</h2>
             <div className="form-grid">
               <div className="fld">
-                <label>Paciente * — busque por nome ou CPF</label>
-                <input
-                  placeholder="🔍 Digite nome ou CPF..."
-                  value={buscaPac}
-                  onChange={e => { setBuscaPac(e.target.value); setForm({ ...form, paciente_id: '' }) }}
-                  style={{ marginBottom: 4 }}
-                />
-                {form.paciente_id && (
-                  <div style={{ fontSize: 12, color: 'var(--p)', fontWeight: 600, padding: '4px 8px', background: 'var(--p3)', borderRadius: 6 }}>
-                    ✓ {pacientes.find(p => p.id === form.paciente_id)?.nome}
-                  </div>
-                )}
-                {buscaPac.length >= 2 && !form.paciente_id && (
-                  <div style={{ border: '1.5px solid var(--border)', borderRadius: 8, maxHeight: 160, overflowY: 'auto', background: '#fff', marginTop: 2 }}>
-                    {pacientes
-                      .filter(p => {
-                        const q = buscaPac.toLowerCase()
-                        const cpfQ = buscaPac.replace(/\D/g,'')
-                        return p.nome?.toLowerCase().includes(q) || (cpfQ.length >= 3 && p.cpf?.replace(/\D/g,'').includes(cpfQ))
-                      })
-                      .slice(0, 8)
-                      .map(p => (
-                        <div key={p.id}
-                          onClick={() => { setForm({ ...form, paciente_id: p.id }); setBuscaPac(p.nome) }}
-                          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--p3)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <strong>{p.nome}</strong>
-                          {p.cpf && <span style={{ color: 'var(--muted)', fontSize: 11 }}>CPF: {p.cpf}</span>}
-                        </div>
-                      ))
-                    }
-                    {pacientes.filter(p => {
-                      const q = buscaPac.toLowerCase()
-                      const cpfQ = buscaPac.replace(/\D/g,'')
-                      return p.nome?.toLowerCase().includes(q) || (cpfQ.length >= 3 && p.cpf?.replace(/\D/g,'').includes(cpfQ))
-                    }).length === 0 && (
-                      <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--muted)' }}>Nenhum paciente encontrado.</div>
-                    )}
-                  </div>
-                )}
+                <label>Paciente *</label>
+                <select value={form.paciente_id} onChange={e => setForm({ ...form, paciente_id: e.target.value })}>
+                  <option value="">Selecionar...</option>
+                  {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
               </div>
               <div className="fld">
                 <label>Nome do exame / laudo *</label>
@@ -237,7 +200,7 @@ export default function Resultados() {
                 </button>
               </div>
               <div className="fld" style={{ gridColumn: '1/-1' }}>
-                <label>Laudo / texto (opcional)</label>
+                <label>Observações / texto (opcional)</label>
                 <textarea rows={4} value={form.conteudo} onChange={e => setForm({ ...form, conteudo: e.target.value })} placeholder="Digite o laudo ou observações médicas aqui..." style={{ resize: 'vertical' }} />
               </div>
             </div>
