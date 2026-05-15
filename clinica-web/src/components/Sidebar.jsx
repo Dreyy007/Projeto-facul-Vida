@@ -66,8 +66,12 @@ export default function Sidebar() {
     navigate('/login')
   }
 
-  const initials = profile?.nome
-    ? profile.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+  const prefixos = ['dr', 'dr.', 'dra', 'dra.', 'prof', 'prof.']
+  const partes = profile?.nome?.split(' ') || []
+  const primeiroNome = partes.find(p => !prefixos.includes(p.toLowerCase())) || partes[0] || '...'
+
+  const initials = partes.length
+    ? partes.filter(p => !prefixos.includes(p.toLowerCase())).map(n => n[0]).slice(0, 2).join('').toUpperCase() || partes.map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?'
 
   const roleLabel = { admin: 'Administrador', coordenador: 'Coordenador', medico: 'Médico', recepcionista: 'Recepcionista' }
@@ -90,7 +94,7 @@ export default function Sidebar() {
       <div className="sidebar-user">
         <div className="user-av">{initials}</div>
         <div className="user-info">
-          <div className="user-name">{profile?.nome?.split(' ')[0] || '...'}</div>
+          <div className="user-name">{primeiroNome}</div>
           <div className="user-role">{roleLabel[profile?.tipo] || ''}</div>
         </div>
         <div className="user-online" title="Online" />
