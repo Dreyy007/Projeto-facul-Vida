@@ -21,6 +21,7 @@ export default function Resultados() {
   // Busca por CPF no modal
   const [cpfBusca, setCpfBusca] = useState('')
   const [pacienteEncontrado, setPacienteEncontrado] = useState(null)
+  const [resultadosCpf, setResultadosCpf] = useState([])
   const [cpfErro, setCpfErro] = useState('')
 
   useEffect(() => { fetchAll() }, [])
@@ -40,24 +41,30 @@ export default function Resultados() {
     setCpfBusca(valor)
     setCpfErro('')
     setPacienteEncontrado(null)
+    setResultadosCpf([])
     setForm(f => ({ ...f, paciente_id: '' }))
 
     const cpfLimpo = valor.replace(/\D/g, '')
     if (cpfLimpo.length < 3) return
 
-    const encontrado = pacientes.find(p => p.cpf?.replace(/\D/g, '').includes(cpfLimpo))
-    if (encontrado) {
-      setPacienteEncontrado(encontrado)
-      setForm(f => ({ ...f, paciente_id: encontrado.id }))
-      setCpfErro('')
+    const encontrados = pacientes.filter(p => p.cpf?.replace(/\D/g, '').includes(cpfLimpo))
+    if (encontrados.length > 0) {
+      setResultadosCpf(encontrados)
     } else if (cpfLimpo.length >= 6) {
       setCpfErro('Nenhum paciente encontrado com este CPF.')
     }
   }
 
+  function selecionarPaciente(p) {
+    setPacienteEncontrado(p)
+    setResultadosCpf([])
+    setForm(f => ({ ...f, paciente_id: p.id }))
+  }
+
   function abrirModal() {
     setCpfBusca('')
     setPacienteEncontrado(null)
+    setResultadosCpf([])
     setCpfErro('')
     setForm({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
     setArquivo(null)
@@ -214,6 +221,26 @@ export default function Resultados() {
                   placeholder="Digite o CPF para buscar o paciente..."
                   maxLength={14}
                 />
+                {resultadosCpf.length > 0 && !pacienteEncontrado && (
+                  <div style={{ marginTop: 8, border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    {resultadosCpf.map(p => (
+                      <div key={p.id} onClick={() => selecionarPaciente(p)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: '#fff', transition: '.1s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                      >
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--p3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, color: 'var(--p)', flexShrink: 0 }}>
+                          {p.nome.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{p.nome}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>CPF: {p.cpf}</div>
+                        </div>
+                        <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--p)', fontWeight: 600 }}>Selecionar →</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {pacienteEncontrado && (
                   <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--sbg, #f0fdf4)', border: '1.5px solid var(--success, #16a34a)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--p3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, color: 'var(--p)' }}>
@@ -223,6 +250,10 @@ export default function Resultados() {
                       <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{pacienteEncontrado.nome}</div>
                       <div style={{ fontSize: 11, color: 'var(--success, #16a34a)', fontWeight: 600 }}>✓ Paciente encontrado</div>
                     </div>
+                    <button onClick={() => { setPacienteEncontrado(null); setForm(f => ({...f, paciente_id: ''})) }}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' }}>
+                      Trocar
+                    </button>
                   </div>
                 )}
                 {cpfErro && (
