@@ -18,18 +18,50 @@ export default function Resultados() {
   const [arquivo, setArquivo] = useState(null)
   const fileRef = useRef(null)
 
+  // Busca por CPF no modal
+  const [cpfBusca, setCpfBusca] = useState('')
+  const [pacienteEncontrado, setPacienteEncontrado] = useState(null)
+  const [cpfErro, setCpfErro] = useState('')
+
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
     setLoading(true)
     const [{ data: res }, { data: pac }] = await Promise.all([
-      // CORRIGIDO: adicionado join com profiles para buscar nome do médico
       supabase.from('resultados').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('criado_em', { ascending: false }),
-      supabase.from('pacientes').select('id, nome').eq('ativo', true).order('nome'),
+      supabase.from('pacientes').select('id, nome, cpf').eq('ativo', true).order('nome'),
     ])
     setResultados(res || [])
     setPacientes(pac || [])
     setLoading(false)
+  }
+
+  function handleCpfBusca(valor) {
+    setCpfBusca(valor)
+    setCpfErro('')
+    setPacienteEncontrado(null)
+    setForm(f => ({ ...f, paciente_id: '' }))
+
+    const cpfLimpo = valor.replace(/\D/g, '')
+    if (cpfLimpo.length < 3) return
+
+    const encontrado = pacientes.find(p => p.cpf?.replace(/\D/g, '').includes(cpfLimpo))
+    if (encontrado) {
+      setPacienteEncontrado(encontrado)
+      setForm(f => ({ ...f, paciente_id: encontrado.id }))
+      setCpfErro('')
+    } else if (cpfLimpo.length >= 6) {
+      setCpfErro('Nenhum paciente encontrado com este CPF.')
+    }
+  }
+
+  function abrirModal() {
+    setCpfBusca('')
+    setPacienteEncontrado(null)
+    setCpfErro('')
+    setForm({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
+    setArquivo(null)
+    setModal(true)
   }
 
   async function handleSalvar() {
@@ -64,8 +96,6 @@ export default function Resultados() {
     if (error) { alert('Erro: ' + error.message) }
     else {
       setModal(false)
-      setForm({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
-      setArquivo(null)
       fetchAll()
     }
     setSaving(false)
@@ -94,7 +124,7 @@ export default function Resultados() {
           <h1>Resultados</h1>
           <p className="page-sub">{resultados.length} resultado(s) cadastrado(s)</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal(true)}>+ Novo resultado</button>
+        <button className="btn-primary" onClick={abrirModal}>+ Novo resultado</button>
       </div>
 
       {/* Filtros */}
@@ -151,7 +181,6 @@ export default function Resultados() {
                       : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                     }
                   </td>
-                  {/* CORRIGIDO: agora exibe o nome pois o join está correto */}
                   <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.medico?.nome || '—'}</td>
                   <td style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                     {new Date(r.criado_em).toLocaleDateString('pt-BR')}
@@ -175,13 +204,32 @@ export default function Resultados() {
           <div className="modal" style={{ maxWidth: 600 }}>
             <h2>Novo Resultado</h2>
             <div className="form-grid">
-              <div className="fld">
-                <label>Paciente *</label>
-                <select value={form.paciente_id} onChange={e => setForm({ ...form, paciente_id: e.target.value })}>
-                  <option value="">Selecionar...</option>
-                  {pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
+
+              {/* Busca por CPF */}
+              <div className="fld" style={{ gridColumn: '1/-1' }}>
+                <label>CPF do paciente *</label>
+                <input
+                  value={cpfBusca}
+                  onChange={e => handleCpfBusca(e.target.value)}
+                  placeholder="Digite o CPF para buscar o paciente..."
+                  maxLength={14}
+                />
+                {pacienteEncontrado && (
+                  <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--sbg, #f0fdf4)', border: '1.5px solid var(--success, #16a34a)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--p3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, color: 'var(--p)' }}>
+                      {pacienteEncontrado.nome.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{pacienteEncontrado.nome}</div>
+                      <div style={{ fontSize: 11, color: 'var(--success, #16a34a)', fontWeight: 600 }}>✓ Paciente encontrado</div>
+                    </div>
+                  </div>
+                )}
+                {cpfErro && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>⚠ {cpfErro}</div>
+                )}
               </div>
+
               <div className="fld">
                 <label>Nome do exame / laudo *</label>
                 <input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex: Hemograma Completo" />
