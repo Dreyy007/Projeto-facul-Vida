@@ -54,8 +54,8 @@ export default function Pacientes() {
   }
 
   const filtered = pacientes.filter(p => {
-    const buscaCpf = busca.replace(/\D/g, '')
-    const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase()) || p.email?.toLowerCase().includes(search.toLowerCase())
+    const buscaCpf = search.replace(/\D/g, '')
+    const matchSearch = !search || p.nome?.toLowerCase().includes(search.toLowerCase()) || p.email?.toLowerCase().includes(search.toLowerCase()) || (buscaCpf.length >= 3 && p.cpf?.replace(/\D/g,'').includes(buscaCpf))
     const matchFiltro = filtro === 'todos' || (filtro === 'ativos' && p.ativo) || (filtro === 'inativos' && !p.ativo)
     return matchSearch && matchFiltro
   })
