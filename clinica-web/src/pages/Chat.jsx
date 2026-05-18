@@ -1,9 +1,47 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { LOGO_SRC } from '../lib/logoClinica'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
 import './Chat.css'
+
+function tocarSomNotificacao() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const tocar = (freq, inicio, duracao, volume = 0.3) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = freq
+      osc.type = 'sine'
+      gain.gain.setValueAtTime(0, ctx.currentTime + inicio)
+      gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + inicio + 0.01)
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + inicio + duracao)
+      osc.start(ctx.currentTime + inicio)
+      osc.stop(ctx.currentTime + inicio + duracao + 0.05)
+    }
+    tocar(880, 0, 0.12, 0.25)
+    tocar(1100, 0.14, 0.18, 0.2)
+  } catch (e) {}
+}
+
+function tocarSomEnvio() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 600
+    osc.type = 'sine'
+    gain.gain.setValueAtTime(0, ctx.currentTime)
+    gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01)
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.15)
+  } catch (e) {}
+}
 
 export default function Chat() {
   const { profile } = useAuth()
@@ -15,41 +53,44 @@ export default function Chat() {
   const [busca, setBusca] = useState('')
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
+  const ativaRef = useRef(null)
+
+  useEffect(() => { ativaRef.current = ativa }, [ativa])
 
   useEffect(() => {
     fetchConversas()
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
+
+    // Canal global — notifica mensagens de qualquer paciente
+    const globalCh = supabase
+      .channel('chat-global-' + Date.now())
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'mensagens',
+      }, payload => {
+        if (payload.new.remetente !== 'paciente') return
+        tocarSomNotificacao()
+        notificarBrowser('Nova mensagem', payload.new.conteudo || '📎 Anexo')
+        fetchConversas()
+        // Se a conversa ativa é a do paciente, adiciona a mensagem
+        if (ativaRef.current?.id === payload.new.paciente_id) {
+          setMensagens(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+        }
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(globalCh)
   }, [])
 
   useEffect(() => {
     if (!ativa) return
     fetchMensagens(ativa.id)
     marcarLidas(ativa.id)
-
-    const channel = supabase
-      .channel('chat-' + ativa.id)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'mensagens',
-        filter: `paciente_id=eq.${ativa.id}`
-      }, payload => {
-        setMensagens(prev => [...prev, payload.new])
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-        if (payload.new.remetente === 'paciente') {
-          notificarBrowser(ativa.nome, payload.new.conteudo || '📎 Anexo')
-          fetchConversas()
-        }
-      })
-      .subscribe()
-
-    return () => supabase.removeChannel(channel)
   }, [ativa])
 
   function notificarBrowser(nome, mensagem) {
-    if (document.visibilityState === 'visible') return
     if (Notification.permission === 'granted') {
       new Notification(`💬 ${nome}`, { body: mensagem, icon: LOGO_SRC })
     }
@@ -79,10 +120,7 @@ export default function Chat() {
 
   async function fetchMensagens(pacienteId) {
     const { data } = await supabase
-      .from('mensagens')
-      .select('*')
-      .eq('paciente_id', pacienteId)
-      .order('criado_em')
+      .from('mensagens').select('*').eq('paciente_id', pacienteId).order('criado_em')
     setMensagens(data || [])
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
@@ -95,11 +133,9 @@ export default function Chat() {
   async function handleEnviar() {
     if (!texto.trim() || !ativa || enviando) return
     setEnviando(true)
+    tocarSomEnvio()
     await supabase.from('mensagens').insert([{
-      paciente_id: ativa.id,
-      remetente: 'clinica',
-      conteudo: texto.trim(),
-      lida: true,
+      paciente_id: ativa.id, remetente: 'clinica', conteudo: texto.trim(), lida: true,
     }])
     setTexto('')
     setEnviando(false)
@@ -116,13 +152,8 @@ export default function Chat() {
     if (error) { alert('Erro ao enviar arquivo.'); setEnviando(false); return }
     const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
     await supabase.from('mensagens').insert([{
-      paciente_id: ativa.id,
-      remetente: 'clinica',
-      conteudo: file.name,
-      anexo_url: urlData.publicUrl,
-      anexo_tipo: file.type,
-      anexo_nome: file.name,
-      lida: true,
+      paciente_id: ativa.id, remetente: 'clinica', conteudo: file.name,
+      anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: true,
     }])
     e.target.value = ''
     setEnviando(false)
@@ -169,7 +200,6 @@ export default function Chat() {
     c.nome?.toLowerCase().includes(busca.toLowerCase())
   )
 
-  // CORRIGIDO: usa ref para lastDate - evita problema em StrictMode
   const lastDateDisplay = { current: null }
 
   return (
@@ -180,23 +210,13 @@ export default function Chat() {
           <span className="chat-count">{conversas.filter(c => c.unread > 0).length} não lidas</span>
         </div>
         <div className="chat-search-wrap">
-          <input
-            className="chat-search"
-            placeholder="Buscar paciente..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-          />
+          <input className="chat-search" placeholder="Buscar paciente..." value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
         {conversasFiltradas.length === 0 && <div className="empty" style={{ padding: 20 }}>Nenhuma conversa.</div>}
         {conversasFiltradas.map(c => (
-          <div
-            key={c.id}
-            className={`chat-list-item${ativa?.id === c.id ? ' active' : ''}`}
-            onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}
-          >
-            <div className="chat-av" style={{ background: corAvatar(c.nome) }}>
-              {iniciais(c.nome)}
-            </div>
+          <div key={c.id} className={`chat-list-item${ativa?.id === c.id ? ' active' : ''}`}
+            onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}>
+            <div className="chat-av" style={{ background: corAvatar(c.nome) }}>{iniciais(c.nome)}</div>
             <div className="chat-item-info">
               <div className="chat-item-top">
                 <span className="chat-item-name">{c.nome}</span>
@@ -235,12 +255,9 @@ export default function Chat() {
                 const showDate = msgDate !== lastDateDisplay.current
                 lastDateDisplay.current = msgDate
                 const isClinica = m.remetente === 'clinica'
-
                 return (
                   <div key={m.id}>
-                    {showDate && (
-                      <div className="chat-date-divider"><span>{msgDate}</span></div>
-                    )}
+                    {showDate && <div className="chat-date-divider"><span>{msgDate}</span></div>}
                     <div className={`msg-row ${isClinica ? 'me' : 'them'}`}>
                       {!isClinica && (
                         <div className="msg-av" style={{ background: corAvatar(ativa.nome) }}>
@@ -267,28 +284,11 @@ export default function Chat() {
             </div>
 
             <div className="chat-input-bar">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,.pdf,.doc,.docx"
-                style={{ display: 'none' }}
-                onChange={handleAnexo}
-              />
-              <button className="btn-clip" onClick={() => fileRef.current?.click()} disabled={enviando} title="Anexar">
-                📎
-              </button>
-              <textarea
-                className="chat-textarea"
-                placeholder="Digite sua mensagem..."
-                value={texto}
-                onChange={e => setTexto(e.target.value)}
-                onKeyDown={handleKey}
-                rows={1}
-                disabled={enviando}
-              />
-              <button className="btn-send" onClick={handleEnviar} disabled={!texto.trim() || enviando}>
-                ➤
-              </button>
+              <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleAnexo} />
+              <button className="btn-clip" onClick={() => fileRef.current?.click()} disabled={enviando} title="Anexar">📎</button>
+              <textarea className="chat-textarea" placeholder="Digite sua mensagem..." value={texto}
+                onChange={e => setTexto(e.target.value)} onKeyDown={handleKey} rows={1} disabled={enviando} />
+              <button className="btn-send" onClick={handleEnviar} disabled={!texto.trim() || enviando}>➤</button>
             </div>
           </>
         )}
