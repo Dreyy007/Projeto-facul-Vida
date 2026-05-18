@@ -1,50 +1,41 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import './Sidebar.css'
 
 const Icons = {
   dashboard: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-      <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-      <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-      <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
     </svg>
   ),
   agenda: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="18" rx="2.5"/>
-      <line x1="16" y1="2" x2="16" y2="6"/>
-      <line x1="8" y1="2" x2="8" y2="6"/>
-      <line x1="3" y1="10" x2="21" y2="10"/>
-      <circle cx="8" cy="15" r="1" fill="currentColor"/>
-      <circle cx="12" cy="15" r="1" fill="currentColor"/>
-      <circle cx="16" cy="15" r="1" fill="currentColor"/>
+      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      <circle cx="8" cy="15" r="1" fill="currentColor"/><circle cx="12" cy="15" r="1" fill="currentColor"/><circle cx="16" cy="15" r="1" fill="currentColor"/>
     </svg>
   ),
   chat: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-      <line x1="9" y1="10" x2="15" y2="10"/>
-      <line x1="9" y1="13" x2="13" y2="13"/>
+      <line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="13" x2="13" y2="13"/>
     </svg>
   ),
   pacientes: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="9" cy="7" r="4"/>
       <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>
-      <path d="M16 3.13a4 4 0 010 7.75"/>
-      <path d="M21 21v-2a4 4 0 00-3-3.87"/>
+      <path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/>
     </svg>
   ),
   consultas: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
       <polyline points="14 2 14 8 20 8"/>
-      <line x1="9" y1="13" x2="15" y2="13"/>
-      <line x1="9" y1="17" x2="12" y2="17"/>
+      <line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/>
     </svg>
   ),
   aprovacoes: (
@@ -57,16 +48,13 @@ const Icons = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="8" r="4"/>
       <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-      <line x1="19" y1="8" x2="19" y2="14"/>
-      <line x1="22" y1="11" x2="16" y2="11"/>
+      <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
     </svg>
   ),
   relatorios: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="18" height="18" rx="2.5"/>
-      <line x1="8" y1="17" x2="8" y2="12"/>
-      <line x1="12" y1="17" x2="12" y2="7"/>
-      <line x1="16" y1="17" x2="16" y2="14"/>
+      <line x1="8" y1="17" x2="8" y2="12"/><line x1="12" y1="17" x2="12" y2="7"/><line x1="16" y1="17" x2="16" y2="14"/>
     </svg>
   ),
   config: (
@@ -115,25 +103,48 @@ export default function Sidebar() {
   const [unreadChat, setUnreadChat] = useState(0)
   const [pendingAprov, setPendingAprov] = useState(0)
 
-  useEffect(() => {
-    fetchBadges()
-    const chatCh = supabase.channel('sb-chat')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, fetchBadges)
-      .subscribe()
-    const aprovCh = supabase.channel('sb-aprov')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes' }, fetchBadges)
-      .subscribe()
-    return () => { supabase.removeChannel(chatCh); supabase.removeChannel(aprovCh) }
-  }, [])
-
-  async function fetchBadges() {
+  // CORRIGIDO: filtra mensagens de bot (tipo != null) para não contar no badge
+  const fetchBadges = useCallback(async () => {
     const [{ data: msgs }, { data: solics }] = await Promise.all([
-      supabase.from('mensagens').select('id').eq('lida', false).eq('remetente', 'paciente'),
-      supabase.from('solicitacoes').select('id').eq('status', 'pendente'),
+      supabase
+        .from('mensagens')
+        .select('id')
+        .eq('lida', false)
+        .eq('remetente', 'paciente')
+        .is('tipo', null), // só mensagens reais, ignora bot
+      supabase
+        .from('solicitacoes')
+        .select('id')
+        .eq('status', 'pendente'),
     ])
     setUnreadChat(msgs?.length || 0)
     setPendingAprov(solics?.length || 0)
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchBadges()
+
+    // CORRIGIDO: nomes únicos nos canais evitam conflito entre instâncias
+    const uid = Date.now()
+    const chatCh = supabase
+      .channel(`sidebar-msgs-${uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, fetchBadges)
+      .subscribe()
+
+    const aprovCh = supabase
+      .channel(`sidebar-solics-${uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes' }, fetchBadges)
+      .subscribe()
+
+    // CORRIGIDO: polling de segurança a cada 30s para redes lentas/celular
+    const polling = setInterval(fetchBadges, 30000)
+
+    return () => {
+      supabase.removeChannel(chatCh)
+      supabase.removeChannel(aprovCh)
+      clearInterval(polling)
+    }
+  }, [fetchBadges])
 
   async function handleLogout() {
     await signOut()
@@ -184,7 +195,7 @@ export default function Sidebar() {
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
               <span className="nav-ico">{Icons[item.icon]}</span>
               <span className="nav-label">{item.label}</span>
-              {badgeCount > 0 && <span className="nav-badge">{badgeCount}</span>}
+              {badgeCount > 0 && <span className="nav-badge">{badgeCount > 99 ? '99+' : badgeCount}</span>}
             </NavLink>
           )
         })}
