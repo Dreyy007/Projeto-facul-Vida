@@ -134,12 +134,31 @@ export default function Chat() {
 
   async function handleEnviar() {
     if (!texto.trim() || !ativa || enviando) return
+    const conteudo = texto.trim()
+    setTexto('')
     setEnviando(true)
     tocarSomEnvio()
-    await supabase.from('mensagens').insert([{
-      paciente_id: ativa.id, remetente: 'clinica', conteudo: texto.trim(), lida: true,
-    }])
-    setTexto('')
+
+    // Adiciona mensagem localmente de imediato (sem esperar realtime)
+    const msgTemp = {
+      id: 'temp-' + Date.now(),
+      paciente_id: ativa.id,
+      remetente: 'clinica',
+      conteudo,
+      lida: true,
+      criado_em: new Date().toISOString(),
+    }
+    setMensagens(prev => [...prev, msgTemp])
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+
+    const { data } = await supabase.from('mensagens').insert([{
+      paciente_id: ativa.id, remetente: 'clinica', conteudo, lida: true,
+    }]).select().single()
+
+    // Substitui a mensagem temp pelo registro real do banco
+    if (data) {
+      setMensagens(prev => prev.map(m => m.id === msgTemp.id ? data : m))
+    }
     setEnviando(false)
   }
 
