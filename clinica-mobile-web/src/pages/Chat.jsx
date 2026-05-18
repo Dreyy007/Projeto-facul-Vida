@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { LOGO_SRC } from '../lib/logoClinica'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -64,10 +65,8 @@ export default function Chat() {
 
   useEffect(() => {
     if (!paciente) return
-    // CORRIGIDO: reseta o guard quando paciente muda (ex: login/logout)
-    iniciouBot.current = false
     checkStatus()
-  }, [paciente?.id])  // usa paciente.id para evitar re-render desnecessario
+  }, [paciente])
 
   const scrollDown = useCallback((instant = false) =>
     setTimeout(() => scrollRef.current?.scrollTo({ top: 999999, behavior: instant ? 'instant' : 'smooth' }), 100)
@@ -452,38 +451,12 @@ export default function Chat() {
 
   let lastDate = null
 
-  // Enquanto paciente nao carregou, mostra loading simples
-  if (!paciente) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F0F4FF' }}>
-        <div style={{ position: 'relative', background: 'linear-gradient(135deg, #0047AB 0%, #1d6fef 100%)', padding: '48px 20px 14px', display: 'flex', alignItems: 'center', gap: 14, overflow: 'hidden', flexShrink: 0 }}>
-          <div style={{ width: 46, height: 46, borderRadius: 23, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.3)' }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>V+</span>
-          </div>
-          <div>
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Clínica Vida+</p>
-            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Conectando...</p>
-          </div>
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[0, 0.2, 0.4].map((d, i) => (
-              <span key={i} style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#0047AB', display: 'inline-block', animation: `pulse 1.2s ${d}s infinite` }} />
-            ))}
-          </div>
-          <p style={{ fontSize: 13, color: '#6B7280' }}>Carregando...</p>
-        </div>
-        <style>{`@keyframes pulse{0%,100%{opacity:.2;transform:scale(0.8)}50%{opacity:1;transform:scale(1)}}`}</style>
-      </div>
-    )
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F0F4FF' }}>
       {/* Header */}
       <div style={s.header}>
         <div style={s.headerBubble} />
-        <div style={{ ...s.clinicAvatar, backgroundImage: "url(/Logo.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div style={s.clinicAvatar}><img src={LOGO_SRC} alt='logo' style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} /></div>
         <div style={{ flex: 1 }}>
           <p style={s.headerNome}>Clínica Vida+</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
@@ -521,7 +494,7 @@ export default function Chat() {
             <div key={m.id}>
               {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
               <div style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-                {!isMe && <div style={{ ...s.msgAvatar, backgroundImage: "url(/Logo.png)", backgroundSize: "cover", backgroundPosition: "center" }} />}
+                {!isMe && <div style={s.msgAvatar}><img src={LOGO_SRC} alt='logo' style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} /></div>}
                 <div style={{ ...s.bubble, ...(isMe ? s.bubbleMe : s.bubbleThem), maxWidth: '78%' }}>
                   {m.anexo_url && m.anexo_tipo?.startsWith('image/') && <img src={m.anexo_url} alt="anexo" style={s.msgImg} />}
                   {m.anexo_url && !m.anexo_tipo?.startsWith('image/') && (
@@ -546,7 +519,7 @@ export default function Chat() {
 
         {(paciente && !botPronto && botStep === 0 && !conversa?.encerrada) && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-            <div style={{ ...s.msgAvatar, backgroundImage: "url(/Logo.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
+            <div style={s.msgAvatar}><img src={LOGO_SRC} alt='logo' style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} /></div>
             <div style={{ ...s.bubbleThem, padding: '12px 16px' }}>
               <div style={{ display: 'flex', gap: 4 }}>
                 {[0, 0.2, 0.4].map((d, i) => (
