@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
@@ -7,27 +7,48 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [paciente, setPaciente] = useState(null)
   const [loading, setLoading] = useState(true)
+  const buscando = useRef(false) // CORRIGIDO: evita double fetch
 
   useEffect(() => {
+    // Busca sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchPaciente(session.user.email)
-      else setLoading(false)
+      if (session?.user) {
+        fetchPaciente(session.user.email)
+      } else {
+        setLoading(false)
+      }
     })
 
+    // Escuta mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchPaciente(session.user.email)
-      else { setPaciente(null); setLoading(false) }
+      if (session?.user) {
+        // CORRIGIDO: só busca se ainda não está buscando
+        if (!buscando.current) fetchPaciente(session.user.email)
+      } else {
+        buscando.current = false
+        setPaciente(null)
+        setLoading(false)
+      }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   async function fetchPaciente(email) {
-    const { data } = await supabase.from('pacientes').select('*').eq('email', email).single()
-    setPaciente(data)
+    if (buscando.current) return
+    buscando.current = true
+
+    const { data } = await supabase
+      .from('pacientes')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    setPaciente(data ?? null)
     setLoading(false)
+    buscando.current = false
   }
 
   async function signIn(email, password) {
@@ -52,7 +73,11 @@ export function AuthProvider({ children }) {
 
     if (erroPaciente?.code === '23505') {
       await supabase.from('pacientes').update({
-        nome, cpf: cpf.replace(/\D/g, ''), data_nascimento, telefone, ativo: true,
+        nome,
+        cpf: cpf.replace(/\D/g, ''),
+        data_nascimento,
+        telefone,
+        ativo: true,
       }).eq('email', email)
     }
 
@@ -60,6 +85,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    buscando.current = false
     await supabase.auth.signOut()
   }
 
