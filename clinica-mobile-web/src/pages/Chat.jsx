@@ -15,16 +15,29 @@ function comparaNasc(digitado, cadastrado) {
   const d = soDigitos(digitado)
   if (d.length !== 8) return false
   const dia = d.slice(0, 2), mes = d.slice(2, 4), ano = d.slice(4, 8)
-  const isoDigitado = `${ano}-${mes}-${dia}`
-  return cadastrado.slice(0, 10) === isoDigitado
+  return cadastrado.slice(0, 10) === `${ano}-${mes}-${dia}`
 }
 
-// CORRIGIDO: mensagens mais claras sobre formato
+function parseDateBR(str) {
+  const p = soDigitos(str)
+  if (p?.length === 8) return `${p.slice(4)}-${p.slice(2, 4)}-${p.slice(0, 2)}`
+  return null
+}
+
 function perguntaStep(step) {
   if (step === 1) return 'Qual é o seu **CPF**?\n\nDigite somente os números, sem pontos ou traços.\nExemplo: 12345678900'
   if (step === 2) return 'Qual é a sua **data de nascimento**?\n\nDigite no formato DD/MM/AAAA.\nExemplo: 15/03/1990'
   if (step === 3) return 'Qual é o seu **telefone** de contato?\n\nDigite somente os números, com DDD, sem espaços ou traços.\nExemplo: 11999998888'
   return ''
+}
+
+// Verifica se o bot foi concluído com segurança
+function botFoiConcluido(msgs) {
+  return msgs.some(m =>
+    m.remetente === 'clinica' &&
+    m.tipo === 'bot' &&
+    m.conteudo?.includes('Agora pode digitar')
+  )
 }
 
 export default function Chat() {
@@ -58,17 +71,14 @@ export default function Chat() {
       .eq('paciente_id', paciente.id)
       .order('criado_em')
 
+    // Sem histórico — inicia bot do zero
     if (!msgs || msgs.length === 0) {
       startBot()
       return
     }
 
-    // CORRIGIDO: verifica se o bot já foi concluído — não repete o fluxo
-    const botConcluido = msgs.some(m =>
-      m.remetente === 'clinica' && m.conteudo?.includes('Agora pode digitar')
-    )
-
-    if (botConcluido) {
+    // Bot já concluído com sucesso
+    if (botFoiConcluido(msgs)) {
       const ultima = msgs[msgs.length - 1]
       const tempoUltima = Date.now() - new Date(ultima.criado_em).getTime()
 
@@ -96,18 +106,17 @@ export default function Chat() {
       return
     }
 
-    // Bot ainda não concluído — retoma do ponto onde parou
-    const respostas = msgs.filter(m => m.remetente === 'paciente' && m.tipo === 'bot')
-    const step = Math.min(respostas.length + 1, 3)
-    const dados = {}
-    if (respostas[0]) dados.cpf = respostas[0].conteudo
-    if (respostas[1]) dados.nasc = respostas[1].conteudo
-    if (respostas[2]) dados.tel = respostas[2].conteudo
-    setBotDados(dados)
-    setBotStep(step)
-    setMensagens(msgs)
-    scrollDown(true)
-    if (step <= 3) setTimeout(() => addBotMsg(perguntaStep(step)), 800)
+    // Bot incompleto — limpa e reinicia do zero para evitar estado inconsistente
+    await supabase.from('mensagens')
+      .delete()
+      .eq('paciente_id', paciente.id)
+      .eq('tipo', 'bot')
+
+    setBotMsgs([])
+    setBotStep(0)
+    setBotDados({})
+    setBotPronto(false)
+    startBot()
   }
 
   async function verificarEMandarAviso() {
@@ -135,8 +144,9 @@ export default function Chat() {
   }
 
   function startBot() {
+    const primeiroNome = paciente.nome?.split(' ')[0] || 'paciente'
     setTimeout(() => {
-      addBotMsg(`Olá, ${paciente.nome?.split(' ')[0]}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?`)
+      addBotMsg(`Olá, ${primeiroNome}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?`)
       setTimeout(() => { addBotMsg(perguntaStep(1)); setBotStep(1) }, 1200)
     }, 600)
   }
@@ -145,6 +155,7 @@ export default function Chat() {
     setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'clinica', conteudo: t, tipo: 'bot', criado_em: new Date().toISOString() }])
     scrollDown()
   }
+
   function addUserBotMsg(t) {
     setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, tipo: 'bot', criado_em: new Date().toISOString() }])
     scrollDown()
@@ -158,18 +169,16 @@ export default function Chat() {
       const { data: pacCadastrado } = await supabase
         .from('pacientes').select('id, nome, cpf, data_nascimento, telefone')
         .eq('id', paciente.id).single()
-
       const dados = { ...botDados, cpf: resposta, pacCadastrado }
 
       if (pacCadastrado && soDigitos(pacCadastrado.cpf) && soDigitos(pacCadastrado.cpf) !== cpfLimpo) {
         setBotDados(dados)
         setTimeout(() => {
-          addBotMsg('⚠️ O CPF informado não confere com o cadastrado em nosso sistema.\n\nPor favor, verifique o número ou entre em contato com a clínica para atualizar seus dados.')
+          addBotMsg('⚠️ O CPF informado não confere com o cadastrado em nosso sistema.\n\nPor favor, verifique o número ou entre em contato com a clínica.')
           setTimeout(() => addBotMsg(perguntaStep(1)), 1200)
         }, 800)
         return
       }
-
       setBotDados(dados)
       setTimeout(() => { addBotMsg(perguntaStep(2)); setBotStep(2) }, 800)
 
@@ -185,7 +194,6 @@ export default function Chat() {
         }, 800)
         return
       }
-
       setBotDados(dados)
       setTimeout(() => { addBotMsg(perguntaStep(3)); setBotStep(3) }, 800)
 
@@ -203,7 +211,6 @@ export default function Chat() {
         }, 800)
         return
       }
-
       setBotDados(dados)
 
       await supabase.from('pacientes').update({
@@ -212,10 +219,11 @@ export default function Chat() {
         telefone: soDigitos(resposta),
       }).eq('id', paciente.id)
 
+      const primeiroNome = paciente.nome?.split(' ')[0] || 'paciente'
       const msgFinal = `Perfeito! Confirmei seus dados:\n\n👤 ${paciente.nome}\n📋 CPF: ${botDados.cpf}\n🎂 Nascimento: ${botDados.nasc}\n📱 Telefone: ${resposta}\n\nAgora pode digitar sua mensagem — nossa equipe responderá em breve! 😊`
 
-      const msgsParaSalvar = [
-        { paciente_id: paciente.id, remetente: 'clinica', conteudo: `Olá, ${paciente.nome?.split(' ')[0]}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?`, tipo: 'bot', lida: true },
+      await supabase.from('mensagens').insert([
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: `Olá, ${primeiroNome}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?`, tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: perguntaStep(1), tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'paciente', conteudo: botDados.cpf, tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: perguntaStep(2), tipo: 'bot', lida: true },
@@ -223,34 +231,47 @@ export default function Chat() {
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: perguntaStep(3), tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'paciente', conteudo: resposta, tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: msgFinal, tipo: 'bot', lida: true },
-      ]
-      await supabase.from('mensagens').insert(msgsParaSalvar)
+      ])
+
       setTimeout(() => {
         addBotMsg(msgFinal)
-        setBotStep(4); setBotPronto(true); fetchMensagens()
+        setBotStep(4)
+        setBotPronto(true)
+        fetchMensagens()
       }, 800)
     }
   }
 
   async function reiniciarConversa() {
+    await supabase.from('mensagens')
+      .delete()
+      .eq('paciente_id', paciente.id)
+      .in('tipo', ['encerramento', 'aviso_inatividade'])
+
     setConversa(null)
     setBotMsgs([])
     setBotStep(0)
     setBotDados({})
     setBotPronto(false)
     iniciouBot.current = true
-    startBot()
-  }
 
-  function parseDateBR(str) {
-    const p = soDigitos(str)
-    if (p?.length === 8) return `${p.slice(4)}-${p.slice(2, 4)}-${p.slice(0, 2)}`
-    return null
+    const { data: msgs } = await supabase
+      .from('mensagens').select('*')
+      .eq('paciente_id', paciente.id).order('criado_em')
+
+    if (botFoiConcluido(msgs || [])) {
+      setBotPronto(true)
+      setMensagens(msgs || [])
+      scrollDown(true)
+    } else {
+      startBot()
+    }
   }
 
   async function fetchMensagens() {
     if (!paciente) return
-    const { data } = await supabase.from('mensagens').select('*').eq('paciente_id', paciente.id).order('criado_em')
+    const { data } = await supabase.from('mensagens').select('*')
+      .eq('paciente_id', paciente.id).order('criado_em')
     setMensagens(data || [])
     scrollDown(true)
     await supabase.from('mensagens').update({ lida: true })
@@ -275,7 +296,6 @@ export default function Chat() {
     e?.preventDefault()
     const msg = texto.trim()
     if (!msg) return
-
     if (conversa?.encerrada) { await reiniciarConversa(); return }
     if (!botPronto && botStep >= 1 && botStep <= 3) { setTexto(''); await handleBotResposta(msg); return }
     if (!botPronto || sending) return
@@ -296,8 +316,8 @@ export default function Chat() {
     setSending(false)
   }
 
-  function renderConteudo(texto, isMe) {
-    const parts = texto.split(/\*\*(.*?)\*\*/g)
+  function renderConteudo(txt, isMe) {
+    const parts = txt.split(/\*\*(.*?)\*\*/g)
     return parts.map((p, i) => i % 2 === 1
       ? <strong key={i} style={{ color: isMe ? '#fff' : '#0D1B2A' }}>{p}</strong>
       : <span key={i}>{p}</span>
@@ -312,7 +332,6 @@ export default function Chat() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F0F4FF' }}>
-      {/* Header */}
       <div style={s.header}>
         <div style={s.headerBubble} />
         <div style={s.clinicAvatar}><span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>V+</span></div>
@@ -330,7 +349,6 @@ export default function Chat() {
         </a>
       </div>
 
-      {/* Mensagens */}
       <div ref={scrollRef} style={s.messages}>
         {todasMsgs.map(m => {
           const msgDate = fmtData(m.criado_em)
