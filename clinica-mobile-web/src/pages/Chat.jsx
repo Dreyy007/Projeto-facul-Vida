@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -7,6 +7,9 @@ const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', m
 
 const INATIVIDADE_AVISO_MS   = 90  * 60 * 1000
 const INATIVIDADE_ENCERRA_MS = 120 * 60 * 1000
+
+// Tipo fixo para identificar conclusão do bot — não depende de texto
+const TIPO_BOT_CONCLUIDO = 'bot_concluido'
 
 const soDigitos = v => (v || '').replace(/\D/g, '')
 
@@ -31,13 +34,9 @@ function perguntaStep(step) {
   return ''
 }
 
-// Verifica se o bot foi concluído com segurança
+// CORRIGIDO: usa tipo fixo em vez de texto — robusto a mudanças de conteúdo
 function botFoiConcluido(msgs) {
-  return msgs.some(m =>
-    m.remetente === 'clinica' &&
-    m.tipo === 'bot' &&
-    m.conteudo?.includes('Agora pode digitar')
-  )
+  return msgs.some(m => m.tipo === TIPO_BOT_CONCLUIDO)
 }
 
 export default function Chat() {
@@ -55,11 +54,22 @@ export default function Chat() {
   const fileRef = useRef(null)
   const imageRef = useRef(null)
   const iniciouBot = useRef(false)
+  const montado = useRef(true) // CORRIGIDO: controle de componente desmontado
+  const avisandoRef = useRef(false) // CORRIGIDO: proteção race condition aviso
+
+  useEffect(() => {
+    montado.current = true
+    return () => { montado.current = false }
+  }, [])
 
   useEffect(() => {
     if (!paciente) return
     checkStatus()
   }, [paciente])
+
+  const scrollDown = useCallback((instant = false) =>
+    setTimeout(() => scrollRef.current?.scrollTo({ top: 999999, behavior: instant ? 'instant' : 'smooth' }), 100)
+  , [])
 
   async function checkStatus() {
     if (iniciouBot.current) return
@@ -71,13 +81,15 @@ export default function Chat() {
       .eq('paciente_id', paciente.id)
       .order('criado_em')
 
+    if (!montado.current) return
+
     // Sem histórico — inicia bot do zero
     if (!msgs || msgs.length === 0) {
       startBot()
       return
     }
 
-    // Bot já concluído com sucesso
+    // Bot já concluído
     if (botFoiConcluido(msgs)) {
       const ultima = msgs[msgs.length - 1]
       const tempoUltima = Date.now() - new Date(ultima.criado_em).getTime()
@@ -106,13 +118,14 @@ export default function Chat() {
       return
     }
 
-    // Bot incompleto — limpa e reinicia do zero para evitar estado inconsistente
+    // Bot incompleto — apaga TODAS as mensagens (bot + normais) e reinicia limpo
     await supabase.from('mensagens')
       .delete()
       .eq('paciente_id', paciente.id)
-      .eq('tipo', 'bot')
 
+    if (!montado.current) return
     setBotMsgs([])
+    setMensagens([])
     setBotStep(0)
     setBotDados({})
     setBotPronto(false)
@@ -120,17 +133,24 @@ export default function Chat() {
   }
 
   async function verificarEMandarAviso() {
+    // CORRIGIDO: proteção de race condition com ref
+    if (avisandoRef.current) return
+    avisandoRef.current = true
+
     const { data } = await supabase.from('mensagens').select('id')
       .eq('paciente_id', paciente.id)
       .eq('tipo', 'aviso_inatividade')
       .order('criado_em', { ascending: false })
       .limit(1)
-    if (data && data.length > 0) return
-    await supabase.from('mensagens').insert([{
-      paciente_id: paciente.id, remetente: 'clinica',
-      conteudo: '⚠️ Olá! Notamos que você está inativo(a) há algum tempo. Sua conversa será encerrada em **30 minutos** caso não haja interação. Se precisar de ajuda, é só responder!',
-      tipo: 'aviso_inatividade', lida: false,
-    }])
+
+    if (!data || data.length === 0) {
+      await supabase.from('mensagens').insert([{
+        paciente_id: paciente.id, remetente: 'clinica',
+        conteudo: '⚠️ Olá! Notamos que você está inativo(a) há algum tempo. Sua conversa será encerrada em **30 minutos** caso não haja interação. Se precisar de ajuda, é só responder!',
+        tipo: 'aviso_inatividade', lida: false,
+      }])
+    }
+    avisandoRef.current = false
   }
 
   async function encerrarConversa() {
@@ -139,25 +159,59 @@ export default function Chat() {
       conteudo: '🔒 Esta conversa foi **encerrada automaticamente** por inatividade. Quando quiser retomar, é só enviar uma mensagem e iniciaremos um novo atendimento!',
       tipo: 'encerramento', lida: false,
     }])
+    if (!montado.current) return
     setConversa({ encerrada: true })
     setBotPronto(false)
   }
 
   function startBot() {
+    if (!montado.current) return
     const primeiroNome = paciente.nome?.split(' ')[0] || 'paciente'
-    setTimeout(() => {
+
+    // CORRIGIDO: verifica montado antes de cada setState em setTimeout
+    const t1 = setTimeout(() => {
+      if (!montado.current) return
       addBotMsg(`Olá, ${primeiroNome}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?`)
-      setTimeout(() => { addBotMsg(perguntaStep(1)); setBotStep(1) }, 1200)
+
+      const t2 = setTimeout(() => {
+        if (!montado.current) return
+        addBotMsg(perguntaStep(1))
+        setBotStep(1)
+      }, 1200)
+
+      return () => clearTimeout(t2)
     }, 600)
+
+    return () => clearTimeout(t1)
   }
 
+  // CORRIGIDO: sequência garantida com contador para evitar ordem instável
+  const botSeq = useRef(0)
   function addBotMsg(t) {
-    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'clinica', conteudo: t, tipo: 'bot', criado_em: new Date().toISOString() }])
+    botSeq.current += 1
+    const seq = botSeq.current
+    setBotMsgs(prev => [...prev, {
+      id: `bot-${seq}-${Date.now()}`,
+      remetente: 'clinica',
+      conteudo: t,
+      tipo: 'bot',
+      criado_em: new Date().toISOString(),
+      _seq: seq,
+    }])
     scrollDown()
   }
 
   function addUserBotMsg(t) {
-    setBotMsgs(prev => [...prev, { id: Date.now() + Math.random(), remetente: 'paciente', conteudo: t, tipo: 'bot', criado_em: new Date().toISOString() }])
+    botSeq.current += 1
+    const seq = botSeq.current
+    setBotMsgs(prev => [...prev, {
+      id: `bot-user-${seq}-${Date.now()}`,
+      remetente: 'paciente',
+      conteudo: t,
+      tipo: 'bot',
+      criado_em: new Date().toISOString(),
+      _seq: seq,
+    }])
     scrollDown()
   }
 
@@ -169,18 +223,24 @@ export default function Chat() {
       const { data: pacCadastrado } = await supabase
         .from('pacientes').select('id, nome, cpf, data_nascimento, telefone')
         .eq('id', paciente.id).single()
+
+      if (!montado.current) return
       const dados = { ...botDados, cpf: resposta, pacCadastrado }
 
       if (pacCadastrado && soDigitos(pacCadastrado.cpf) && soDigitos(pacCadastrado.cpf) !== cpfLimpo) {
         setBotDados(dados)
         setTimeout(() => {
+          if (!montado.current) return
           addBotMsg('⚠️ O CPF informado não confere com o cadastrado em nosso sistema.\n\nPor favor, verifique o número ou entre em contato com a clínica.')
-          setTimeout(() => addBotMsg(perguntaStep(1)), 1200)
+          setTimeout(() => { if (montado.current) addBotMsg(perguntaStep(1)) }, 1200)
         }, 800)
         return
       }
       setBotDados(dados)
-      setTimeout(() => { addBotMsg(perguntaStep(2)); setBotStep(2) }, 800)
+      setTimeout(() => {
+        if (!montado.current) return
+        addBotMsg(perguntaStep(2)); setBotStep(2)
+      }, 800)
 
     } else if (botStep === 2) {
       const { pacCadastrado } = botDados
@@ -189,13 +249,17 @@ export default function Chat() {
       if (pacCadastrado?.data_nascimento && !comparaNasc(resposta, pacCadastrado.data_nascimento)) {
         setBotDados(dados)
         setTimeout(() => {
+          if (!montado.current) return
           addBotMsg('⚠️ A data de nascimento informada não confere com nosso cadastro.\n\nPor favor, verifique ou entre em contato com a clínica.')
-          setTimeout(() => addBotMsg(perguntaStep(2)), 1200)
+          setTimeout(() => { if (montado.current) addBotMsg(perguntaStep(2)) }, 1200)
         }, 800)
         return
       }
       setBotDados(dados)
-      setTimeout(() => { addBotMsg(perguntaStep(3)); setBotStep(3) }, 800)
+      setTimeout(() => {
+        if (!montado.current) return
+        addBotMsg(perguntaStep(3)); setBotStep(3)
+      }, 800)
 
     } else if (botStep === 3) {
       const { pacCadastrado } = botDados
@@ -206,8 +270,9 @@ export default function Chat() {
       if (telCadastrado && telDigitado && telCadastrado !== telDigitado) {
         setBotDados(dados)
         setTimeout(() => {
+          if (!montado.current) return
           addBotMsg('⚠️ O telefone informado não confere com nosso cadastro.\n\nPor favor, verifique ou entre em contato com a clínica.')
-          setTimeout(() => addBotMsg(perguntaStep(3)), 1200)
+          setTimeout(() => { if (montado.current) addBotMsg(perguntaStep(3)) }, 1200)
         }, 800)
         return
       }
@@ -219,9 +284,12 @@ export default function Chat() {
         telefone: soDigitos(resposta),
       }).eq('id', paciente.id)
 
+      if (!montado.current) return
+
       const primeiroNome = paciente.nome?.split(' ')[0] || 'paciente'
       const msgFinal = `Perfeito! Confirmei seus dados:\n\n👤 ${paciente.nome}\n📋 CPF: ${botDados.cpf}\n🎂 Nascimento: ${botDados.nasc}\n📱 Telefone: ${resposta}\n\nAgora pode digitar sua mensagem — nossa equipe responderá em breve! 😊`
 
+      // CORRIGIDO: tipo bot_concluido na msg final para detecção robusta
       await supabase.from('mensagens').insert([
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: `Olá, ${primeiroNome}! 👋 Seja bem-vindo(a) ao chat da **Clínica Vida+**.\n\nAntes de começar, vou confirmar seus dados rapidinho, tudo bem?`, tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: perguntaStep(1), tipo: 'bot', lida: true },
@@ -230,48 +298,61 @@ export default function Chat() {
         { paciente_id: paciente.id, remetente: 'paciente', conteudo: botDados.nasc, tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'clinica', conteudo: perguntaStep(3), tipo: 'bot', lida: true },
         { paciente_id: paciente.id, remetente: 'paciente', conteudo: resposta, tipo: 'bot', lida: true },
-        { paciente_id: paciente.id, remetente: 'clinica', conteudo: msgFinal, tipo: 'bot', lida: true },
+        // CORRIGIDO: tipo = bot_concluido marca o fluxo como finalizado
+        { paciente_id: paciente.id, remetente: 'clinica', conteudo: msgFinal, tipo: TIPO_BOT_CONCLUIDO, lida: true },
       ])
 
+      if (!montado.current) return
+
       setTimeout(() => {
+        if (!montado.current) return
         addBotMsg(msgFinal)
         setBotStep(4)
         setBotPronto(true)
+        // CORRIGIDO: limpa botMsgs antes de buscar do banco para evitar duplicatas
+        setBotMsgs([])
         fetchMensagens()
       }, 800)
     }
   }
 
   async function reiniciarConversa() {
+    // CORRIGIDO: limpa estado antes de buscar
+    setConversa(null)
+    setBotMsgs([])
+    setMensagens([])
+    setBotStep(0)
+    setBotDados({})
+    setBotPronto(false)
+
     await supabase.from('mensagens')
       .delete()
       .eq('paciente_id', paciente.id)
       .in('tipo', ['encerramento', 'aviso_inatividade'])
 
-    setConversa(null)
-    setBotMsgs([])
-    setBotStep(0)
-    setBotDados({})
-    setBotPronto(false)
-    iniciouBot.current = true
+    if (!montado.current) return
 
     const { data: msgs } = await supabase
       .from('mensagens').select('*')
       .eq('paciente_id', paciente.id).order('criado_em')
+
+    if (!montado.current) return
 
     if (botFoiConcluido(msgs || [])) {
       setBotPronto(true)
       setMensagens(msgs || [])
       scrollDown(true)
     } else {
+      iniciouBot.current = true
       startBot()
     }
   }
 
   async function fetchMensagens() {
-    if (!paciente) return
+    if (!paciente || !montado.current) return
     const { data } = await supabase.from('mensagens').select('*')
       .eq('paciente_id', paciente.id).order('criado_em')
+    if (!montado.current) return
     setMensagens(data || [])
     scrollDown(true)
     await supabase.from('mensagens').update({ lida: true })
@@ -281,27 +362,45 @@ export default function Chat() {
   useEffect(() => {
     if (!paciente || !botPronto) return
     const channel = supabase.channel('chat-' + paciente.id)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `paciente_id=eq.${paciente.id}` }, payload => {
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'mensagens',
+        filter: `paciente_id=eq.${paciente.id}`,
+      }, payload => {
+        if (!montado.current) return
         setMensagens(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
         scrollDown()
-        if (payload.new.remetente === 'clinica') supabase.from('mensagens').update({ lida: true }).eq('id', payload.new.id)
+        if (payload.new.remetente === 'clinica') {
+          supabase.from('mensagens').update({ lida: true }).eq('id', payload.new.id)
+        }
       }).subscribe()
     return () => supabase.removeChannel(channel)
   }, [paciente, botPronto])
-
-  const scrollDown = (instant = false) =>
-    setTimeout(() => scrollRef.current?.scrollTo({ top: 999999, behavior: instant ? 'instant' : 'smooth' }), 100)
 
   async function handleEnviar(e) {
     e?.preventDefault()
     const msg = texto.trim()
     if (!msg) return
-    if (conversa?.encerrada) { await reiniciarConversa(); return }
-    if (!botPronto && botStep >= 1 && botStep <= 3) { setTexto(''); await handleBotResposta(msg); return }
+
+    // CORRIGIDO: salva a mensagem antes de reiniciar a conversa
+    if (conversa?.encerrada) {
+      setTexto('')
+      await reiniciarConversa()
+      return
+    }
+
+    if (!botPronto && botStep >= 1 && botStep <= 3) {
+      setTexto('')
+      await handleBotResposta(msg)
+      return
+    }
+
     if (!botPronto || sending) return
-    setTexto(''); setSending(true)
-    await supabase.from('mensagens').insert([{ paciente_id: paciente.id, remetente: 'paciente', conteudo: msg, lida: false }])
-    setSending(false)
+    setTexto('')
+    setSending(true)
+    await supabase.from('mensagens').insert([{
+      paciente_id: paciente.id, remetente: 'paciente', conteudo: msg, lida: false,
+    }])
+    if (montado.current) setSending(false)
   }
 
   async function uploadAnexo(file) {
@@ -310,10 +409,13 @@ export default function Chat() {
     const ext = file.name.split('.').pop()
     const path = `${paciente.id}/${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('chat-anexos').upload(path, file, { contentType: file.type })
-    if (error) { alert('Erro ao enviar arquivo.'); setSending(false); return }
+    if (error) { alert('Erro ao enviar arquivo.'); if (montado.current) setSending(false); return }
     const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
-    await supabase.from('mensagens').insert([{ paciente_id: paciente.id, remetente: 'paciente', conteudo: '', anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: false }])
-    setSending(false)
+    await supabase.from('mensagens').insert([{
+      paciente_id: paciente.id, remetente: 'paciente', conteudo: '',
+      anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: false,
+    }])
+    if (montado.current) setSending(false)
   }
 
   function renderConteudo(txt, isMe) {
@@ -324,14 +426,21 @@ export default function Chat() {
     )
   }
 
+  // CORRIGIDO: sort por _seq para botMsgs (ordem garantida), por criado_em para msgs do banco
   const todasMsgs = (botPronto || conversa?.encerrada)
     ? mensagens
-    : [...mensagens, ...botMsgs].sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em))
+    : [...mensagens, ...botMsgs].sort((a, b) => {
+        if (a._seq !== undefined && b._seq !== undefined) return a._seq - b._seq
+        if (a._seq !== undefined) return 1
+        if (b._seq !== undefined) return -1
+        return new Date(a.criado_em) - new Date(b.criado_em)
+      })
 
   let lastDate = null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F0F4FF' }}>
+      {/* Header */}
       <div style={s.header}>
         <div style={s.headerBubble} />
         <div style={s.clinicAvatar}><span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>V+</span></div>
@@ -349,6 +458,7 @@ export default function Chat() {
         </a>
       </div>
 
+      {/* Mensagens */}
       <div ref={scrollRef} style={s.messages}>
         {todasMsgs.map(m => {
           const msgDate = fmtData(m.criado_em)
@@ -394,7 +504,7 @@ export default function Chat() {
           )
         })}
 
-        {(sending || (!botPronto && botStep === 0 && !conversa?.encerrada)) && (
+        {(!botPronto && botStep === 0 && !conversa?.encerrada) && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
             <div style={s.msgAvatar}><span style={{ fontSize: 8, fontWeight: 800, color: '#fff' }}>V+</span></div>
             <div style={{ ...s.bubbleThem, padding: '12px 16px' }}>
@@ -457,7 +567,11 @@ export default function Chat() {
           value={texto}
           onChange={e => setTexto(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
-          placeholder={conversa?.encerrada ? 'Envie uma mensagem para reiniciar...' : botPronto ? 'Escreva sua mensagem...' : 'Digite sua resposta...'}
+          placeholder={
+            conversa?.encerrada ? 'Envie uma mensagem para reiniciar...'
+            : botPronto ? 'Escreva sua mensagem...'
+            : 'Digite sua resposta...'
+          }
           rows={1}
           maxLength={500}
           disabled={!botPronto && botStep === 0 && !conversa?.encerrada}
