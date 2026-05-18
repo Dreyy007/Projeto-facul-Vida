@@ -13,7 +13,8 @@ export default function Aprovacoes() {
   async function fetchSolics() {
     const { data } = await supabase
       .from('solicitacoes')
-      .select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(nome))')
+      .select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(id, nome))')
+      // CORRIGIDO: adicionado id no join de medico para canAct funcionar
       .eq('status', 'pendente')
       .order('criado_em', { ascending: false })
     setSolics(data || [])
@@ -32,13 +33,12 @@ export default function Aprovacoes() {
 
     if (!aprovado) {
       update.status = 'recusada'
-      // Restaura status da consulta para aguardando
       await supabase.from('consultas').update({ status: 'aguardando' }).eq('id', s.consulta_id)
     }
 
     await supabase.from('solicitacoes').update(update).eq('id', s.id)
 
-    // Verificar se ambos aprovaram
+    // Verifica se ambos aprovaram
     const { data: fresh } = await supabase.from('solicitacoes').select('*').eq('id', s.id).single()
     if (fresh?.aprovado_medico && fresh?.aprovado_admin) {
       await supabase.from('solicitacoes').update({ status: 'aprovada' }).eq('id', s.id)
@@ -48,16 +48,21 @@ export default function Aprovacoes() {
         await supabase.from('consultas').update({
           data: fresh.nova_data,
           hora: fresh.nova_hora,
-          status: 'aguardando'
+          status: 'aguardando',
         }).eq('id', s.consulta_id)
       }
     }
     fetchSolics()
   }
 
+  // CORRIGIDO: usa s.consulta.medico.id (do join) em vez de s.consulta?.medico_id (campo ausente)
   const canAct = (s) => {
-    if (profile?.tipo === 'medico') return s.consulta?.medico_id === profile.id && s.aprovado_medico === null
-    if (['admin','coordenador'].includes(profile?.tipo)) return s.aprovado_admin === null
+    if (profile?.tipo === 'medico') {
+      return s.consulta?.medico?.id === profile.id && s.aprovado_medico === null
+    }
+    if (['admin', 'coordenador'].includes(profile?.tipo)) {
+      return s.aprovado_admin === null
+    }
     return false
   }
 
@@ -94,7 +99,12 @@ export default function Aprovacoes() {
                 </div>
                 {s.tipo === 'reagendamento' && s.nova_data && (
                   <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-                    Nova data: {new Date(s.nova_data + 'T12:00:00').toLocaleDateString('pt-BR')} às {s.nova_hora?.slice(0,5)}
+                    Nova data: {new Date(s.nova_data + 'T12:00:00').toLocaleDateString('pt-BR')} às {s.nova_hora?.slice(0, 5)}
+                  </div>
+                )}
+                {s.motivo && (
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>
+                    Motivo: {s.motivo}
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>

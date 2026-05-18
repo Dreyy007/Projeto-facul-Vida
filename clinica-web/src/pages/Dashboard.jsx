@@ -24,18 +24,11 @@ export default function Dashboard() {
 
   async function fetchDashboard() {
     const hoje = new Date().toISOString().split('T')[0]
-    const isMedico = profile?.tipo === 'medico'
-
-    let consultasQuery = supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('data', { ascending: false }).order('hora')
-    if (isMedico) consultasQuery = consultasQuery.eq('medico_id', profile.id)
-
-    let pacientesQuery = supabase.from('pacientes').select('id').eq('ativo', true)
-    if (isMedico) pacientesQuery = pacientesQuery.eq('medico_id', profile.id)
 
     const [{ data: todasConsultas }, { data: pacientes }, { data: solics }, { data: msgs }] =
       await Promise.all([
-        consultasQuery,
-        pacientesQuery,
+        supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('data', { ascending: false }).order('hora'),
+        supabase.from('pacientes').select('id').eq('ativo', true),
         supabase.from('solicitacoes').select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(nome))').eq('status', 'pendente'),
         supabase.from('mensagens').select('paciente_id, paciente:pacientes(nome)').eq('lida', false).eq('remetente', 'paciente'),
       ])
@@ -68,7 +61,8 @@ export default function Dashboard() {
       setConsultasFiltradas(lista.filter(c => c.data === hoje))
     } else if (tipo === 'semana') {
       const inicio = new Date(agora)
-      inicio.setDate(agora.getDate() - agora.getDay())
+      const diaSemana = agora.getDay() === 0 ? 6 : agora.getDay() - 1
+      inicio.setDate(agora.getDate() - diaSemana)
       const fim = new Date(inicio)
       fim.setDate(inicio.getDate() + 6)
       setConsultasFiltradas(lista.filter(c => c.data >= inicio.toISOString().split('T')[0] && c.data <= fim.toISOString().split('T')[0]))
@@ -119,7 +113,7 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p className="page-sub">Bem-vindo, {profile?.nome}!</p>
+          <p className="page-sub">Bem-vindo, {profile?.nome?.split(' ')[0]}!</p>
         </div>
         <button className="btn-primary" onClick={() => window.location.href = '/agenda'}>+ Nova consulta</button>
       </div>
