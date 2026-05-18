@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { LOGO_SRC } from '../lib/logoClinica'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
@@ -50,7 +51,7 @@ export default function Chat() {
   function notificarBrowser(nome, mensagem) {
     if (document.visibilityState === 'visible') return
     if (Notification.permission === 'granted') {
-      new Notification(`💬 ${nome}`, { body: mensagem, icon: '/Logo.png' })
+      new Notification(`💬 ${nome}`, { body: mensagem, icon: LOGO_SRC })
     }
   }
 
@@ -219,7 +220,9 @@ export default function Chat() {
         ) : (
           <>
             <div className="chat-win-header">
-              <div className="chat-av-lg" style={{ backgroundImage: 'url(/Logo.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: 0 }} />
+              <div className="chat-av-lg" style={{ background: '#0047AB', padding: 4 }}>
+                <img src={LOGO_SRC} alt="Clínica Vida+" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              </div>
               <div>
                 <div className="chat-win-nome">Clínica Vida+</div>
                 <div className="chat-win-status">● {ativa.nome}</div>
@@ -252,7 +255,9 @@ export default function Chat() {
                         <div className="msg-time">{fmtHora(m.criado_em)}</div>
                       </div>
                       {isClinica && (
-                        <div className="msg-av clinica-av" style={{ backgroundImage: 'url(/Logo.png)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                        <div className="msg-av clinica-av">
+                          <img src={LOGO_SRC} alt="Clínica" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        </div>
                       )}
                     </div>
                   </div>
