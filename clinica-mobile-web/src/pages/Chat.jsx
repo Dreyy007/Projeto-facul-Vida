@@ -483,11 +483,7 @@ export default function Chat() {
       {/* Header */}
       <div style={s.header}>
         <div style={s.headerBubble} />
-        <div style={s.clinicAvatar}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-        </div>
+        <div style={s.clinicAvatar}><img src="/Logo.png" alt="Clínica Vida+" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /></div>
         <div style={{ flex: 1 }}>
           <p style={s.headerNome}>Clínica Vida+</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
@@ -525,11 +521,7 @@ export default function Chat() {
             <div key={m.id}>
               {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
               <div style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-                {!isMe && <div style={s.msgAvatar}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
-                  <path d="M12 5v14M5 12h14"/>
-                </svg>
-              </div>}
+                {!isMe && <div style={s.msgAvatar}><img src="/Logo.png" alt="V+" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /></div>}
                 <div style={{ ...s.bubble, ...(isMe ? s.bubbleMe : s.bubbleThem), maxWidth: '78%' }}>
                   {m.anexo_url && m.anexo_tipo?.startsWith('image/') && <img src={m.anexo_url} alt="anexo" style={s.msgImg} />}
                   {m.anexo_url && !m.anexo_tipo?.startsWith('image/') && (
@@ -554,11 +546,7 @@ export default function Chat() {
 
         {(paciente && !botPronto && botStep === 0 && !conversa?.encerrada) && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-            <div style={s.msgAvatar}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
-                  <path d="M12 5v14M5 12h14"/>
-                </svg>
-              </div>
+            <div style={s.msgAvatar}><img src="/Logo.png" alt="V+" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /></div>
             <div style={{ ...s.bubbleThem, padding: '12px 16px' }}>
               <div style={{ display: 'flex', gap: 4 }}>
                 {[0, 0.2, 0.4].map((d, i) => (
