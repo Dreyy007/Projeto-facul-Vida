@@ -7,36 +7,45 @@ export default function Agenda() {
   const { profile } = useAuth()
   const [consultas, setConsultas] = useState([])
   const [pacientes, setPacientes] = useState([])
-  const [psicologos, setPsicologos] = useState([])
+  const [medicos, setMedicos] = useState([])
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(new Date().toISOString().split('T')[0])
   const [modal, setModal] = useState(false)
   const [modalSolic, setModalSolic] = useState(null)
-  const [form, setForm] = useState({ paciente_id: '', psicologo_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
+  const [conflito, setConflito] = useState(null) // NOVO: alerta de conflito
+  const [form, setForm] = useState({ paciente_id: '', medico_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
   const [saving, setSaving] = useState(false)
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
-  const [filtroPsicologo, setFiltroPsicologo] = useState('todos')
+  const [filtroMedico, setFiltroMedico] = useState('todos')
   const [busca, setBusca] = useState('')
   const [viewMode, setViewMode] = useState('dia')
 
   useEffect(() => { fetchConsultas() }, [data, viewMode])
   useEffect(() => { fetchSelects() }, [])
 
+  // Limpa conflito ao mudar campos do form
+  useEffect(() => { setConflito(null) }, [form.medico_id, form.paciente_id, form.data, form.hora])
+
   async function fetchConsultas() {
     setLoading(true)
     let query = supabase.from('consultas')
-      .select('*, paciente:pacientes(nome), psicologo:psicologos(nome, especialidade, crp)')
+      .select('*, paciente:pacientes(nome), medico:profiles(nome, especialidade, crp_crm)')
       .order('data').order('hora')
 
     if (viewMode === 'dia') {
       query = query.eq('data', data)
     } else if (viewMode === 'semana') {
-      const inicio = new Date(data)
-      inicio.setDate(inicio.getDate() - inicio.getDay())
+      // CORRIGIDO: semana começa na segunda-feira (1) em vez de domingo (0)
+      const d = new Date(data + 'T12:00:00')
+      const diaSemana = d.getDay() === 0 ? 6 : d.getDay() - 1
+      const inicio = new Date(d)
+      inicio.setDate(d.getDate() - diaSemana)
       const fim = new Date(inicio)
-      fim.setDate(fim.getDate() + 6)
-      query = query.gte('data', inicio.toISOString().split('T')[0]).lte('data', fim.toISOString().split('T')[0])
+      fim.setDate(inicio.getDate() + 6)
+      query = query
+        .gte('data', inicio.toISOString().split('T')[0])
+        .lte('data', fim.toISOString().split('T')[0])
     }
 
     const { data: rows } = await query
@@ -45,19 +54,60 @@ export default function Agenda() {
   }
 
   async function fetchSelects() {
-    const [{ data: p }, { data: ps }] = await Promise.all([
+    const [{ data: p }, { data: m }] = await Promise.all([
       supabase.from('pacientes').select('id, nome').eq('ativo', true).order('nome'),
-      supabase.from('psicologos').select('id, nome, especialidade'),
+      supabase.from('profiles').select('id, nome, especialidade').eq('tipo', 'medico').order('nome'),
     ])
     setPacientes(p || [])
-    setPsicologos(ps || [])
+    setMedicos(m || [])
+  }
+
+  // NOVO: verifica conflito de horário antes de agendar
+  async function verificarConflito() {
+    if (!form.medico_id || !form.data || !form.hora) return false
+
+    const { data: conflitos } = await supabase
+      .from('consultas')
+      .select('id, paciente:pacientes(nome), hora')
+      .eq('medico_id', form.medico_id)
+      .eq('data', form.data)
+      .eq('hora', form.hora)
+      .not('status', 'in', '("cancelada","realizada")')
+
+    if (conflitos && conflitos.length > 0) {
+      const c = conflitos[0]
+      setConflito(`Conflito: ${c.paciente?.nome || 'outro paciente'} já está agendado às ${c.hora?.slice(0,5)} com este profissional.`)
+      return true
+    }
+
+    // Verifica também se o paciente já tem consulta no mesmo horário
+    const { data: conflitoPaciente } = await supabase
+      .from('consultas')
+      .select('id, medico:profiles(nome), hora')
+      .eq('paciente_id', form.paciente_id)
+      .eq('data', form.data)
+      .eq('hora', form.hora)
+      .not('status', 'in', '("cancelada","realizada")')
+
+    if (conflitoPaciente && conflitoPaciente.length > 0) {
+      const c = conflitoPaciente[0]
+      setConflito(`Conflito: este paciente já tem consulta às ${c.hora?.slice(0,5)} com ${c.medico?.nome || 'outro profissional'}.`)
+      return true
+    }
+
+    return false
   }
 
   async function handleAgendar() {
     setSaving(true)
+    setConflito(null)
+
+    const temConflito = await verificarConflito()
+    if (temConflito) { setSaving(false); return }
+
     const { error } = await supabase.from('consultas').insert([{
       paciente_id: form.paciente_id,
-      psicologo_id: form.psicologo_id,
+      medico_id: form.medico_id,
       tipo: form.tipo,
       data: form.data,
       hora: form.hora,
@@ -65,25 +115,36 @@ export default function Agenda() {
       status: 'aguardando',
       criado_por: profile.id,
     }])
+
     if (!error) {
       setModal(false)
-      setForm({ paciente_id: '', psicologo_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
+      setConflito(null)
+      setForm({ paciente_id: '', medico_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala: '' })
       fetchConsultas()
-    } else alert('Erro: ' + error.message)
+    } else {
+      alert('Erro: ' + error.message)
+    }
     setSaving(false)
   }
 
   async function handleEnviarSolic() {
     const { consulta, tipo, nova_data, nova_hora, motivo } = modalSolic
-    await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo, nova_data: nova_data || null, nova_hora: nova_hora || null, motivo: motivo || null }])
-    await supabase.from('consultas').update({ status: tipo === 'cancelamento' ? 'cancelamento_pendente' : 'reagendamento_pendente' }).eq('id', consulta.id)
+    await supabase.from('solicitacoes').insert([{
+      consulta_id: consulta.id, tipo,
+      nova_data: nova_data || null,
+      nova_hora: nova_hora || null,
+      motivo: motivo || null,
+    }])
+    await supabase.from('consultas').update({
+      status: tipo === 'cancelamento' ? 'cancelamento_pendente' : 'reagendamento_pendente',
+    }).eq('id', consulta.id)
     setModalSolic(null)
     fetchConsultas()
     alert('Solicitação enviada!')
   }
 
   const navData = dias => {
-    const d = new Date(data)
+    const d = new Date(data + 'T12:00:00')
     d.setDate(d.getDate() + dias)
     setData(d.toISOString().split('T')[0])
   }
@@ -96,11 +157,12 @@ export default function Agenda() {
   const filtered = consultas.filter(c => {
     const matchStatus = filtroStatus === 'todos' || c.status === filtroStatus
     const matchTipo = filtroTipo === 'todos' || c.tipo === filtroTipo
-    const matchPs = filtroPsicologo === 'todos' || c.psicologo_id === filtroPsicologo
-    const matchBusca = !busca || c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) || c.psicologo?.nome?.toLowerCase().includes(busca.toLowerCase())
-    return matchStatus && matchTipo && matchPs && matchBusca
+    const matchMed = filtroMedico === 'todos' || c.medico_id === filtroMedico
+    const matchBusca = !busca || c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) || c.medico?.nome?.toLowerCase().includes(busca.toLowerCase())
+    return matchStatus && matchTipo && matchMed && matchBusca
   })
 
+  // CORRIGIDO: data label usa T12:00:00 para evitar problema de fuso
   const dataLabel = viewMode === 'todos' ? 'Todas as consultas'
     : new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -150,15 +212,15 @@ export default function Agenda() {
               {tipos.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           )}
-          {psicologos.length > 0 && (
-            <select value={filtroPsicologo} onChange={e => setFiltroPsicologo(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
+          {medicos.length > 0 && (
+            <select value={filtroMedico} onChange={e => setFiltroMedico(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
               <option value="todos">Todos os profissionais</option>
-              {psicologos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
             </select>
           )}
-          {(filtroStatus !== 'todos' || filtroTipo !== 'todos' || filtroPsicologo !== 'todos' || busca) && (
+          {(filtroStatus !== 'todos' || filtroTipo !== 'todos' || filtroMedico !== 'todos' || busca) && (
             <button className="btn-outline" style={{ fontSize: 12, padding: '8px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
-              onClick={() => { setFiltroStatus('todos'); setFiltroTipo('todos'); setFiltroPsicologo('todos'); setBusca('') }}>
+              onClick={() => { setFiltroStatus('todos'); setFiltroTipo('todos'); setFiltroMedico('todos'); setBusca('') }}>
               ✕ Limpar
             </button>
           )}
@@ -205,8 +267,8 @@ export default function Agenda() {
                         {c.paciente?.nome}
                       </div>
                     </td>
-                    <td style={{ fontWeight: 500 }}>{c.psicologo?.nome || '—'}</td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.psicologo?.especialidade || '—'}</td>
+                    <td style={{ fontWeight: 500 }}>{c.medico?.nome || '—'}</td>
+                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.medico?.especialidade || '—'}</td>
                     <td style={{ fontSize: 12 }}>{c.tipo}</td>
                     <td>
                       {c.sala
@@ -258,14 +320,14 @@ export default function Agenda() {
                 </select>
               </div>
               <div className="fld"><label>Profissional *</label>
-                <select value={form.psicologo_id} onChange={e => setForm({ ...form, psicologo_id: e.target.value })}>
+                <select value={form.medico_id} onChange={e => setForm({ ...form, medico_id: e.target.value })}>
                   <option value="">Selecionar...</option>
-                  {psicologos.map(p => <option key={p.id} value={p.id}>{p.nome}{p.especialidade ? ` — ${p.especialidade}` : ''}</option>)}
+                  {medicos.map(m => <option key={m.id} value={m.id}>{m.nome}{m.especialidade ? ` — ${m.especialidade}` : ''}</option>)}
                 </select>
               </div>
               <div className="fld"><label>Tipo</label>
                 <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}>
-                  {tiposConsulta.map(t => <option key={t}>{t}</option>)}
+                  {['Psicoterapia', 'Avaliação Psicológica', 'Consulta Psiquiátrica', 'Neuropsicologia', 'Psicologia Infantil'].map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="fld"><label>Sala</label>
@@ -278,10 +340,19 @@ export default function Agenda() {
                 <input type="time" value={form.hora} onChange={e => setForm({ ...form, hora: e.target.value })} />
               </div>
             </div>
+
+            {/* NOVO: alerta de conflito de horário */}
+            {conflito && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, backgroundColor: '#FEF2F2', padding: '12px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 4 }}>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+                <p style={{ fontSize: 13, color: '#991B1B', fontWeight: 500 }}>{conflito}</p>
+              </div>
+            )}
+
             <div className="modal-btns">
-              <button className="btn-outline" onClick={() => setModal(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleAgendar} disabled={saving || !form.paciente_id || !form.psicologo_id || !form.data || !form.hora}>
-                {saving ? 'Agendando...' : 'Confirmar agendamento'}
+              <button className="btn-outline" onClick={() => { setModal(false); setConflito(null) }}>Cancelar</button>
+              <button className="btn-primary" onClick={handleAgendar} disabled={saving || !form.paciente_id || !form.medico_id || !form.data || !form.hora}>
+                {saving ? 'Verificando...' : 'Confirmar agendamento'}
               </button>
             </div>
           </div>
@@ -294,10 +365,10 @@ export default function Agenda() {
           <div className="modal">
             <h2>{modalSolic.tipo === 'cancelamento' ? 'Solicitar Cancelamento' : 'Solicitar Reagendamento'}</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-              Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.psicologo?.nome}
+              Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.medico?.nome}
             </p>
             <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>
-              ⚠️ Requer aprovação do médico responsável e do administrador.
+              ⚠️ Requer aprovação do profissional responsável e do administrador.
             </div>
             <div className="form-grid">
               {modalSolic.tipo === 'reagendamento' && (
