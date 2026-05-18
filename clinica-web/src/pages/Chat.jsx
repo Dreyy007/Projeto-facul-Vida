@@ -219,9 +219,7 @@ export default function Chat() {
         ) : (
           <>
             <div className="chat-win-header">
-              <div className="chat-av-lg" style={{ background: '#0047AB', padding: 4 }}>
-                <img src="/Logo.png" alt="Clínica Vida+" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-              </div>
+              <div className="chat-av-lg" style={{ backgroundImage: 'url(/Logo.png)', backgroundSize: 'cover', backgroundPosition: 'center', padding: 0 }} />
               <div>
                 <div className="chat-win-nome">Clínica Vida+</div>
                 <div className="chat-win-status">● {ativa.nome}</div>
@@ -254,9 +252,7 @@ export default function Chat() {
                         <div className="msg-time">{fmtHora(m.criado_em)}</div>
                       </div>
                       {isClinica && (
-                        <div className="msg-av clinica-av">
-                          <img src="/Logo.png" alt="Clínica" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        </div>
+                        <div className="msg-av clinica-av" style={{ backgroundImage: 'url(/Logo.png)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
                       )}
                     </div>
                   </div>
