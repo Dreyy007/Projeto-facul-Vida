@@ -75,11 +75,23 @@ export default function Chat() {
     if (iniciouBot.current) return
     iniciouBot.current = true
 
+    // Timeout de segurança — se Supabase demorar mais de 8s, reinicia
+    let timedOut = false
+    const safetyTimer = setTimeout(() => {
+      if (!montado.current) return
+      timedOut = true
+      iniciouBot.current = false
+      startBot()
+    }, 8000)
+
     const { data: msgs } = await supabase
       .from('mensagens')
       .select('*')
       .eq('paciente_id', paciente.id)
       .order('criado_em')
+
+    clearTimeout(safetyTimer)
+    if (timedOut || !montado.current) return
 
     if (!montado.current) return
 
@@ -504,7 +516,7 @@ export default function Chat() {
           )
         })}
 
-        {(!botPronto && botStep === 0 && !conversa?.encerrada) && (
+        {(paciente && !botPronto && botStep === 0 && !conversa?.encerrada) && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
             <div style={s.msgAvatar}><span style={{ fontSize: 8, fontWeight: 800, color: '#fff' }}>V+</span></div>
             <div style={{ ...s.bubbleThem, padding: '12px 16px' }}>
