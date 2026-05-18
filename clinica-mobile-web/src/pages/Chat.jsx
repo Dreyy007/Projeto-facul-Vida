@@ -483,7 +483,7 @@ export default function Chat() {
       {/* Header */}
       <div style={s.header}>
         <div style={s.headerBubble} />
-        <div style={s.clinicAvatar}><img src="/Logo.png" alt="Clínica Vida+" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /></div>
+        <div style={{ ...s.clinicAvatar, backgroundImage: "url(/Logo.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
         <div style={{ flex: 1 }}>
           <p style={s.headerNome}>Clínica Vida+</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
@@ -521,7 +521,7 @@ export default function Chat() {
             <div key={m.id}>
               {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
               <div style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-                {!isMe && <div style={s.msgAvatar}><img src="/Logo.png" alt="V+" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /></div>}
+                {!isMe && <div style={{ ...s.msgAvatar, backgroundImage: "url(/Logo.png)", backgroundSize: "cover", backgroundPosition: "center" }} />}
                 <div style={{ ...s.bubble, ...(isMe ? s.bubbleMe : s.bubbleThem), maxWidth: '78%' }}>
                   {m.anexo_url && m.anexo_tipo?.startsWith('image/') && <img src={m.anexo_url} alt="anexo" style={s.msgImg} />}
                   {m.anexo_url && !m.anexo_tipo?.startsWith('image/') && (
@@ -546,7 +546,7 @@ export default function Chat() {
 
         {(paciente && !botPronto && botStep === 0 && !conversa?.encerrada) && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
-            <div style={s.msgAvatar}><img src="/Logo.png" alt="V+" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /></div>
+            <div style={{ ...s.msgAvatar, backgroundImage: "url(/Logo.png)", backgroundSize: "cover", backgroundPosition: "center" }} />
             <div style={{ ...s.bubbleThem, padding: '12px 16px' }}>
               <div style={{ display: 'flex', gap: 4 }}>
                 {[0, 0.2, 0.4].map((d, i) => (
