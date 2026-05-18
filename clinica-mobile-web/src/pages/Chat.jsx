@@ -9,6 +9,40 @@ const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', m
 const INATIVIDADE_AVISO_MS   = 90  * 60 * 1000
 const INATIVIDADE_ENCERRA_MS = 120 * 60 * 1000
 
+
+function tocarSomRecebido() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const tocar = (freq, inicio, duracao, volume = 0.3) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = freq; osc.type = 'sine'
+      gain.gain.setValueAtTime(0, ctx.currentTime + inicio)
+      gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + inicio + 0.01)
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + inicio + duracao)
+      osc.start(ctx.currentTime + inicio)
+      osc.stop(ctx.currentTime + inicio + duracao + 0.05)
+    }
+    tocar(880, 0, 0.12, 0.25)
+    tocar(1100, 0.14, 0.18, 0.2)
+  } catch (e) {}
+}
+
+function tocarSomEnviado() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain); gain.connect(ctx.destination)
+    osc.frequency.value = 600; osc.type = 'sine'
+    gain.gain.setValueAtTime(0, ctx.currentTime)
+    gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.01)
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1)
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15)
+  } catch (e) {}
+}
+
 // Tipo fixo para identificar conclusão do bot — não depende de texto
 const TIPO_BOT_CONCLUIDO = 'bot_concluido'
 
@@ -383,6 +417,7 @@ export default function Chat() {
         setMensagens(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
         scrollDown()
         if (payload.new.remetente === 'clinica') {
+          tocarSomRecebido()
           supabase.from('mensagens').update({ lida: true }).eq('id', payload.new.id)
         }
       }).subscribe()
