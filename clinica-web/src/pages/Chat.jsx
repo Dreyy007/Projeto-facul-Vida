@@ -50,7 +50,7 @@ export default function Chat() {
   function notificarBrowser(nome, mensagem) {
     if (document.visibilityState === 'visible') return
     if (Notification.permission === 'granted') {
-      new Notification(`💬 ${nome}`, { body: mensagem, icon: '/Logo.svg' })
+      new Notification(`💬 ${nome}`, { body: mensagem, icon: '/Logo.png' })
     }
   }
 
@@ -220,7 +220,7 @@ export default function Chat() {
           <>
             <div className="chat-win-header">
               <div className="chat-av-lg" style={{ background: '#0047AB', padding: 4 }}>
-                <img src="/Logo.svg" alt="Clínica Vida+" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                <img src="/Logo.png" alt="Clínica Vida+" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
               </div>
               <div>
                 <div className="chat-win-nome">Clínica Vida+</div>
@@ -255,7 +255,7 @@ export default function Chat() {
                       </div>
                       {isClinica && (
                         <div className="msg-av clinica-av">
-                          <img src="/Logo.svg" alt="Clínica" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                          <img src="/Logo.png" alt="Clínica" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         </div>
                       )}
                     </div>
