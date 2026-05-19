@@ -27,21 +27,13 @@ export default function Aprovacoes() {
   }
 
   async function atribuirSalaDisponivel(consulta_id, data, hora) {
-    const { data: salas } = await supabase.from('salas').select('id, nome').eq('ativa', true).order('nome')
-    if (!salas?.length) return null
-
-    for (const sala of salas) {
-      const { data: ocupadas } = await supabase
-        .from('consultas')
-        .select('id')
-        .eq('sala_id', sala.id)
-        .eq('data', data)
-        .eq('hora', hora)
-        .not('status', 'in', '("cancelada","recusada")')
-
-      if (!ocupadas?.length) return sala
-    }
-    return null
+    const { data: salaId, error } = await supabase.rpc('atribuir_sala_disponivel', {
+      p_consulta_id: consulta_id,
+      p_data: data,
+      p_hora: hora,
+    })
+    if (error) console.error('Erro ao atribuir sala:', error)
+    return salaId ? { id: salaId } : null
   }
 
   async function enviarMensagemBot(paciente_id, mensagem) {
@@ -84,8 +76,11 @@ export default function Aprovacoes() {
 
     const { data: fresh } = await supabase.from('solicitacoes').select('*').eq('id', s.id).single()
 
-    const ambosAprovaram = fresh?.aprovado_medico && fresh?.aprovado_admin
     const novoAgendamento = fresh?.tipo === 'novo_agendamento'
+    // Novo agendamento: só precisa do estagiário. Outros: precisa dos dois.
+    const ambosAprovaram = novoAgendamento
+      ? fresh?.aprovado_medico === true
+      : fresh?.aprovado_medico && fresh?.aprovado_admin
 
     if (ambosAprovaram) {
       await supabase.from('solicitacoes').update({ status: 'aprovada' }).eq('id', s.id)
@@ -109,10 +104,10 @@ export default function Aprovacoes() {
         await supabase.from('consultas').update({ sala_id: fresh.sala_nova_id, status: 'confirmada' }).eq('id', s.consulta_id)
       } else if (novoAgendamento) {
         const sala = await atribuirSalaDisponivel(s.consulta_id, data_consulta, s.consulta?.hora)
-        await supabase.from('consultas').update({
-          sala_id: sala?.id || null,
-          status: 'confirmada',
-        }).eq('id', s.consulta_id)
+        // Se nenhuma sala disponível, ao menos confirma a consulta sem sala
+        if (!sala) {
+          await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', s.consulta_id)
+        }
 
         if (paciente_id) {
           await enviarMensagemBot(paciente_id,
@@ -129,7 +124,11 @@ export default function Aprovacoes() {
 
   const canAct = (s) => {
     if (profile?.tipo === 'estagiario') return s.consulta?.estagiario?.id === profile.id && s.aprovado_medico === null
-    if (['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)) return s.aprovado_admin === null
+    if (['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)) {
+      // Admin não aprova novo agendamento, só estagiário
+      if (s.tipo === 'novo_agendamento') return false
+      return s.aprovado_admin === null
+    }
     return false
   }
 
@@ -194,11 +193,13 @@ export default function Aprovacoes() {
                 {s.motivo && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>Motivo: {s.motivo}</div>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                   <span style={{ background: s.aprovado_medico === true ? 'var(--sbg)' : s.aprovado_medico === false ? 'var(--dbg)' : 'var(--wbg)', color: s.aprovado_medico === true ? 'var(--success)' : s.aprovado_medico === false ? 'var(--danger)' : 'var(--warn)', padding: '3px 12px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>
-                    {s.aprovado_medico === true ? '✓ Estagiário aprovou' : s.aprovado_medico === false ? '✗ Estagiário recusou' : '⏳ Estagiário pendente'}
+                    {s.aprovado_medico === true ? '✓ Estagiário aprovou' : s.aprovado_medico === false ? '✗ Estagiário recusou' : '⏳ Aguardando estagiário'}
                   </span>
-                  <span style={{ background: s.aprovado_admin === true ? 'var(--sbg)' : s.aprovado_admin === false ? 'var(--dbg)' : 'var(--wbg)', color: s.aprovado_admin === true ? 'var(--success)' : s.aprovado_admin === false ? 'var(--danger)' : 'var(--warn)', padding: '3px 12px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>
-                    {s.aprovado_admin === true ? '✓ Admin aprovou' : s.aprovado_admin === false ? '✗ Admin recusou' : '⏳ Admin pendente'}
-                  </span>
+                  {s.tipo !== 'novo_agendamento' && (
+                    <span style={{ background: s.aprovado_admin === true ? 'var(--sbg)' : s.aprovado_admin === false ? 'var(--dbg)' : 'var(--wbg)', color: s.aprovado_admin === true ? 'var(--success)' : s.aprovado_admin === false ? 'var(--danger)' : 'var(--warn)', padding: '3px 12px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>
+                      {s.aprovado_admin === true ? '✓ Admin aprovou' : s.aprovado_admin === false ? '✗ Admin recusou' : '⏳ Admin pendente'}
+                    </span>
+                  )}
                 </div>
               </div>
               {canAct(s) && (
