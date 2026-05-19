@@ -26,7 +26,12 @@ export default function Relatorios() {
       { data: realizadas },
       { data: porMedico },
     ] = await Promise.all([
-      supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim),
+      (() => {
+        const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+        let q = supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim)
+        if (!isAdmin) q = q.eq('medico_id', profile?.id)
+        return q
+      })(),
       supabase.from('pacientes').select('id').eq('ativo', true),
       supabase.from('pacientes').select('id').gte('criado_em', periodo.inicio + 'T00:00:00').lte('criado_em', periodo.fim + 'T23:59:59'),
       supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim).eq('status', 'cancelada'),

@@ -29,8 +29,17 @@ export default function Resultados() {
   async function fetchAll() {
     setLoading(true)
     const [{ data: res }, { data: pac }] = await Promise.all([
-      supabase.from('resultados').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('criado_em', { ascending: false }),
-      supabase.from('pacientes').select('id, nome, cpf').eq('ativo', true).order('nome'),
+      (() => {
+        const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+        let q = supabase.from('resultados').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('criado_em', { ascending: false })
+        if (!isAdmin) q = q.eq('medico_id', profile?.id)
+        return q
+      })(),
+      (() => {
+        const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+        if (isAdmin) return supabase.from('pacientes').select('id, nome, cpf').order('nome')
+        return supabase.from('consultas').select('paciente:pacientes(id, nome, cpf)').eq('medico_id', profile?.id).not('paciente', 'is', null)
+      })(),
     ])
     setResultados(res || [])
     setPacientes(pac || [])

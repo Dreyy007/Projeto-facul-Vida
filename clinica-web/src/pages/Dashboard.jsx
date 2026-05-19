@@ -3,8 +3,16 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
 
+function limparNome(nome) {
+  if (!nome) return nome
+  return nome.replace(/^(Dr\.?\s*|Dra\.?\s*)/i, '').trim()
+}
+
 export default function Dashboard() {
   const { profile } = useAuth()
+  const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+  const isEstagiario = profile?.tipo === 'estagiario'
+
   const [stats, setStats] = useState({ hoje: 0, pacientes: 0, pendentes: 0, msgs: 0 })
   const [consultas, setConsultas] = useState([])
   const [consultasFiltradas, setConsultasFiltradas] = useState([])
@@ -14,33 +22,49 @@ export default function Dashboard() {
   const [filtro, setFiltro] = useState('hoje')
   const [dataCustom, setDataCustom] = useState('')
 
-  useEffect(() => {
-    fetchDashboard()
-  }, [])
-
-  useEffect(() => {
-    aplicarFiltro(filtro, consultas)
-  }, [filtro, dataCustom, consultas])
+  useEffect(() => { fetchDashboard() }, [])
+  useEffect(() => { aplicarFiltro(filtro, consultas) }, [filtro, dataCustom, consultas])
 
   async function fetchDashboard() {
     const hoje = new Date().toISOString().split('T')[0]
 
+    let consultasQuery = supabase
+      .from('consultas')
+      .select('*, paciente:pacientes(nome), estagiario:profiles(nome, codigo), sala:salas(nome)')
+      .order('data', { ascending: false })
+      .order('hora')
+
+    if (isEstagiario) {
+      consultasQuery = consultasQuery.eq('medico_id', profile.id)
+    }
+
+    let solicQuery = supabase
+      .from('solicitacoes')
+      .select('*, consulta:consultas(*, paciente:pacientes(nome), estagiario:profiles(nome, codigo))')
+      .eq('status', 'pendente')
+
+    if (isEstagiario) {
+      solicQuery = solicQuery.eq('consulta.medico_id', profile.id)
+    }
+
     const [{ data: todasConsultas }, { data: pacientes }, { data: solics }, { data: msgs }] =
       await Promise.all([
-        supabase.from('consultas').select('*, paciente:pacientes(nome), estagiario:profiles(nome, codigo), sala:salas(nome)').order('data', { ascending: false }).order('hora'),
+        consultasQuery,
         supabase.from('pacientes').select('id').eq('ativo', true),
-        supabase.from('solicitacoes').select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(nome))').eq('status', 'pendente'),
-        supabase.from('mensagens').select('paciente_id, paciente:pacientes(nome)').eq('lida', false).eq('remetente', 'paciente'),
+        solicQuery,
+        supabase.from('mensagens').select('paciente_id, paciente:pacientes(nome)').eq('lida', false).eq('remetente', 'paciente').is('tipo', null),
       ])
 
-    const consultasHoje = todasConsultas?.filter(c => c.data === hoje) || []
+    const lista = (todasConsultas || []).filter(c => c.paciente)
+    const consultasHoje = lista.filter(c => c.data === hoje)
+    const solicFiltradas = (solics || []).filter(s => s.consulta)
 
-    setConsultas(todasConsultas || [])
-    setAprovacoes(solics || [])
+    setConsultas(lista)
+    setAprovacoes(solicFiltradas)
     setStats({
       hoje: consultasHoje.length,
-      pacientes: pacientes?.length || 0,
-      pendentes: solics?.length || 0,
+      pacientes: isAdmin ? (pacientes?.length || 0) : consultasHoje.length,
+      pendentes: solicFiltradas.length,
       msgs: msgs?.length || 0,
     })
 
@@ -77,7 +101,7 @@ export default function Dashboard() {
   }
 
   async function handleAprovacao(id, aprovado) {
-    const campo = profile?.tipo === 'medico' ? 'aprovado_medico' : 'aprovado_admin'
+    const campo = isEstagiario ? 'aprovado_medico' : 'aprovado_admin'
     await supabase.from('solicitacoes').update({ [campo]: aprovado }).eq('id', id)
     const { data } = await supabase.from('solicitacoes').select('*').eq('id', id).single()
     if (data?.aprovado_medico && data?.aprovado_admin) {
@@ -113,7 +137,7 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>Dashboard</h1>
-          <p className="page-sub">Bem-vindo, {profile?.nome?.split(' ')[0]}!</p>
+          <p className="page-sub">Bem-vindo, {limparNome(profile?.nome?.split(' ')[0])}!</p>
         </div>
         <button className="btn-primary" onClick={() => window.location.href = '/agenda'}>+ Nova consulta</button>
       </div>
@@ -122,17 +146,17 @@ export default function Dashboard() {
         <div className="stat-card">
           <div className="stat-label">Consultas hoje</div>
           <div className="stat-num blue">{stats.hoje}</div>
-          <div className="stat-sub">Agendadas para hoje</div>
+          <div className="stat-sub">{isEstagiario ? 'Suas consultas hoje' : 'Agendadas para hoje'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Pacientes ativos</div>
+          <div className="stat-label">{isAdmin ? 'Pacientes ativos' : 'Consultas hoje'}</div>
           <div className="stat-num green">{stats.pacientes}</div>
-          <div className="stat-sub">Cadastrados na clínica</div>
+          <div className="stat-sub">{isAdmin ? 'Cadastrados na clínica' : 'No seu atendimento'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Aprovações pendentes</div>
           <div className="stat-num warn">{stats.pendentes}</div>
-          <div className="stat-sub">Cancel. e reagend.</div>
+          <div className="stat-sub">Aguardando sua ação</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Msgs não lidas</div>
@@ -144,37 +168,20 @@ export default function Dashboard() {
       <div className="dash-grid">
         <div className="card">
           <div className="card-head">
-            <h3>Consultas</h3>
+            <h3>{isEstagiario ? 'Minhas Consultas' : 'Consultas'}</h3>
             <a href="/agenda">Ver agenda →</a>
           </div>
 
-          {/* FILTRO */}
           <div style={{ display: 'flex', gap: '8px', padding: '0 16px 12px', flexWrap: 'wrap', alignItems: 'center' }}>
             {['hoje', 'semana', 'mes', 'todas', 'data'].map(op => (
-              <button
-                key={op}
-                onClick={() => setFiltro(op)}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  border: '1px solid #d1d5db',
-                  background: filtro === op ? '#2563eb' : '#fff',
-                  color: filtro === op ? '#fff' : '#374151',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: filtro === op ? 600 : 400,
-                }}
-              >
+              <button key={op} onClick={() => setFiltro(op)}
+                style={{ padding: '4px 12px', borderRadius: '20px', border: '1px solid #d1d5db', background: filtro === op ? '#2563eb' : '#fff', color: filtro === op ? '#fff' : '#374151', cursor: 'pointer', fontSize: '13px', fontWeight: filtro === op ? 600 : 400 }}>
                 {op === 'hoje' ? 'Hoje' : op === 'semana' ? 'Esta semana' : op === 'mes' ? 'Este mês' : op === 'todas' ? 'Todas' : 'Data específica'}
               </button>
             ))}
             {filtro === 'data' && (
-              <input
-                type="date"
-                value={dataCustom}
-                onChange={e => setDataCustom(e.target.value)}
-                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }}
-              />
+              <input type="date" value={dataCustom} onChange={e => setDataCustom(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }} />
             )}
           </div>
 
@@ -188,8 +195,7 @@ export default function Dashboard() {
                     <th>Data</th>
                     <th>Horário</th>
                     <th>Paciente</th>
-                    <th>Estagiário</th>
-                    <th>Código</th>
+                    {isAdmin && <th>Estagiário</th>}
                     <th>Sala</th>
                     <th>Status</th>
                   </tr>
@@ -205,8 +211,7 @@ export default function Dashboard() {
                           {c.paciente?.nome}
                         </div>
                       </td>
-                      <td style={{ fontSize: 13 }}>{c.estagiario?.nome || c.medico?.nome || '—'}</td>
-                      <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                      {isAdmin && <td style={{ fontSize: 13 }}>{limparNome(c.estagiario?.nome) || '—'}{c.estagiario?.codigo && <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginLeft: 6 }}>{c.estagiario.codigo}</span>}</td>}
                       <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                       <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     </tr>
@@ -226,10 +231,10 @@ export default function Dashboard() {
               </div>
               {aprovacoes.slice(0, 3).map(s => (
                 <div key={s.id} className="aprov-item">
-                  <div className="aprov-ico">{s.tipo === 'cancelamento' ? '❌' : '📅'}</div>
+                  <div className="aprov-ico">{s.tipo === 'cancelamento' ? '❌' : s.tipo === 'novo_agendamento' ? '🗓️' : '📅'}</div>
                   <div className="aprov-info">
-                    <h4>{s.tipo === 'cancelamento' ? 'Cancelamento' : 'Reagendamento'}</h4>
-                    <p>{s.consulta?.paciente?.nome} · {s.consulta?.medico?.nome}</p>
+                    <h4>{s.tipo === 'cancelamento' ? 'Cancelamento' : s.tipo === 'novo_agendamento' ? 'Novo Agendamento' : 'Reagendamento'}</h4>
+                    <p>{s.consulta?.paciente?.nome} · {limparNome(s.consulta?.estagiario?.nome)}</p>
                   </div>
                   <div className="aprov-btns">
                     <button className="btn-ok" onClick={() => handleAprovacao(s.id, true)}>✓</button>
