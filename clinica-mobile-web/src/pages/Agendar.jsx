@@ -114,9 +114,8 @@ export default function Agendar() {
   // CORRIGIDO: busca estagiario em vez de medico
   async function fetchEstagiarios() {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('estagiarios')
       .select('*')
-      .eq('tipo', 'estagiario')
       .order('nome')
     if (error) console.error('Erro ao buscar estagiários:', error)
     setEstagiarios(data || [])
