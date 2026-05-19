@@ -42,7 +42,12 @@ export default function Resultados() {
       })(),
     ])
     setResultados(res || [])
-    setPacientes(pac || [])
+    // Se estagiario, pac vem como [{paciente: {...}}], normaliza para [{id, nome, cpf}]
+    const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+    const pacientesNorm = isAdmin
+      ? (pac || [])
+      : [...new Map((pac || []).filter(p => p.paciente).map(p => [p.paciente.id, p.paciente])).values()]
+    setPacientes(pacientesNorm)
     setLoading(false)
   }
 
