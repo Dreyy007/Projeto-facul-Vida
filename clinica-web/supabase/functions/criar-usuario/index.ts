@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
 
     // Cria o usuário
     const body = await req.json()
-    const { email, senha, nome, tipo, crp_crm, especialidade } = body
+    const { email, senha, nome, tipo, crp_crm, especialidade, codigo } = body
 
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
       tipo,
       crp_crm: crp_crm || null,
       especialidade: especialidade || null,
+      codigo: codigo || null,
     }])
 
     if (profileError) {
