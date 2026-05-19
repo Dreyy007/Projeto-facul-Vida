@@ -157,7 +157,7 @@ export default function Sidebar() {
     ? partes.filter(p => !prefixos.includes(p.toLowerCase())).map(n => n[0]).slice(0, 2).join('').toUpperCase() || partes.map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?'
 
-  const roleLabel = { admin: 'Administrador', coordenador: 'Coordenador', medico: 'Médico', recepcionista: 'Recepcionista' }
+  const roleLabel = { admin: 'Administrador', coordenador: 'Coordenador', estagiario: 'Estagiário', recepcionista: 'Recepcionista' }
 
   return (
     <aside className="sidebar">

@@ -13,8 +13,7 @@ export default function Aprovacoes() {
   async function fetchSolics() {
     const { data } = await supabase
       .from('solicitacoes')
-      .select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(id, nome))')
-      // CORRIGIDO: adicionado id no join de medico para canAct funcionar
+      .select('*, consulta:consultas(*, paciente:pacientes(nome), estagiario:profiles(id, nome, codigo)), sala_atual:salas!sala_atual_id(nome), sala_nova:salas!sala_nova_id(nome)')
       .eq('status', 'pendente')
       .order('criado_em', { ascending: false })
     setSolics(data || [])
@@ -22,10 +21,9 @@ export default function Aprovacoes() {
   }
 
   async function handleAprovar(s, aprovado) {
-    const isMedico = profile?.tipo === 'medico'
+    const isMedico = profile?.tipo === 'estagiario'
     const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
-
-    if (!isMedico && !isAdmin) return alert('Sem permissão para aprovar.')
+    if (!isMedico && !isAdmin) return alert('Sem permissão.')
 
     const update = {}
     if (isMedico) update.aprovado_medico = aprovado
@@ -38,33 +36,28 @@ export default function Aprovacoes() {
 
     await supabase.from('solicitacoes').update(update).eq('id', s.id)
 
-    // Verifica se ambos aprovaram
     const { data: fresh } = await supabase.from('solicitacoes').select('*').eq('id', s.id).single()
     if (fresh?.aprovado_medico && fresh?.aprovado_admin) {
       await supabase.from('solicitacoes').update({ status: 'aprovada' }).eq('id', s.id)
       if (fresh.tipo === 'cancelamento') {
         await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', s.consulta_id)
-      } else {
-        await supabase.from('consultas').update({
-          data: fresh.nova_data,
-          hora: fresh.nova_hora,
-          status: 'aguardando',
-        }).eq('id', s.consulta_id)
+      } else if (fresh.tipo === 'reagendamento') {
+        await supabase.from('consultas').update({ data: fresh.nova_data, hora: fresh.nova_hora, status: 'aguardando' }).eq('id', s.consulta_id)
+      } else if (fresh.tipo === 'troca_sala') {
+        await supabase.from('consultas').update({ sala_id: fresh.sala_nova_id, status: 'confirmada' }).eq('id', s.consulta_id)
       }
     }
     fetchSolics()
   }
 
-  // CORRIGIDO: usa s.consulta.medico.id (do join) em vez de s.consulta?.medico_id (campo ausente)
   const canAct = (s) => {
-    if (profile?.tipo === 'medico') {
-      return s.consulta?.medico?.id === profile.id && s.aprovado_medico === null
-    }
-    if (['admin', 'coordenador'].includes(profile?.tipo)) {
-      return s.aprovado_admin === null
-    }
+    if (profile?.tipo === 'estagiario') return s.consulta?.estagiario?.id === profile.id && s.aprovado_medico === null
+    if (['admin', 'coordenador'].includes(profile?.tipo)) return s.aprovado_admin === null
     return false
   }
+
+  const tipoLabel = t => ({ cancelamento: 'Cancelamento', reagendamento: 'Reagendamento', troca_sala: 'Troca de Sala' }[t] || t)
+  const tipoIcon = t => ({ cancelamento: '❌', reagendamento: '📅', troca_sala: '🚪' }[t] || '📋')
 
   if (loading) return <div className="page-loading">Carregando...</div>
 
@@ -79,40 +72,36 @@ export default function Aprovacoes() {
 
       {solics.length === 0 ? (
         <div className="card">
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 15 }}>
-            ✅ Nenhuma solicitação pendente.
-          </div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 15 }}>✅ Nenhuma solicitação pendente.</div>
         </div>
       ) : (
         solics.map(s => (
           <div key={s.id} className="card">
             <div style={{ padding: '18px 20px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <div style={{ width: 44, height: 44, borderRadius: 11, background: s.tipo === 'cancelamento' ? 'var(--dbg)' : 'var(--wbg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                {s.tipo === 'cancelamento' ? '❌' : '📅'}
+                {tipoIcon(s.tipo)}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>
-                  {s.tipo === 'cancelamento' ? 'Cancelamento' : 'Reagendamento'} solicitado
-                </div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{tipoLabel(s.tipo)} solicitado</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                  Paciente: <strong>{s.consulta?.paciente?.nome}</strong> · Profissional: {s.consulta?.medico?.nome}
+                  Paciente: <strong>{s.consulta?.paciente?.nome}</strong> · Estagiário: {s.consulta?.estagiario?.nome}
+                  {s.consulta?.estagiario?.codigo && <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, marginLeft: 6 }}>{s.consulta.estagiario.codigo}</span>}
                 </div>
                 {s.tipo === 'reagendamento' && s.nova_data && (
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Nova data: {new Date(s.nova_data + 'T12:00:00').toLocaleDateString('pt-BR')} às {s.nova_hora?.slice(0, 5)}</div>
+                )}
+                {s.tipo === 'troca_sala' && (
                   <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-                    Nova data: {new Date(s.nova_data + 'T12:00:00').toLocaleDateString('pt-BR')} às {s.nova_hora?.slice(0, 5)}
+                    Sala atual: <strong>{s.sala_atual?.nome || '—'}</strong> → Nova sala: <strong>{s.sala_nova?.nome || '—'}</strong>
                   </div>
                 )}
-                {s.motivo && (
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>
-                    Motivo: {s.motivo}
-                  </div>
-                )}
+                {s.motivo && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>Motivo: {s.motivo}</div>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                   <span style={{ background: s.aprovado_medico === true ? 'var(--sbg)' : s.aprovado_medico === false ? 'var(--dbg)' : 'var(--wbg)', color: s.aprovado_medico === true ? 'var(--success)' : s.aprovado_medico === false ? 'var(--danger)' : 'var(--warn)', padding: '3px 12px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>
-                    {s.aprovado_medico === true ? '✓ Médico aprovado' : s.aprovado_medico === false ? '✗ Médico recusou' : '⏳ Médico pendente'}
+                    {s.aprovado_medico === true ? '✓ Estagiário aprovou' : s.aprovado_medico === false ? '✗ Estagiário recusou' : '⏳ Estagiário pendente'}
                   </span>
                   <span style={{ background: s.aprovado_admin === true ? 'var(--sbg)' : s.aprovado_admin === false ? 'var(--dbg)' : 'var(--wbg)', color: s.aprovado_admin === true ? 'var(--success)' : s.aprovado_admin === false ? 'var(--danger)' : 'var(--warn)', padding: '3px 12px', borderRadius: 50, fontSize: 11, fontWeight: 700 }}>
-                    {s.aprovado_admin === true ? '✓ Admin aprovado' : s.aprovado_admin === false ? '✗ Admin recusou' : '⏳ Admin pendente'}
+                    {s.aprovado_admin === true ? '✓ Admin aprovou' : s.aprovado_admin === false ? '✗ Admin recusou' : '⏳ Admin pendente'}
                   </span>
                 </div>
               </div>
