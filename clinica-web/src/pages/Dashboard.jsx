@@ -27,7 +27,7 @@ export default function Dashboard() {
 
     const [{ data: todasConsultas }, { data: pacientes }, { data: solics }, { data: msgs }] =
       await Promise.all([
-        supabase.from('consultas').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('data', { ascending: false }).order('hora'),
+        supabase.from('consultas').select('*, paciente:pacientes(nome), estagiario:profiles(nome, codigo), sala:salas(nome)').order('data', { ascending: false }).order('hora'),
         supabase.from('pacientes').select('id').eq('ativo', true),
         supabase.from('solicitacoes').select('*, consulta:consultas(*, paciente:pacientes(nome), medico:profiles(nome))').eq('status', 'pendente'),
         supabase.from('mensagens').select('paciente_id, paciente:pacientes(nome)').eq('lida', false).eq('remetente', 'paciente'),
@@ -188,7 +188,9 @@ export default function Dashboard() {
                     <th>Data</th>
                     <th>Horário</th>
                     <th>Paciente</th>
-                    <th>Profissional</th>
+                    <th>Estagiário</th>
+                    <th>Código</th>
+                    <th>Sala</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -203,7 +205,9 @@ export default function Dashboard() {
                           {c.paciente?.nome}
                         </div>
                       </td>
-                      <td>{c.medico?.nome}</td>
+                      <td style={{ fontSize: 13 }}>{c.estagiario?.nome || c.medico?.nome || '—'}</td>
+                      <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                      <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                       <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     </tr>
                   ))}
