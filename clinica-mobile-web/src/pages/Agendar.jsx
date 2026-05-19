@@ -53,27 +53,17 @@ function CalendarioMes({ diasDisponiveis, dataSel, onSelect }) {
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 16, border: '1px solid #F3F4F6', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <button
-          onClick={() => podeMesAnterior() && mudarMes(-1)}
-          style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid #E5E7EB', background: podeMesAnterior() ? '#fff' : '#F9FAFB', cursor: podeMesAnterior() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
+        <button onClick={() => podeMesAnterior() && mudarMes(-1)} style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid #E5E7EB', background: podeMesAnterior() ? '#fff' : '#F9FAFB', cursor: podeMesAnterior() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={podeMesAnterior() ? '#374151' : '#D1D5DB'} strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <p style={{ fontSize: 15, fontWeight: 800, color: '#0D1B2A' }}>{MESES_LABEL[mesAtual.mes]} {mesAtual.ano}</p>
-        <button
-          onClick={() => mudarMes(1)}
-          style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
+        <button onClick={() => mudarMes(1)} style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 8 }}>
-        {DIAS_SEMANA_LABEL.map(d => (
-          <p key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#9CA3AF' }}>{d}</p>
-        ))}
+        {DIAS_SEMANA_LABEL.map(d => <p key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#9CA3AF' }}>{d}</p>)}
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {cells.map((dia, i) => {
           if (!dia) return <div key={`empty-${i}`} />
@@ -82,24 +72,13 @@ function CalendarioMes({ diasDisponiveis, dataSel, onSelect }) {
           const selecionado = dataSel === dateStr
           const isHoje = dateStr === hoje.toISOString().split('T')[0]
           return (
-            <button
-              key={dateStr}
-              disabled={!disponivel}
-              onClick={() => disponivel && onSelect(dateStr)}
-              style={{
-                height: 40, borderRadius: 12,
-                border: isHoje && !selecionado ? '2px solid #0047AB' : '1.5px solid transparent',
-                background: selecionado ? 'linear-gradient(135deg, #0047AB, #1a6fdf)' : disponivel ? '#EFF6FF' : 'transparent',
-                cursor: disponivel ? 'pointer' : 'default',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
+            <button key={dateStr} disabled={!disponivel} onClick={() => disponivel && onSelect(dateStr)}
+              style={{ height: 40, borderRadius: 12, border: isHoje && !selecionado ? '2px solid #0047AB' : '1.5px solid transparent', background: selecionado ? 'linear-gradient(135deg, #0047AB, #1a6fdf)' : disponivel ? '#EFF6FF' : 'transparent', cursor: disponivel ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <p style={{ fontSize: 13, fontWeight: selecionado || disponivel ? 700 : 400, color: selecionado ? '#fff' : disponivel ? '#0047AB' : '#D1D5DB' }}>{dia}</p>
             </button>
           )
         })}
       </div>
-
       <div style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#0047AB' }} />
@@ -118,8 +97,8 @@ export default function Agendar() {
   const navigate = useNavigate()
   const { paciente } = useAuth()
   const [step, setStep] = useState(1)
-  const [medicos, setMedicos] = useState([])
-  const [medicoSel, setMedicoSel] = useState(null)
+  const [estagiarios, setEstagiarios] = useState([])
+  const [estagiarioSel, setEstagiarioSel] = useState(null)
   const [diasDisponiveis, setDiasDisponiveis] = useState([])
   const [dataSel, setDataSel] = useState('')
   const [horarioSel, setHorarioSel] = useState('')
@@ -130,19 +109,20 @@ export default function Agendar() {
   const [loadingDatas, setLoadingDatas] = useState(false)
   const [loadingHorarios, setLoadingHorarios] = useState(false)
 
-  useEffect(() => { fetchMedicos() }, [])
+  useEffect(() => { fetchEstagiarios() }, [])
 
-  async function fetchMedicos() {
-    const { data } = await supabase.from('profiles').select('*').eq('tipo', 'medico').eq('ativo', true)
-    setMedicos(data || [])
+  // CORRIGIDO: busca estagiario em vez de medico
+  async function fetchEstagiarios() {
+    const { data } = await supabase.from('profiles').select('*').eq('tipo', 'estagiario').eq('ativo', true)
+    setEstagiarios(data || [])
   }
 
-  async function handleSelecionarMedico(medico) {
-    setMedicoSel(medico)
+  async function handleSelecionarEstagiario(est) {
+    setEstagiarioSel(est)
     setDataSel('')
     setHorarioSel('')
     setLoadingDatas(true)
-    const { data: escalas } = await supabase.from('escalas').select('dia_semana').eq('medico_id', medico.id).eq('ativo', true)
+    const { data: escalas } = await supabase.from('escalas').select('dia_semana').eq('medico_id', est.id).eq('ativo', true)
     const diasComEscala = (escalas || []).map(e => e.dia_semana)
     const dias = []
     const hoje = new Date()
@@ -162,10 +142,10 @@ export default function Agendar() {
     setHorarioSel('')
     setLoadingHorarios(true)
     const diaSemana = new Date(data + 'T12:00:00').getDay()
-    const { data: escalas } = await supabase.from('escalas').select('*').eq('medico_id', medicoSel.id).eq('dia_semana', diaSemana).eq('ativo', true)
+    const { data: escalas } = await supabase.from('escalas').select('*').eq('medico_id', estagiarioSel.id).eq('dia_semana', diaSemana).eq('ativo', true)
     let todosHorarios = []
     ;(escalas || []).forEach(e => { todosHorarios = [...todosHorarios, ...gerarHorarios(e.hora_inicio, e.hora_fim, e.intervalo_minutos)] })
-    const { data: agendados } = await supabase.from('consultas').select('hora').eq('medico_id', medicoSel.id).eq('data', data).not('status', 'in', '("cancelada")')
+    const { data: agendados } = await supabase.from('consultas').select('hora').eq('medico_id', estagiarioSel.id).eq('data', data).not('status', 'in', '("cancelada")')
     const ocupados = (agendados || []).map(a => a.hora.slice(0, 5))
     const disponiveis = [...new Set(todosHorarios.filter(h => !ocupados.includes(h)))]
     disponiveis.sort((a, b) => a.localeCompare(b))
@@ -175,11 +155,11 @@ export default function Agendar() {
   }
 
   async function handleConfirmar() {
-    if (!medicoSel || !dataSel || !horarioSel || !paciente) return
+    if (!estagiarioSel || !dataSel || !horarioSel || !paciente) return
     setSaving(true)
     await supabase.from('consultas').insert([{
       paciente_id: paciente.id,
-      medico_id: medicoSel.id,
+      medico_id: estagiarioSel.id,
       data: dataSel,
       hora: horarioSel,
       tipo,
@@ -202,8 +182,9 @@ export default function Agendar() {
           {new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
         <p style={{ fontSize: 15, color: '#0047AB', fontWeight: 700, marginBottom: 6 }}>⏰ {horarioSel}</p>
-        <p style={{ fontSize: 14, color: '#374151', fontWeight: 600, marginBottom: 4 }}>Dr(a). {medicoSel?.nome}</p>
-        <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 32 }}>{medicoSel?.especialidade}</p>
+        {/* CORRIGIDO: removido Dr(a). */}
+        <p style={{ fontSize: 14, color: '#374151', fontWeight: 600, marginBottom: 4 }}>{estagiarioSel?.nome}</p>
+        <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 32 }}>{estagiarioSel?.especialidade}</p>
         <div style={{ backgroundColor: '#FEF3C7', borderRadius: 14, padding: '12px 16px', marginBottom: 32, border: '1px solid #FDE68A', width: '100%' }}>
           <p style={{ fontSize: 13, color: '#92400E', textAlign: 'center' }}>⏳ Aguardando confirmação da clínica</p>
         </div>
@@ -244,22 +225,27 @@ export default function Agendar() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
 
-        {/* STEP 1 — Médico */}
+        {/* STEP 1 — Estagiário */}
         {step === 1 && (
           <div>
             <p style={s.sectionTitle}>Selecione um profissional</p>
-            {medicos.map(m => (
-              <button key={m.id} style={s.medicoCard} onClick={() => handleSelecionarMedico(m)}>
+            {estagiarios.length === 0 && (
+              <p style={s.emptyText}>Nenhum profissional disponível no momento.</p>
+            )}
+            {estagiarios.map(m => (
+              <button key={m.id} style={s.medicoCard} onClick={() => handleSelecionarEstagiario(m)}>
                 <div style={s.medicoAvatar}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={s.medicoNome}>{m.nome}</p>
-                  <p style={s.medicoEsp}>{m.especialidade}</p>
+                  <p style={s.medicoEsp}>{m.especialidade || 'Estagiário'}</p>
                 </div>
-                <div style={s.medicoEspTag}>
-                  <p style={{ fontSize: 11, color: '#0047AB', fontWeight: 600 }}>{m.especialidade?.split(' ')[0]}</p>
-                </div>
+                {m.codigo && (
+                  <div style={s.medicoEspTag}>
+                    <p style={{ fontSize: 11, color: '#0047AB', fontWeight: 600 }}>{m.codigo}</p>
+                  </div>
+                )}
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round" style={{ marginLeft: 8 }}><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             ))}
@@ -274,8 +260,8 @@ export default function Agendar() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#0D1B2A' }}>{medicoSel?.nome}</p>
-                <p style={{ fontSize: 11, color: '#6B7280' }}>{medicoSel?.especialidade}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#0D1B2A' }}>{estagiarioSel?.nome}</p>
+                <p style={{ fontSize: 11, color: '#6B7280' }}>{estagiarioSel?.especialidade || 'Estagiário'}</p>
               </div>
             </div>
             <p style={s.sectionTitle}>Selecione a data</p>
@@ -295,7 +281,7 @@ export default function Agendar() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#0D1B2A' }}>{medicoSel?.nome}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#0D1B2A' }}>{estagiarioSel?.nome}</p>
                 <p style={{ fontSize: 11, color: '#6B7280' }}>{new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
               </div>
               <button style={s.trocarBtn} onClick={() => setStep(2)}>Trocar data</button>
@@ -332,8 +318,8 @@ export default function Agendar() {
                 </div>
                 <div>
                   <p style={s.confirmLabel}>Profissional</p>
-                  <p style={s.confirmValue}>{medicoSel?.nome}</p>
-                  <p style={s.confirmSub}>{medicoSel?.especialidade}</p>
+                  <p style={s.confirmValue}>{estagiarioSel?.nome}</p>
+                  <p style={s.confirmSub}>{estagiarioSel?.especialidade || 'Estagiário'}</p>
                 </div>
               </div>
               <div style={s.confirmDivider} />
