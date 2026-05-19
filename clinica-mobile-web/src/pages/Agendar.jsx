@@ -114,8 +114,9 @@ export default function Agendar() {
   // CORRIGIDO: busca estagiario em vez de medico
   async function fetchEstagiarios() {
     const { data, error } = await supabase
-      .from('estagiarios')
+      .from('profiles')
       .select('*')
+      .eq('tipo', 'estagiario')
       .order('nome')
     if (error) console.error('Erro ao buscar estagiários:', error)
     setEstagiarios(data || [])
@@ -161,14 +162,29 @@ export default function Agendar() {
   async function handleConfirmar() {
     if (!estagiarioSel || !dataSel || !horarioSel || !paciente) return
     setSaving(true)
-    await supabase.from('consultas').insert([{
-      paciente_id: paciente.id,
-      medico_id: estagiarioSel.id,
-      data: dataSel,
-      hora: horarioSel,
-      tipo,
-      status: 'aguardando',
-    }])
+
+    const { data: novaConsulta, error } = await supabase
+      .from('consultas')
+      .insert([{
+        paciente_id: paciente.id,
+        medico_id: estagiarioSel.id,
+        data: dataSel,
+        hora: horarioSel,
+        tipo,
+        status: 'aguardando',
+      }])
+      .select()
+      .single()
+
+    if (!error && novaConsulta) {
+      await supabase.from('solicitacoes').insert([{
+        consulta_id: novaConsulta.id,
+        tipo: 'novo_agendamento',
+        motivo: `Agendamento solicitado pelo paciente para ${new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR')} às ${horarioSel}`,
+        status: 'pendente',
+      }])
+    }
+
     setSaving(false)
     setSucesso(true)
   }

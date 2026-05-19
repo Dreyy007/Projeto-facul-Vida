@@ -26,7 +26,7 @@ export default function Consultas() {
     setRefreshing(true)
     const { data } = await supabase
       .from('consultas')
-      .select('*, medico:profiles(nome, especialidade)')
+      .select('*, medico:profiles(nome, especialidade, codigo)')
       .eq('paciente_id', paciente.id)
       .order('data', { ascending: false })
       .order('hora', { ascending: false })
