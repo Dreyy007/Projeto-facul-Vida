@@ -167,15 +167,15 @@ export default function Dashboard() {
             {consultasFiltradas.length === 0 ? (
               <div className="empty">Nenhuma consulta encontrada.</div>
             ) : (
-              <table className="tbl">
+              <table className="tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
                 <thead>
                   <tr>
-                    <th>Data</th>
-                    <th>Horário</th>
-                    <th>Paciente</th>
-                    <th>Estagiário</th>
-                    <th>Sala</th>
-                    <th>Status</th>
+                    <th style={{ width: '10%' }}>Data</th>
+                    <th style={{ width: '8%' }}>Horário</th>
+                    <th style={{ width: '22%' }}>Paciente</th>
+                    <th style={{ width: '22%' }}>Estagiário</th>
+                    <th style={{ width: '12%', textAlign: 'center' }}>Sala</th>
+                    <th style={{ width: '14%' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,7 +195,7 @@ export default function Dashboard() {
                           {c.estagiario?.codigo && <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6 }}>{c.estagiario.codigo}</span>}
                         </div>
                       </td>
-                      <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                      <td style={{ textAlign: 'center' }}>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, whiteSpace: 'nowrap' }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                       <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     </tr>
                   ))}
