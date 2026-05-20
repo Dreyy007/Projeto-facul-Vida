@@ -16,13 +16,8 @@ export default function Dashboard() {
   const [filtro, setFiltro] = useState('hoje')
   const [dataCustom, setDataCustom] = useState('')
 
-  useEffect(() => {
-    fetchDashboard()
-  }, [])
-
-  useEffect(() => {
-    aplicarFiltro(filtro, consultas)
-  }, [filtro, dataCustom, consultas])
+  useEffect(() => { fetchDashboard() }, [])
+  useEffect(() => { aplicarFiltro(filtro, consultas) }, [filtro, dataCustom, consultas])
 
   async function fetchDashboard() {
     const hoje = new Date().toISOString().split('T')[0]
@@ -43,7 +38,6 @@ export default function Dashboard() {
       ])
 
     const consultasHoje = todasConsultas?.filter(c => c.data === hoje) || []
-
     setConsultas(todasConsultas || [])
     setAprovacoes(solics || [])
     setStats({
@@ -65,7 +59,6 @@ export default function Dashboard() {
   function aplicarFiltro(tipo, lista) {
     const hoje = new Date().toISOString().split('T')[0]
     const agora = new Date()
-
     if (tipo === 'hoje') {
       setConsultasFiltradas(lista.filter(c => c.data === hoje))
     } else if (tipo === 'semana') {
@@ -153,37 +146,20 @@ export default function Dashboard() {
       <div className="dash-grid">
         <div className="card">
           <div className="card-head">
-            <h3>Consultas</h3>
+            <h3>{isEstagiario ? 'Minhas Consultas' : 'Consultas'}</h3>
             <a href="/agenda">Ver agenda →</a>
           </div>
 
-          {/* FILTRO */}
           <div style={{ display: 'flex', gap: '8px', padding: '0 16px 12px', flexWrap: 'wrap', alignItems: 'center' }}>
             {['hoje', 'semana', 'mes', 'todas', 'data'].map(op => (
-              <button
-                key={op}
-                onClick={() => setFiltro(op)}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  border: '1px solid #d1d5db',
-                  background: filtro === op ? '#2563eb' : '#fff',
-                  color: filtro === op ? '#fff' : '#374151',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: filtro === op ? 600 : 400,
-                }}
-              >
+              <button key={op} onClick={() => setFiltro(op)}
+                style={{ padding: '4px 12px', borderRadius: '20px', border: '1px solid #d1d5db', background: filtro === op ? '#2563eb' : '#fff', color: filtro === op ? '#fff' : '#374151', cursor: 'pointer', fontSize: '13px', fontWeight: filtro === op ? 600 : 400 }}>
                 {op === 'hoje' ? 'Hoje' : op === 'semana' ? 'Esta semana' : op === 'mes' ? 'Este mês' : op === 'todas' ? 'Todas' : 'Data específica'}
               </button>
             ))}
             {filtro === 'data' && (
-              <input
-                type="date"
-                value={dataCustom}
-                onChange={e => setDataCustom(e.target.value)}
-                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }}
-              />
+              <input type="date" value={dataCustom} onChange={e => setDataCustom(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }} />
             )}
           </div>
 
@@ -197,11 +173,10 @@ export default function Dashboard() {
                     <th>Data</th>
                     <th>Horário</th>
                     <th>Paciente</th>
-                    <th>Estagiário</th>
-                    <th>Código</th>
+                    {isAdmin && <th>Estagiário</th>}
+                    {isAdmin && <th>Código</th>}
                     <th>Sala</th>
-                    <th>Sala</th>
-                  <th>Status</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -215,9 +190,8 @@ export default function Dashboard() {
                           {c.paciente?.nome}
                         </div>
                       </td>
-                      <td style={{ fontSize: 13 }}>{c.estagiario?.nome || c.medico?.nome || '—'}</td>
-                      <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
-                      <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                      {isAdmin && <td style={{ fontSize: 13 }}>{c.estagiario?.nome || '—'}</td>}
+                      {isAdmin && <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>}
                       <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                       <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     </tr>
@@ -237,10 +211,10 @@ export default function Dashboard() {
               </div>
               {aprovacoes.slice(0, 3).map(s => (
                 <div key={s.id} className="aprov-item">
-                  <div className="aprov-ico">{s.tipo === 'cancelamento' ? '❌' : '📅'}</div>
+                  <div className="aprov-ico">{s.tipo === 'cancelamento' ? '❌' : s.tipo === 'novo_agendamento' ? '🗓️' : '📅'}</div>
                   <div className="aprov-info">
-                    <h4>{s.tipo === 'cancelamento' ? 'Cancelamento' : 'Reagendamento'}</h4>
-                    <p>{s.consulta?.paciente?.nome} · {s.consulta?.medico?.nome}</p>
+                    <h4>{s.tipo === 'cancelamento' ? 'Cancelamento' : s.tipo === 'novo_agendamento' ? 'Novo Agendamento' : 'Reagendamento'}</h4>
+                    <p>{s.consulta?.paciente?.nome} · {s.consulta?.estagiario?.nome}</p>
                   </div>
                   <div className="aprov-btns">
                     <button className="btn-ok" onClick={() => handleAprovacao(s.id, true)}>✓</button>
