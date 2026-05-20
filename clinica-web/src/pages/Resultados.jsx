@@ -7,6 +7,7 @@ const categorias = ['Exame de Sangue', 'Psicologia', 'Cardiologia', 'Neuropsicol
 
 export default function Resultados() {
   const { profile } = useAuth()
+  const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const [resultados, setResultados] = useState([])
   const [pacientes, setPacientes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -30,20 +31,16 @@ export default function Resultados() {
     setLoading(true)
     const [{ data: res }, { data: pac }] = await Promise.all([
       (() => {
-        const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
         let q = supabase.from('resultados').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('criado_em', { ascending: false })
         if (!isAdmin) q = q.eq('medico_id', profile?.id)
         return q
       })(),
       (() => {
-        const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
         if (isAdmin) return supabase.from('pacientes').select('id, nome, cpf').order('nome')
-        return supabase.from('consultas').select('paciente:pacientes(id, nome, cpf)').eq('medico_id', profile?.id).not('paciente', 'is', null)
+        return supabase.from('consultas').select('paciente:pacientes(id, nome, cpf)').eq('medico_id', profile?.id)
       })(),
     ])
     setResultados(res || [])
-    // Se estagiario, pac vem como [{paciente: {...}}], normaliza para [{id, nome, cpf}]
-    const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
     const pacientesNorm = isAdmin
       ? (pac || [])
       : [...new Map((pac || []).filter(p => p.paciente).map(p => [p.paciente.id, p.paciente])).values()]

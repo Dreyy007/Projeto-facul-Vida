@@ -5,6 +5,7 @@ import './Pages.css'
 
 export default function Relatorios() {
   const { profile } = useAuth()
+  const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const [loading, setLoading] = useState(false)
   const [dados, setDados] = useState(null)
   const [periodo, setPeriodo] = useState(() => {
@@ -26,17 +27,16 @@ export default function Relatorios() {
       { data: realizadas },
       { data: porMedico },
     ] = await Promise.all([
-      (() => {
-        const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
-        let q = supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim)
-        if (!isAdmin) q = q.eq('medico_id', profile?.id)
-        return q
-      })(),
+      supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim),
       supabase.from('pacientes').select('id').eq('ativo', true),
       supabase.from('pacientes').select('id').gte('criado_em', periodo.inicio + 'T00:00:00').lte('criado_em', periodo.fim + 'T23:59:59'),
       supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim).eq('status', 'cancelada'),
       supabase.from('consultas').select('*').gte('data', periodo.inicio).lte('data', periodo.fim).eq('status', 'realizada'),
-      supabase.from('consultas').select('medico_id, medico:profiles(nome)').gte('data', periodo.inicio).lte('data', periodo.fim),
+      (() => {
+        let q = supabase.from('consultas').select('medico_id, medico:profiles(nome)').gte('data', periodo.inicio).lte('data', periodo.fim)
+        if (!isAdmin) q = q.eq('medico_id', profile?.id)
+        return q
+      })(),
     ])
 
     // agrupa por médico
