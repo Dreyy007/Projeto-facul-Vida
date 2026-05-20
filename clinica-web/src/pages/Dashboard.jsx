@@ -173,8 +173,7 @@ export default function Dashboard() {
                     <th>Data</th>
                     <th>Horário</th>
                     <th>Paciente</th>
-                    {isAdmin && <th>Estagiário</th>}
-                    {isAdmin && <th>Código</th>}
+                    <th>Estagiário</th>
                     <th>Sala</th>
                     <th>Status</th>
                   </tr>
@@ -190,8 +189,12 @@ export default function Dashboard() {
                           {c.paciente?.nome}
                         </div>
                       </td>
-                      {isAdmin && <td style={{ fontSize: 13 }}>{c.estagiario?.nome || '—'}</td>}
-                      {isAdmin && <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>}
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>{c.estagiario?.nome || '—'}</span>
+                          {c.estagiario?.codigo && <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6 }}>{c.estagiario.codigo}</span>}
+                        </div>
+                      </td>
                       <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                       <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     </tr>
