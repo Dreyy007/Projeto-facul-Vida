@@ -167,15 +167,15 @@ export default function Dashboard() {
             {consultasFiltradas.length === 0 ? (
               <div className="empty">Nenhuma consulta encontrada.</div>
             ) : (
-              <table className="tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
+              <table className="tbl" style={{ width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '10%' }}>Data</th>
-                    <th style={{ width: '8%' }}>Horário</th>
-                    <th style={{ width: '22%' }}>Paciente</th>
-                    <th style={{ width: '22%' }}>Estagiário</th>
-                    <th style={{ width: '12%', textAlign: 'center' }}>Sala</th>
-                    <th style={{ width: '14%' }}>Status</th>
+                    <th>Data</th>
+                    <th>Horário</th>
+                    <th>Paciente</th>
+                    <th>Estagiário</th>
+                    <th style={{ textAlign: 'center' }}>Sala</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
