@@ -176,10 +176,10 @@ export default function Dashboard() {
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={grafico} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" />
-            <XAxis dataKey="dia" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} />
-            <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#6b7280' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} formatter={(v) => [v, 'Consultas']} />
             <Bar dataKey="consultas" fill="#2563eb" radius={[4,4,0,0]} name="Consultas" />
           </BarChart>
         </ResponsiveContainer>
