@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
@@ -13,6 +14,7 @@ export default function Dashboard() {
   const [aprovacoes, setAprovacoes] = useState([])
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
+  const [grafico, setGrafico] = useState([])
   const [filtro, setFiltro] = useState('hoje')
   const [dataCustom, setDataCustom] = useState('')
 
@@ -53,6 +55,18 @@ export default function Dashboard() {
       grouped[m.paciente_id].count++
     })
     setChats(Object.values(grouped).slice(0, 4))
+
+    // Build last 7 days chart data
+    const dias = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const key = d.toISOString().split('T')[0]
+      const label = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+      const count = (todasConsultas || []).filter(c => c.data === key).length
+      dias.push({ dia: label, consultas: count })
+    }
+    setGrafico(dias)
     setLoading(false)
   }
 
@@ -108,7 +122,20 @@ export default function Dashboard() {
     return map[status] || status
   }
 
-  if (loading) return <div className="page-loading">Carregando...</div>
+  if (loading) return (
+    <div className="page">
+      <div className="stats-grid" style={{ animation: 'skpulse 1.5s ease-in-out infinite' }}>
+        {[1,2,3,4].map(i => <div key={i} className="stat-card" style={{ height: 90, background: 'var(--color-background-secondary)' }} />)}
+      </div>
+      <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: 12, animation: 'skpulse 1.5s ease-in-out 0.1s infinite' }}>
+        <div style={{ height: 14, background: 'var(--color-background-secondary)', borderRadius: 6, width: '30%' }} />
+        <div style={{ height: 14, background: 'var(--color-background-secondary)', borderRadius: 6, width: '70%' }} />
+        <div style={{ height: 14, background: 'var(--color-background-secondary)', borderRadius: 6, width: '50%' }} />
+        <div style={{ height: 14, background: 'var(--color-background-secondary)', borderRadius: 6, width: '60%' }} />
+      </div>
+      <style>{`@keyframes skpulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+    </div>
+  )
 
   return (
     <div className="page">
@@ -141,6 +168,21 @@ export default function Dashboard() {
           <div className="stat-num red">{stats.msgs}</div>
           <div className="stat-sub">Pacientes aguardando</div>
         </div>
+      </div>
+
+      <div className="card" style={{ padding: '1.25rem' }}>
+        <div className="card-head" style={{ marginBottom: 12 }}>
+          <h3>Consultas — últimos 7 dias</h3>
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={grafico} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" />
+            <XAxis dataKey="dia" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} />
+            <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }} />
+            <Bar dataKey="consultas" fill="#2563eb" radius={[4,4,0,0]} name="Consultas" />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       <div className="dash-grid">
@@ -247,6 +289,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
