@@ -3,11 +3,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
 
-function limparNome(nome) {
-  if (!nome) return nome
-  return nome.replace(/^(Dr\.?\s*|Dra\.?\s*)/i, '').trim()
-}
-
 export default function Agenda() {
   const { profile } = useAuth()
   const [consultas, setConsultas] = useState([])
@@ -75,7 +70,7 @@ export default function Agenda() {
     setSalas(s || [])
     if (profile?.tipo === 'estagiario') {
       setEstagiarioSelecionado(profile)
-      setBuscaEstagiario(profile.codigo ? `${profile.codigo} — ${limparNome(profile.nome)}` : limparNome(profile.nome))
+      setBuscaEstagiario(profile.codigo ? `${profile.codigo} — ${profile.nome}` : profile.nome)
       setForm(f => ({ ...f, estagiario_id: profile.id }))
     }
   }
@@ -109,7 +104,7 @@ export default function Agenda() {
 
   function selecionarEst(e) {
     setEstagiarioSelecionado(e)
-    setBuscaEstagiario(e.codigo ? `${e.codigo} — ${limparNome(e.nome)}` : limparNome(e.nome))
+    setBuscaEstagiario(e.codigo ? `${e.codigo} — ${e.nome}` : e.nome)
     setForm(f => ({ ...f, estagiario_id: e.id }))
     setShowDropEst(false)
   }
@@ -122,7 +117,7 @@ export default function Agenda() {
     if (c2?.length > 0) { setConflito('Conflito: este paciente já tem consulta neste horário.'); return true }
     if (form.sala_id) {
       const { data: c3 } = await supabase.from('consultas').select('id, paciente:pacientes(nome), estagiario:profiles(nome)').eq('sala_id', form.sala_id).eq('data', form.data).eq('hora', form.hora).not('status', 'in', '("cancelada","realizada")')
-      if (c3?.length > 0) { setSalaOcupada(`Sala ocupada: ${c3[0].paciente?.nome} com ${limparNome(c3[0].estagiario?.nome)} neste horário.`); return true }
+      if (c3?.length > 0) { setSalaOcupada(`Sala ocupada: ${c3[0].paciente?.nome} com ${c3[0].estagiario?.nome} neste horário.`); return true }
     }
     return false
   }
@@ -236,10 +231,10 @@ export default function Agenda() {
                     <td style={{ fontWeight: 700, color: 'var(--p)' }}>{c.hora?.slice(0, 5)}</td>
                     <td><div className="td-user"><div className="av">{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>{c.paciente?.nome}</div></td>
                     <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtCpf(c.paciente?.cpf) || '—'}</td>
-                    <td style={{ fontWeight: 500 }}>{limparNome(c.estagiario?.nome) || '—'}</td>
+                    <td style={{ fontWeight: 500 }}>{c.estagiario?.nome || '—'}</td>
                     <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                     <td style={{ fontSize: 12 }}>{c.tipo}</td>
-                    <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, whiteSpace: 'nowrap', display: 'inline-block' }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
                     <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -325,7 +320,7 @@ export default function Agenda() {
                         onMouseOver={ev => ev.currentTarget.style.background = 'var(--p3)'}
                         onMouseOut={ev => ev.currentTarget.style.background = 'transparent'}>
                         {e.codigo && <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>{e.codigo}</span>}
-                        <span>{limparNome(e.nome)}</span>
+                        <span>{e.nome}</span>
                       </div>
                     ))}
                   </div>
