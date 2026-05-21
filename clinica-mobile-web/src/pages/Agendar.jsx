@@ -98,6 +98,7 @@ export default function Agendar() {
   const { paciente } = useAuth()
   const [step, setStep] = useState(1)
   const [estagiarios, setEstagiarios] = useState([])
+  const [loadingEst, setLoadingEst] = useState(true)
   const [estagiarioSel, setEstagiarioSel] = useState(null)
   const [diasDisponiveis, setDiasDisponiveis] = useState([])
   const [dataSel, setDataSel] = useState('')
@@ -113,8 +114,7 @@ export default function Agendar() {
 
   // CORRIGIDO: busca estagiario em vez de medico
   async function fetchEstagiarios() {
-    const { data, error } = await supabase.from('profiles').select('*').eq('tipo', 'estagiario').order('nome')
-    if (error) console.error('Erro ao buscar estagiários:', error)
+    const { data } = await supabase.from('profiles').select('*').eq('tipo', 'estagiario').eq('ativo', true)
     setEstagiarios(data || [])
   }
 
@@ -158,29 +158,14 @@ export default function Agendar() {
   async function handleConfirmar() {
     if (!estagiarioSel || !dataSel || !horarioSel || !paciente) return
     setSaving(true)
-
-    const { data: novaConsulta, error } = await supabase
-      .from('consultas')
-      .insert([{
-        paciente_id: paciente.id,
-        medico_id: estagiarioSel.id,
-        data: dataSel,
-        hora: horarioSel,
-        tipo,
-        status: 'aguardando',
-      }])
-      .select()
-      .single()
-
-    if (!error && novaConsulta) {
-      await supabase.from('solicitacoes').insert([{
-        consulta_id: novaConsulta.id,
-        tipo: 'novo_agendamento',
-        motivo: `Agendamento solicitado pelo paciente para ${new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR')} às ${horarioSel}`,
-        status: 'pendente',
-      }])
-    }
-
+    await supabase.from('consultas').insert([{
+      paciente_id: paciente.id,
+      medico_id: estagiarioSel.id,
+      data: dataSel,
+      hora: horarioSel,
+      tipo,
+      status: 'aguardando',
+    }])
     setSaving(false)
     setSucesso(true)
   }
@@ -189,27 +174,47 @@ export default function Agendar() {
 
   if (sucesso) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32, backgroundColor: '#F8FAFC' }}>
-        <div style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
+        <div style={{ background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', padding: '40px 24px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <p style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4, textAlign: 'center' }}>Consulta agendada!</p>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center', margin: 0 }}>Aguardando confirmação do estagiário</p>
         </div>
-        <p style={{ fontSize: 24, fontWeight: 900, color: '#0D1B2A', marginBottom: 8, textAlign: 'center' }}>Agendado com sucesso!</p>
-        <p style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 6 }}>
-          {new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
-        <p style={{ fontSize: 15, color: '#0047AB', fontWeight: 700, marginBottom: 6 }}>⏰ {horarioSel}</p>
-        {/* CORRIGIDO: removido Dr(a). */}
-        <p style={{ fontSize: 14, color: '#374151', fontWeight: 600, marginBottom: 4 }}>{estagiarioSel?.nome}</p>
-        <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 32 }}>{estagiarioSel?.especialidade}</p>
-        <div style={{ backgroundColor: '#FEF3C7', borderRadius: 14, padding: '12px 16px', marginBottom: 32, border: '1px solid #FDE68A', width: '100%' }}>
-          <p style={{ fontSize: 13, color: '#92400E', textAlign: 'center' }}>⏳ Aguardando confirmação da clínica</p>
+        <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>Data</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#0D1B2A' }}>{new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            </div>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>Horário</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#0047AB' }}>{horarioSel}</span>
+            </div>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>Profissional</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#0D1B2A' }}>{estagiarioSel?.nome}</span>
+                {estagiarioSel?.codigo && <span style={{ background: '#EFF6FF', color: '#0047AB', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6 }}>{estagiarioSel.codigo}</span>}
+              </div>
+            </div>
+            <div style={{ padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>Especialidade</span>
+              <span style={{ fontSize: 13, color: '#374151' }}>{estagiarioSel?.especialidade || 'Estagiário'}</span>
+            </div>
+          </div>
+          <div style={{ backgroundColor: '#FEF3C7', borderRadius: 14, padding: '12px 16px', border: '1px solid #FDE68A' }}>
+            <p style={{ fontSize: 13, color: '#92400E', textAlign: 'center', margin: 0 }}>⏳ Você receberá uma mensagem no chat quando sua consulta for confirmada</p>
+          </div>
+          <div style={{ flex: 1 }} />
+          <button style={{ width: '100%', background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: 'none', borderRadius: 14, padding: '15px 32px', fontSize: 15, color: '#fff', fontWeight: 700, cursor: 'pointer' }} onClick={() => navigate('/consultas')}>
+            Ver minhas consultas
+          </button>
+          <button style={{ width: '100%', background: 'none', border: 'none', borderRadius: 14, padding: '12px', fontSize: 14, color: '#6B7280', fontWeight: 600, cursor: 'pointer' }} onClick={() => navigate('/')}>
+            Voltar ao início
+          </button>
         </div>
-        <button style={{ width: '100%', background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', border: 'none', borderRadius: 14, padding: '15px 32px', fontSize: 15, color: '#fff', fontWeight: 700, cursor: 'pointer', marginBottom: 10 }} onClick={() => navigate('/consultas')}>
-          Ver minhas consultas
-        </button>
-        <button style={{ width: '100%', background: 'none', border: 'none', borderRadius: 14, padding: '12px', fontSize: 14, color: '#6B7280', fontWeight: 600, cursor: 'pointer' }} onClick={() => navigate('/')}>
-          Voltar ao início
-        </button>
       </div>
     )
   }

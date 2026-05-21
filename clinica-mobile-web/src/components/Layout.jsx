@@ -1,4 +1,7 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 function IconHome({ active }) {
   const c = active ? '#0047AB' : '#93C5FD'
@@ -53,6 +56,26 @@ const tabs = [
 
 export default function Layout() {
   const location = useLocation()
+  const { paciente } = useAuth()
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    if (!paciente?.id) return
+    fetchUnread()
+    const sub = supabase.channel('msgs_unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, fetchUnread)
+      .subscribe()
+    return () => supabase.removeChannel(sub)
+  }, [paciente?.id])
+
+  async function fetchUnread() {
+    const { count } = await supabase.from('mensagens')
+      .select('id', { count: 'exact', head: true })
+      .eq('paciente_id', paciente?.id)
+      .eq('remetente', 'clinica')
+      .eq('lida', false)
+    setUnread(count || 0)
+  }
 
   return (
     <>
@@ -69,14 +92,21 @@ export default function Layout() {
               to={tab.to}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, textDecoration: 'none', padding: '8px 0' }}
             >
-              <div style={{
-                width: 48, height: 48, borderRadius: 14,
-                border: active ? '1.5px solid #0047AB' : '1.5px dashed #BFDBFE',
-                backgroundColor: active ? '#EFF6FF' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}>
-                <tab.Icon active={active} />
+              <div style={{ position: 'relative' }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  border: active ? '1.5px solid #0047AB' : '1.5px dashed #BFDBFE',
+                  backgroundColor: active ? '#EFF6FF' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s',
+                }}>
+                  <tab.Icon active={active} />
+                </div>
+                {tab.to === '/chat' && unread > 0 && (
+                  <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 50, padding: '1px 5px', minWidth: 16, textAlign: 'center' }}>
+                    {unread > 9 ? '9+' : unread}
+                  </span>
+                )}
               </div>
               <span style={{ fontSize: 10, fontWeight: 700, color: active ? '#0047AB' : '#93C5FD' }}>
                 {tab.label}
