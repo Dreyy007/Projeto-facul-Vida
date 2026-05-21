@@ -76,19 +76,30 @@ export default function Login() {
 
   return (
     <div style={s.container}>
-      {/* Círculos decorativos */}
-      <div style={{ position: 'absolute', width: 280, height: 280, borderRadius: 140, background: 'rgba(124,58,237,0.15)', top: -80, right: -60, zIndex: 0 }} />
-      <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: 90, background: 'rgba(167,139,250,0.1)', top: 60, left: -50, zIndex: 0 }} />
+      {/* ONDAS SVG */}
+      <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }} width="100%" height="120" viewBox="0 0 390 120" preserveAspectRatio="none">
+        <path d="M0,60 C100,20 200,100 300,60 C340,40 370,70 390,50 L390,120 L0,120 Z" fill="#1e3a8a" opacity="0.5"/>
+        <path d="M0,80 C130,40 260,110 390,75 L390,120 L0,120 Z" fill="#1d4ed8" opacity="0.3"/>
+      </svg>
+
+      {/* Elemento decorativo canto superior direito */}
+      <svg style={{ position: 'absolute', top: 16, right: 16, zIndex: 0 }} width="90" height="90" viewBox="0 0 90 90">
+        <circle cx="45" cy="32" r="22" fill="#1e3a8a" opacity="0.4"/>
+        <circle cx="45" cy="32" r="14" fill="#2563eb" opacity="0.3"/>
+        <line x1="45" y1="10" x2="45" y2="54" stroke="#60a5fa" strokeWidth="1.5" opacity="0.6"/>
+        <line x1="23" y1="32" x2="67" y2="32" stroke="#60a5fa" strokeWidth="1.5" opacity="0.6"/>
+        <circle cx="45" cy="32" r="4" fill="#93c5fd"/>
+        <circle cx="15" cy="70" r="8" fill="#1e3a8a" opacity="0.3"/>
+        <circle cx="75" cy="75" r="12" fill="#1e3a8a" opacity="0.2"/>
+      </svg>
 
       {/* Área do logo */}
       <div style={s.logoArea}>
-        <svg width="100" height="100" viewBox="0 0 100 100" style={{ marginBottom: 16 }}>
-          <circle cx="50" cy="50" r="46" fill="#2d1060" opacity="0.6"/>
-          <circle cx="50" cy="50" r="36" fill="#3b0764" opacity="0.5"/>
-          <circle cx="50" cy="50" r="26" fill="#4c1d95" opacity="0.7"/>
-          <path d="M50 65 C50 65 27 50 27 36 C27 27 34 22 41 22 C46 22 49 25 50 29 C51 25 54 22 59 22 C66 22 73 27 73 36 C73 50 50 65 50 65Z" fill="#a855f7"/>
-          <path d="M35 50 L42 42 L47 52 L54 34 L59 48 L64 42 L68 50" stroke="#e9d5ff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <div style={s.logoCircle}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+          </svg>
+        </div>
         <p style={s.brand}>Clínica Vida+</p>
         <p style={s.sub}>Cuidado completo para sua saúde</p>
       </div>
@@ -142,7 +153,7 @@ export default function Login() {
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
               <input style={s.inputInner} type={showSenha ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)} placeholder="••••••••" />
-              <button type="button" onClick={() => setShowSenha(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#7c3aed', fontSize: 12, fontWeight: 600 }}>
+              <button type="button" onClick={() => setShowSenha(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
                 {showSenha ? 'ocultar' : 'ver'}
               </button>
             </div>
@@ -251,23 +262,24 @@ export default function Login() {
 }
 
 const s = {
-  container: { minHeight: '100vh', backgroundColor: '#1e0a4a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 40px', overflowY: 'auto', position: 'relative' },
-  logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, paddingBottom: 28, zIndex: 1 },
-  brand: { fontSize: 26, fontWeight: 800, color: '#e9d5ff', marginBottom: 6 },
-  sub: { fontSize: 14, color: '#7c3aed', fontWeight: 400 },
+  container: { minHeight: '100vh', backgroundColor: '#0c1a3a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 40px', overflowY: 'auto', position: 'relative' },
+  logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 65, paddingBottom: 28, zIndex: 1 },
+  logoCircle: { width: 72, height: 72, borderRadius: 22, backgroundColor: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  brand: { fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 6 },
+  sub: { fontSize: 14, color: '#60a5fa', fontWeight: 400 },
   card: { width: '100%', maxWidth: 390, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 8px', flex: 1, zIndex: 1 },
   cardTitle: { fontSize: 22, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 },
   cardSub: { fontSize: 14, color: '#6B7280', marginBottom: 20 },
-  abas: { display: 'flex', backgroundColor: '#faf5ff', borderRadius: 14, padding: 4, marginBottom: 20 },
+  abas: { display: 'flex', backgroundColor: '#eff6ff', borderRadius: 14, padding: 4, marginBottom: 20 },
   aba: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 11, fontSize: 14, fontWeight: 600, color: '#6B7280', background: 'none', cursor: 'pointer', transition: 'all 0.2s' },
-  abaOn: { backgroundColor: '#fff', color: '#7c3aed', boxShadow: '0 2px 8px rgba(124,58,237,0.15)' },
+  abaOn: { backgroundColor: '#fff', color: '#1d4ed8', boxShadow: '0 2px 8px rgba(29,78,216,0.15)' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, marginTop: 2 },
-  inputWrap: { display: 'flex', alignItems: 'center', border: '1.5px solid #e9d5ff', borderRadius: 14, padding: '0 14px', marginBottom: 14, height: 52, backgroundColor: '#faf5ff', transition: 'border 0.2s' },
+  inputWrap: { display: 'flex', alignItems: 'center', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '0 14px', marginBottom: 14, height: 52, backgroundColor: '#eff6ff', transition: 'border 0.2s' },
   inputInner: { flex: 1, border: 'none', outline: 'none', fontSize: 14, color: '#0D1B2A', backgroundColor: 'transparent', fontFamily: 'inherit' },
-  btn: { width: '100%', background: 'linear-gradient(135deg, #6d28d9, #7c3aed)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 6, marginBottom: 4, fontSize: 16, fontWeight: 700, color: '#fff', boxShadow: '0 4px 16px rgba(124,58,237,0.35)' },
+  btn: { width: '100%', background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 6, marginBottom: 4, fontSize: 16, fontWeight: 700, color: '#fff', boxShadow: '0 4px 16px rgba(29,78,216,0.35)' },
   spinner: { width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' },
   erroBox: { display: 'flex', alignItems: 'center', backgroundColor: '#FEF2F2', padding: '10px 14px', borderRadius: 12, marginBottom: 14, border: '1px solid #FECACA' },
   sucessoBox: { display: 'flex', alignItems: 'center', backgroundColor: '#F0FDF4', padding: '10px 14px', borderRadius: 12, marginBottom: 14, border: '1px solid #BBF7D0' },
   switchText: { textAlign: 'center', fontSize: 13, color: '#9CA3AF', marginTop: 14, marginBottom: 8 },
-  linkBtn: { background: 'none', border: 'none', color: '#7c3aed', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
+  linkBtn: { background: 'none', border: 'none', color: '#1d4ed8', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
 }
