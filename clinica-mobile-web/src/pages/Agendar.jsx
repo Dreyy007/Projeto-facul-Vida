@@ -98,7 +98,6 @@ export default function Agendar() {
   const { paciente } = useAuth()
   const [step, setStep] = useState(1)
   const [estagiarios, setEstagiarios] = useState([])
-  const [loadingEst, setLoadingEst] = useState(true)
   const [estagiarioSel, setEstagiarioSel] = useState(null)
   const [diasDisponiveis, setDiasDisponiveis] = useState([])
   const [dataSel, setDataSel] = useState('')
@@ -112,9 +111,12 @@ export default function Agendar() {
 
   useEffect(() => { fetchEstagiarios() }, [])
 
-  // CORRIGIDO: busca estagiario em vez de medico
   async function fetchEstagiarios() {
-    const { data } = await supabase.from('profiles').select('*').eq('tipo', 'estagiario').eq('ativo', true)
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('tipo', 'estagiario')
+      .order('nome')
     setEstagiarios(data || [])
   }
 
@@ -155,17 +157,35 @@ export default function Agendar() {
     setStep(3)
   }
 
+  // ✅ CORRIGIDO: cria consulta + solicitação para aprovação do estagiário
   async function handleConfirmar() {
     if (!estagiarioSel || !dataSel || !horarioSel || !paciente) return
     setSaving(true)
-    await supabase.from('consultas').insert([{
-      paciente_id: paciente.id,
-      medico_id: estagiarioSel.id,
-      data: dataSel,
-      hora: horarioSel,
-      tipo,
-      status: 'aguardando',
-    }])
+
+    const { data: novaConsulta, error } = await supabase
+      .from('consultas')
+      .insert([{
+        paciente_id: paciente.id,
+        medico_id: estagiarioSel.id,
+        data: dataSel,
+        hora: horarioSel,
+        tipo,
+        status: 'aguardando',
+      }])
+      .select()
+      .single()
+
+    if (!error && novaConsulta) {
+      await supabase.from('solicitacoes').insert([{
+        consulta_id: novaConsulta.id,
+        tipo: 'novo_agendamento',
+        motivo: `Agendamento solicitado pelo paciente para ${new Date(dataSel + 'T12:00:00').toLocaleDateString('pt-BR')} às ${horarioSel}`,
+        status: 'pendente',
+        aprovado_medico: null,
+        aprovado_admin: null,
+      }])
+    }
+
     setSaving(false)
     setSucesso(true)
   }
@@ -245,14 +265,10 @@ export default function Agendar() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-
-        {/* STEP 1 — Estagiário */}
         {step === 1 && (
           <div>
             <p style={s.sectionTitle}>Selecione um profissional</p>
-            {estagiarios.length === 0 && (
-              <p style={s.emptyText}>Nenhum profissional disponível no momento.</p>
-            )}
+            {estagiarios.length === 0 && <p style={s.emptyText}>Nenhum profissional disponível no momento.</p>}
             {estagiarios.map(m => (
               <button key={m.id} style={s.medicoCard} onClick={() => handleSelecionarEstagiario(m)}>
                 <div style={s.medicoAvatar}>
@@ -262,18 +278,13 @@ export default function Agendar() {
                   <p style={s.medicoNome}>{m.nome}</p>
                   <p style={s.medicoEsp}>{m.especialidade || 'Estagiário'}</p>
                 </div>
-                {m.codigo && (
-                  <div style={s.medicoEspTag}>
-                    <p style={{ fontSize: 11, color: '#0047AB', fontWeight: 600 }}>{m.codigo}</p>
-                  </div>
-                )}
+                {m.codigo && <div style={s.medicoEspTag}><p style={{ fontSize: 11, color: '#0047AB', fontWeight: 600 }}>{m.codigo}</p></div>}
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round" style={{ marginLeft: 8 }}><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             ))}
           </div>
         )}
 
-        {/* STEP 2 — Data */}
         {step === 2 && (
           <div>
             <div style={s.resumoCard}>
@@ -288,13 +299,10 @@ export default function Agendar() {
             <p style={s.sectionTitle}>Selecione a data</p>
             {loadingDatas && <p style={s.loadingText}>Carregando datas...</p>}
             {!loadingDatas && diasDisponiveis.length === 0 && <p style={s.emptyText}>Nenhuma data disponível para este profissional.</p>}
-            {!loadingDatas && diasDisponiveis.length > 0 && (
-              <CalendarioMes diasDisponiveis={diasDisponiveis} dataSel={dataSel} onSelect={handleSelecionarData} />
-            )}
+            {!loadingDatas && diasDisponiveis.length > 0 && <CalendarioMes diasDisponiveis={diasDisponiveis} dataSel={dataSel} onSelect={handleSelecionarData} />}
           </div>
         )}
 
-        {/* STEP 3 — Horário */}
         {step === 3 && (
           <div>
             <div style={s.resumoCard}>
@@ -328,7 +336,6 @@ export default function Agendar() {
           </div>
         )}
 
-        {/* STEP 4 — Confirmação */}
         {step === 4 && (
           <div>
             <p style={s.sectionTitle}>Confirme o agendamento</p>
@@ -375,7 +382,7 @@ export default function Agendar() {
             </div>
             <div style={s.avisoBox}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <p style={{ fontSize: 13, color: '#92400E', marginLeft: 8 }}>Seu agendamento ficará aguardando confirmação da clínica.</p>
+              <p style={{ fontSize: 13, color: '#92400E', marginLeft: 8 }}>Seu agendamento ficará aguardando confirmação do estagiário.</p>
             </div>
             <button style={{ ...s.confirmarBtn, opacity: saving ? 0.7 : 1 }} onClick={handleConfirmar} disabled={saving}>
               {saving ? 'Agendando...' : 'Confirmar agendamento'}
@@ -383,7 +390,6 @@ export default function Agendar() {
             <button style={s.voltarBtn} onClick={() => setStep(3)}>Voltar e escolher outro horário</button>
           </div>
         )}
-
         <div style={{ height: 32 }} />
       </div>
     </div>
