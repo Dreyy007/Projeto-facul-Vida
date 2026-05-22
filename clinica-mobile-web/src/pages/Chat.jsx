@@ -525,6 +525,44 @@ export default function Chat() {
             )
           }
 
+          // Detecta tipo de notificação do bot para estilo rico
+          const isNotifBot = m.tipo === 'bot' && m.remetente === 'clinica' && (
+            m.conteudo?.includes('confirmada') || m.conteudo?.includes('cancelada') ||
+            m.conteudo?.includes('confirmada!') || m.conteudo?.includes('Reagendamento') ||
+            m.conteudo?.includes('cancelamento') || m.conteudo?.includes('não pôde')
+          )
+          const notifColor = m.conteudo?.includes('confirmada!') || m.conteudo?.includes('🎉') ? '#16a34a'
+            : m.conteudo?.includes('cancelada') || m.conteudo?.includes('não pôde') || m.conteudo?.includes('❌') ? '#dc2626'
+            : m.conteudo?.includes('Reagendamento') || m.conteudo?.includes('📅') ? '#ca8a04'
+            : '#1d4ed8'
+          const notifBg = m.conteudo?.includes('confirmada!') || m.conteudo?.includes('🎉') ? '#f0fdf4'
+            : m.conteudo?.includes('cancelada') || m.conteudo?.includes('não pôde') || m.conteudo?.includes('❌') ? '#fef2f2'
+            : m.conteudo?.includes('Reagendamento') || m.conteudo?.includes('📅') ? '#fefce8'
+            : '#eff6ff'
+
+          if (isNotifBot && !isMe) {
+            return (
+              <div key={m.id}>
+                {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
+                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
+                  <div style={s.msgAvatar}><img src={LOGO_SRC} alt='logo' style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} /></div>
+                  <div style={{ maxWidth: '85%', background: '#fff', border: `0.5px solid ${notifColor}30`, borderRadius: '4px 16px 16px 16px', borderLeft: `3px solid ${notifColor}`, padding: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 8, borderBottom: '0.5px solid #F3F4F6' }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: notifBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={notifColor} strokeWidth="2.5" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                      </div>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: notifColor, margin: 0 }}>Clínica Vida+</p>
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9CA3AF' }}>{fmtHora(m.criado_em)}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: '#0D1B2A', margin: '0 0 8px', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                      {renderConteudo(m.conteudo, false)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div key={m.id}>
               {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
