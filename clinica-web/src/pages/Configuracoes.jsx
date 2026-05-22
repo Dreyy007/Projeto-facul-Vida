@@ -38,6 +38,7 @@ export default function Configuracoes() {
     if (aba === 'consultas') fetchTipos()
     if (aba === 'salas') fetchSalas()
     if (aba === 'escalas') fetchEstagiarios()
+    if (aba === 'minha_escala' && profile?.tipo === 'estagiario') fetchEscalas(profile.id)
   }, [aba])
 
   useEffect(() => {
@@ -194,6 +195,7 @@ export default function Configuracoes() {
     ['perfil', '👤 Meu perfil'],
     ['senha', '🔒 Alterar senha'],
     ['aparencia', '🎨 Aparência'],
+    ...(profile?.tipo === 'estagiario' ? [['minha_escala', '📅 Minha Escala']] : []),
     ...(isAdmin ? [
       ['clinica', '🏥 Dados da clínica'],
       ['consultas', '📋 Tipos de consulta'],
@@ -472,6 +474,64 @@ export default function Configuracoes() {
               )}
             </div>
           )}
+
+          {/* Minha Escala — só para estagiário */}
+          {aba === 'minha_escala' && profile?.tipo === 'estagiario' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Minha Escala</h3>
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>Seus dias e horários configurados pelo administrador</p>
+              </div>
+              <div style={{ background: 'var(--p3)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--p)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14 }}>
+                  {profile?.nome?.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--p)' }}>{profile?.nome}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{profile?.especialidade || 'Estagiário'} · {profile?.codigo}</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                {[0,1,2,3,4,5,6].map(dia => {
+                  const escDia = escalas.filter(e => e.dia_semana === dia)
+                  const temEscala = escDia.length > 0
+                  return (
+                    <div key={dia} style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <div style={{ padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 700, background: temEscala ? 'var(--p)' : 'var(--bg)', color: temEscala ? '#fff' : 'var(--muted)' }}>{DIAS_CURTO[dia]}</div>
+                      <div style={{ padding: 6, minHeight: 52, background: '#fff' }}>
+                        {escDia.length === 0 && <p style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>Livre</p>}
+                        {escDia.map(e => (
+                          <div key={e.id} style={{ background: e.ativo ? 'var(--p3)' : 'var(--bg)', borderRadius: 6, padding: '4px 6px', marginBottom: 4, opacity: e.ativo ? 1 : 0.5 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--p)', margin: 0 }}>{e.hora_inicio?.slice(0,5)}–{e.hora_fim?.slice(0,5)}</p>
+                            <p style={{ fontSize: 9, color: 'var(--muted)', margin: 0 }}>{calcHorarios(e.hora_inicio?.slice(0,5), e.hora_fim?.slice(0,5), e.intervalo_minutos)} slots</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {escalas.length === 0 && <div className="empty">Nenhuma escala configurada. Solicite ao administrador.</div>}
+                {escalas.map(e => (
+                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', border: '1px solid var(--border)', borderRadius: 10, background: e.ativo ? '#fff' : 'var(--bg)', opacity: e.ativo ? 1 : 0.6 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: e.ativo ? 'var(--p3)' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: e.ativo ? 'var(--p)' : 'var(--muted)' }}>{DIAS_CURTO[e.dia_semana]}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{DIAS[e.dia_semana]}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{e.hora_inicio?.slice(0,5)} – {e.hora_fim?.slice(0,5)} · {e.intervalo_minutos} min · {calcHorarios(e.hora_inicio?.slice(0,5), e.hora_fim?.slice(0,5), e.intervalo_minutos)} horários disponíveis</div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: e.ativo ? 'var(--sbg)' : 'var(--dbg)', color: e.ativo ? 'var(--success)' : 'var(--danger)' }}>{e.ativo ? 'Ativo' : 'Inativo'}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--warn)' }}>
+                ℹ️ Para alterar sua escala, solicite ao administrador ou coordenador.
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
