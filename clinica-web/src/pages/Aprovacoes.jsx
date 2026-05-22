@@ -135,11 +135,11 @@ export default function Aprovacoes() {
       {[1,2,3].map(i => (
         <div key={i} className="card" style={{ padding: 20, marginBottom: 10 }}>
           <div style={{ display: 'flex', gap: 12, animation: 'skpulse 1.5s ease-in-out infinite' }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--color-background-secondary)' }} />
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f8fafc' }} />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ height: 14, background: 'var(--color-background-secondary)', borderRadius: 6, width: '40%' }} />
-              <div style={{ height: 12, background: 'var(--color-background-secondary)', borderRadius: 6, width: '65%' }} />
-              <div style={{ height: 60, background: 'var(--color-background-secondary)', borderRadius: 8 }} />
+              <div style={{ height: 14, background: '#f8fafc', borderRadius: 6, width: '40%' }} />
+              <div style={{ height: 12, background: '#f8fafc', borderRadius: 6, width: '65%' }} />
+              <div style={{ height: 60, background: '#f8fafc', borderRadius: 8 }} />
             </div>
           </div>
         </div>
@@ -173,10 +173,10 @@ export default function Aprovacoes() {
 
           return (
             <div key={s.id} style={{
-              background: 'var(--color-background-primary)',
-              border: '0.5px solid var(--color-border-tertiary)',
+              background: '#fff',
+              border: '1px solid var(--border)',
               borderLeft: `3px solid ${cfg.color}`,
-              borderRadius: 'var(--border-radius-lg)',
+              borderRadius: '12px',
               marginBottom: 12,
               overflow: 'hidden',
             }}>
@@ -190,12 +190,12 @@ export default function Aprovacoes() {
                 {/* Conteúdo */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{cfg.label}</p>
+                    <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{cfg.label}</p>
                     <span style={{ background: cfg.badgeBg, color: cfg.badgeColor, fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20 }}>Aguardando</span>
                   </div>
 
-                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 10px' }}>
-                    Paciente: <strong style={{ color: 'var(--color-text-primary)' }}>{s.consulta?.paciente?.nome}</strong>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
+                    Paciente: <strong style={{ color: 'var(--text)' }}>{s.consulta?.paciente?.nome}</strong>
                     {' · '}Estagiário: {s.consulta?.estagiario?.nome}
                     {s.consulta?.estagiario?.codigo && (
                       <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginLeft: 6 }}>
@@ -205,15 +205,15 @@ export default function Aprovacoes() {
                   </p>
 
                   {/* Info card */}
-                  <div style={{ background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px 14px', display: 'grid', gridTemplateColumns: s.tipo === 'reagendamento' ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+                  <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px', display: 'grid', gridTemplateColumns: s.tipo === 'reagendamento' ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
                     {s.tipo === 'reagendamento' ? (
                       <>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Data atual</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{dataFmt} às {hora_consulta}</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Data atual</p>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{dataFmt} às {hora_consulta}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Nova data</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Nova data</p>
                           <p style={{ fontSize: 12, fontWeight: 500, color: cfg.color, margin: 0 }}>
                             {s.nova_data ? new Date(s.nova_data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'} às {s.nova_hora?.slice(0, 5) || '—'}
                           </p>
@@ -222,31 +222,31 @@ export default function Aprovacoes() {
                     ) : s.tipo === 'troca_sala' ? (
                       <>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Data</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{dataFmt}</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Data</p>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{dataFmt}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Sala atual</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{s.sala_atual?.nome || '—'}</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Sala atual</p>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{s.sala_atual?.nome || '—'}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Nova sala</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Nova sala</p>
                           <p style={{ fontSize: 12, fontWeight: 500, color: cfg.color, margin: 0 }}>{s.sala_nova?.nome || '—'}</p>
                         </div>
                       </>
                     ) : (
                       <>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Data</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{dataFmt}</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Data</p>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{dataFmt}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Horário</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{hora_consulta}</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Horário</p>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{hora_consulta}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 2px' }}>Tipo</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{s.consulta?.tipo || '—'}</p>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Tipo</p>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{s.consulta?.tipo || '—'}</p>
                         </div>
                       </>
                     )}
@@ -256,7 +256,7 @@ export default function Aprovacoes() {
                     <p style={{ fontSize: 11, color: '#2563eb', margin: '0 0 8px' }}>✨ Ao aprovar, sala será atribuída automaticamente e paciente será notificado.</p>
                   )}
                   {s.motivo && (
-                    <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: '0 0 8px', fontStyle: 'italic' }}>Motivo: {s.motivo}</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 8px', fontStyle: 'italic' }}>Motivo: {s.motivo}</p>
                   )}
 
                   {/* Status badges */}
@@ -284,12 +284,12 @@ export default function Aprovacoes() {
                 {canAct(s) && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
                     <button
-                      style={{ padding: '9px 16px', borderRadius: 'var(--border-radius-md)', border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                      style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                       onClick={() => handleAprovar(s, true)}>
                       <i className="ti ti-check" aria-hidden="true" /> Aprovar
                     </button>
                     <button
-                      style={{ padding: '9px 16px', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                      style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: '#f8fafc', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                       onClick={() => handleAprovar(s, false)}>
                       <i className="ti ti-x" aria-hidden="true" /> Recusar
                     </button>
