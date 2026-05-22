@@ -149,6 +149,8 @@ export default function Aprovacoes() {
     }
 
     fetchSolics()
+    // Força atualização do badge no Sidebar imediatamente
+    window.dispatchEvent(new Event('refresh-badges'))
   }
 
   const canAct = (s) => {

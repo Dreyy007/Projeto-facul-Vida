@@ -124,7 +124,6 @@ export default function Sidebar() {
   useEffect(() => {
     fetchBadges()
 
-    // CORRIGIDO: nomes únicos nos canais evitam conflito entre instâncias
     const uid = Date.now()
     const chatCh = supabase
       .channel(`sidebar-msgs-${uid}`)
@@ -136,13 +135,17 @@ export default function Sidebar() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes' }, fetchBadges)
       .subscribe()
 
-    // CORRIGIDO: polling de segurança a cada 30s para redes lentas/celular
+    // Listener de evento customizado — disparado manualmente após aprovar/recusar
+    const handleRefresh = () => fetchBadges()
+    window.addEventListener('refresh-badges', handleRefresh)
+
     const polling = setInterval(fetchBadges, 30000)
 
     return () => {
       supabase.removeChannel(chatCh)
       supabase.removeChannel(aprovCh)
       clearInterval(polling)
+      window.removeEventListener('refresh-badges', handleRefresh)
     }
   }, [fetchBadges])
 
