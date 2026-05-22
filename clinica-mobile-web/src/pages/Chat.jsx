@@ -529,7 +529,8 @@ export default function Chat() {
           const isNotifBot = m.tipo === 'bot' && m.remetente === 'clinica' && (
             m.conteudo?.includes('confirmada') || m.conteudo?.includes('cancelada') ||
             m.conteudo?.includes('confirmada!') || m.conteudo?.includes('Reagendamento') ||
-            m.conteudo?.includes('cancelamento') || m.conteudo?.includes('não pôde')
+            m.conteudo?.includes('cancelamento') || m.conteudo?.includes('não pôde') ||
+            m.conteudo?.includes('🎉') || m.conteudo?.includes('❌') || m.conteudo?.includes('📅')
           )
           const notifColor = m.conteudo?.includes('confirmada!') || m.conteudo?.includes('🎉') ? '#16a34a'
             : m.conteudo?.includes('cancelada') || m.conteudo?.includes('não pôde') || m.conteudo?.includes('❌') ? '#dc2626'
@@ -540,23 +541,46 @@ export default function Chat() {
             : m.conteudo?.includes('Reagendamento') || m.conteudo?.includes('📅') ? '#fefce8'
             : '#eff6ff'
 
+          // Titulo do card de notificação
+          const notifTitulo = m.conteudo?.includes('🎉') || m.conteudo?.includes('confirmada!') ? 'Sua consulta foi confirmada!'
+            : m.conteudo?.includes('❌') || m.conteudo?.includes('não pôde') ? 'Sua consulta não pôde ser confirmada.'
+            : m.conteudo?.includes('📅') || m.conteudo?.includes('Reagendamento') ? 'Reagendamento aprovado!'
+            : m.conteudo?.includes('cancelamento') ? 'Cancelamento aprovado.'
+            : 'Atualização da clínica'
+
           if (isNotifBot && !isMe) {
             return (
               <div key={m.id}>
                 {showDate && <div style={s.dateRow}><span style={s.dateText}>{msgDate}</span></div>}
                 <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 }}>
                   <div style={s.msgAvatar}><img src={LOGO_SRC} alt='logo' style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} /></div>
-                  <div style={{ maxWidth: '85%', background: '#fff', border: `0.5px solid ${notifColor}30`, borderRadius: '4px 16px 16px 16px', borderLeft: `3px solid ${notifColor}`, padding: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 8, borderBottom: '0.5px solid #F3F4F6' }}>
-                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: notifBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={notifColor} strokeWidth="2.5" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                  <div style={{ maxWidth: '88%', background: '#fff', border: `1px solid ${notifColor}25`, borderRadius: '4px 16px 16px 16px', borderLeft: `3px solid ${notifColor}`, overflow: 'hidden' }}>
+                    {/* Header colorido */}
+                    <div style={{ background: notifBg, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${notifColor}15` }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: `1px solid ${notifColor}30` }}>
+                        <img src={LOGO_SRC} alt='logo' style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                       </div>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: notifColor, margin: 0 }}>Clínica Vida+</p>
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: '#9CA3AF' }}>{fmtHora(m.criado_em)}</span>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: notifColor, margin: 0, flex: 1 }}>Clínica Vida+</p>
+                      <span style={{ fontSize: 10, color: '#9CA3AF' }}>{fmtHora(m.criado_em)}</span>
                     </div>
-                    <p style={{ fontSize: 13, color: '#0D1B2A', margin: '0 0 8px', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
-                      {renderConteudo(m.conteudo, false)}
-                    </p>
+                    {/* Título */}
+                    <div style={{ padding: '10px 14px 4px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 800, color: notifColor, margin: '0 0 6px' }}>{notifTitulo}</p>
+                    </div>
+                    {/* Linhas de info (extrai do conteúdo) */}
+                    <div style={{ padding: '0 14px 12px' }}>
+                      {m.conteudo?.split('\n').filter(l => l.trim() && !l.includes('Aguardamos') && !l.includes('fale') && !l.includes('Entre em') && !l.includes('agendar')).slice(1).map((linha, i) => (
+                        linha.trim() ? (
+                          <div key={i} style={{ background: '#F8FAFC', borderRadius: 8, padding: '6px 10px', marginBottom: 4, fontSize: 12, color: '#374151', fontWeight: 500 }}>
+                            {linha.trim()}
+                          </div>
+                        ) : null
+                      ))}
+                      {/* Linha final (aguardamos / entre em contato) */}
+                      {m.conteudo?.split('\n').filter(l => l.includes('Aguardamos') || l.includes('fale') || l.includes('Entre em') || l.includes('agendar')).map((linha, i) => (
+                        <p key={i} style={{ fontSize: 12, color: '#6B7280', margin: '6px 0 0', lineHeight: 1.4 }}>{linha.trim()}</p>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

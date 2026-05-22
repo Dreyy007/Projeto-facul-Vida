@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 
 const statusColor = { confirmada: '#166534', aguardando: '#92400E', cancelada: '#991B1B', realizada: '#1e40af' }
 const statusBg    = { confirmada: '#D1FAE5', aguardando: '#FEF3C7', cancelada: '#FEE2E2', realizada: '#DBEAFE' }
-const statusLabel = { confirmada: 'Confirmada', aguardando: 'Aguardando', cancelada: 'Cancelada', realizada: 'Realizada', cancelamento_pendente: 'Cancel. pend.', reagendamento_pendente: 'Reagend. pend.' }
+const statusLabel = { confirmada: 'Confirmada', aguardando: '⏳ Aguard. aprovação', cancelada: 'Cancelada', realizada: 'Realizada', cancelamento_pendente: 'Cancel. pend.', reagendamento_pendente: 'Reagend. pend.', troca_sala_pendente: 'Troca sala pend.' }
 
 const fmtData = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }) : ''
 const hora    = d => d?.slice(0, 5)
@@ -88,7 +88,7 @@ export default function Home() {
             <div style={s.proximaCircle2} />
             <p style={s.proximaLabel}>● PRÓXIMA CONSULTA</p>
             <p style={s.proximaData}>{fmtData(proxima.data)}</p>
-            <p style={s.proximaHora}>⏰ {hora(proxima.hora)} · Dr(a). {proxima.medico?.nome}</p>
+            <p style={s.proximaHora}>⏰ {hora(proxima.hora)} · {proxima.medico?.nome}</p>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
               <span style={s.proximaTipo}>{proxima.tipo}</span>
               <button style={s.verDetalhesBtn} onClick={() => navigate('/consultas')}>Ver detalhes →</button>
@@ -139,7 +139,7 @@ export default function Home() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: '#0047AB' }}>{hora(c.hora)}</p>
-                  <p style={{ fontSize: 13, color: '#0D1B2A', fontWeight: 600 }}>Dr(a). {c.medico?.nome}</p>
+                  <p style={{ fontSize: 13, color: '#0D1B2A', fontWeight: 600 }}>{c.medico?.nome}</p>
                   <p style={{ fontSize: 11, color: '#9CA3AF' }}>{c.tipo}</p>
                 </div>
                 <span style={{ padding: '5px 10px', borderRadius: 50, fontSize: 10, fontWeight: 700, backgroundColor: statusBg[c.status] || '#F3F4F6', color: statusColor[c.status] || '#374151' }}>
