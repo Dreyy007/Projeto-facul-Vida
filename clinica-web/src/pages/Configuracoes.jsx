@@ -25,6 +25,7 @@ export default function Configuracoes() {
   const [escalas, setEscalas] = useState([])
   const [modalEscala, setModalEscala] = useState(null) // null | 'novo' | escala existente
   const [formEscala, setFormEscala] = useState({ dia_semana: 1, hora_inicio: '08:00', hora_fim: '18:00', intervalo_minutos: 50, ativo: true })
+  const [buscaEst, setBuscaEst] = useState('')
   const [saving, setSaving] = useState(false)
   const [msgOk, setMsgOk] = useState('')
   const [msgErr, setMsgErr] = useState('')
@@ -54,7 +55,7 @@ export default function Configuracoes() {
   }
 
   async function fetchEstagiarios() {
-    const { data } = await supabase.from('profiles').select('id, nome, codigo, especialidade').eq('tipo', 'estagiario').eq('ativo', true).order('nome')
+    const { data } = await supabase.from('profiles').select('id, nome, codigo, especialidade, ativo').eq('tipo', 'estagiario').order('codigo')
     setEstagiarios(data || [])
     if (data && data.length > 0 && !estSelecionado) setEstSelecionado(data[0])
   }
@@ -373,20 +374,39 @@ export default function Configuracoes() {
                 <p style={{ fontSize: 13, color: 'var(--muted)' }}>Defina os dias e horários de atendimento de cada estagiário</p>
               </div>
 
+              {/* Busca de estagiário */}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <input
+                  value={buscaEst}
+                  onChange={ev => setBuscaEst(ev.target.value)}
+                  placeholder="🔍 Buscar por nome ou código (ex: EST01)"
+                  style={{ flex: 1, padding: '9px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}
+                />
+                {buscaEst && <button onClick={() => setBuscaEst('')} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+              </div>
+
               {/* Seletor de estagiário */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {estagiarios.map(e => (
-                  <button key={e.id} onClick={() => setEstSelecionado(e)} style={{
-                    padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', transition: '.15s',
-                    background: estSelecionado?.id === e.id ? 'var(--p)' : 'var(--p3)',
-                    color: estSelecionado?.id === e.id ? '#fff' : 'var(--p)',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
-                    {e.codigo && <span style={{ fontSize: 10, fontWeight: 800, opacity: 0.8 }}>{e.codigo}</span>}
-                    {e.nome}
-                  </button>
-                ))}
-                {estagiarios.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Nenhum estagiário ativo cadastrado.</p>}
+                {estagiarios
+                  .filter(e => {
+                    const q = buscaEst.toLowerCase()
+                    return !q || e.nome?.toLowerCase().includes(q) || e.codigo?.toLowerCase().includes(q)
+                  })
+                  .map(e => (
+                    <button key={e.id} onClick={() => setEstSelecionado(e)} style={{
+                      padding: '8px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: '.15s',
+                      border: e.ativo ? 'none' : '1px dashed var(--border)',
+                      background: estSelecionado?.id === e.id ? 'var(--p)' : e.ativo ? 'var(--p3)' : 'var(--bg)',
+                      color: estSelecionado?.id === e.id ? '#fff' : e.ativo ? 'var(--p)' : 'var(--muted)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {e.codigo && <span style={{ fontSize: 10, fontWeight: 800, opacity: 0.8 }}>{e.codigo}</span>}
+                      {e.nome}
+                      {!e.ativo && <span style={{ fontSize: 9, opacity: 0.6 }}>(inativo)</span>}
+                    </button>
+                  ))
+                }
+                {estagiarios.length === 0 && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Nenhum estagiário cadastrado.</p>}
               </div>
 
               {estSelecionado && (
