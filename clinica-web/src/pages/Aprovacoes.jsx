@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Pages.css'
@@ -7,13 +7,41 @@ export default function Aprovacoes() {
   const { profile } = useAuth()
   const [solics, setSolics] = useState([])
   const [loading, setLoading] = useState(true)
+  const [novaSolic, setNovaSolic] = useState(null) // notificação de nova solicitação
+  const canalRef = useRef(null)
 
-  useEffect(() => { fetchSolics() }, [])
+  useEffect(() => {
+    fetchSolics()
+    iniciarRealtime()
+    return () => { if (canalRef.current) supabase.removeChannel(canalRef.current) }
+  }, [])
+
+  function iniciarRealtime() {
+    canalRef.current = supabase
+      .channel('aprovacoes-realtime-' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'solicitacoes' }, payload => {
+        fetchSolics()
+        setNovaSolic(payload.new)
+        setTimeout(() => setNovaSolic(null), 5000)
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'solicitacoes' }, () => {
+        fetchSolics()
+      })
+      .subscribe()
+  }
 
   async function fetchSolics() {
     const { data } = await supabase
       .from('solicitacoes')
-      .select('*, consulta:consultas(*, paciente:pacientes(id, nome), estagiario:profiles(id, nome, codigo)), sala_atual:salas!sala_atual_id(nome), sala_nova:salas!sala_nova_id(nome)')
+      .select(`
+        *,
+        consulta:consultas(*,
+          paciente:pacientes(id, nome, cpf, telefone, convenio),
+          estagiario:profiles(id, nome, codigo, especialidade)
+        ),
+        sala_atual:salas!sala_atual_id(nome),
+        sala_nova:salas!sala_nova_id(nome)
+      `)
       .eq('status', 'pendente')
       .order('criado_em', { ascending: false })
 
@@ -32,7 +60,7 @@ export default function Aprovacoes() {
       p_hora: hora,
     })
     if (error) console.error('Erro ao atribuir sala:', error)
-    return salaId ? { id: salaId } : null
+    return salaId || null
   }
 
   async function enviarMensagemBot(paciente_id, mensagem) {
@@ -46,12 +74,12 @@ export default function Aprovacoes() {
   }
 
   async function handleAprovar(s, aprovado) {
-    const isMedico = profile?.tipo === 'estagiario'
+    const isEstagiario = profile?.tipo === 'estagiario'
     const isAdmin = ['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)
-    if (!isMedico && !isAdmin) return alert('Sem permissão.')
+    if (!isEstagiario && !isAdmin) return alert('Sem permissão.')
 
     const update = {}
-    if (isMedico) update.aprovado_medico = aprovado
+    if (isEstagiario) update.aprovado_medico = aprovado
     if (isAdmin) update.aprovado_admin = aprovado
 
     const paciente_id = s.consulta?.paciente?.id
@@ -59,13 +87,14 @@ export default function Aprovacoes() {
     const hora_consulta = s.consulta?.hora?.slice(0, 5)
     const dataFmt = data_consulta ? new Date(data_consulta + 'T12:00:00').toLocaleDateString('pt-BR') : ''
     const estagiarioNome = s.consulta?.estagiario?.nome || 'estagiário'
+    const codigo = s.consulta?.estagiario?.codigo ? ` (${s.consulta.estagiario.codigo})` : ''
 
     if (!aprovado) {
       update.status = 'recusada'
       await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', s.consulta_id)
       if (paciente_id) {
         await enviarMensagemBot(paciente_id,
-          `❌ Infelizmente sua consulta do dia ${dataFmt} às ${hora_consulta} com ${estagiarioNome} não pôde ser confirmada. Entre em contato conosco para reagendar.`
+          `❌ Infelizmente sua consulta do dia ${dataFmt} às ${hora_consulta} com ${estagiarioNome}${codigo} não pôde ser confirmada.\n\nEntre em contato conosco para reagendar.`
         )
       }
     }
@@ -73,10 +102,11 @@ export default function Aprovacoes() {
     await supabase.from('solicitacoes').update(update).eq('id', s.id)
     const { data: fresh } = await supabase.from('solicitacoes').select('*').eq('id', s.id).single()
 
+    // Novo agendamento: só estagiário aprova
     const novoAgendamento = fresh?.tipo === 'novo_agendamento'
     const ambosAprovaram = novoAgendamento
       ? fresh?.aprovado_medico === true
-      : fresh?.aprovado_medico && fresh?.aprovado_admin
+      : fresh?.aprovado_medico === true && fresh?.aprovado_admin === true
 
     if (ambosAprovaram) {
       await supabase.from('solicitacoes').update({ status: 'aprovada' }).eq('id', s.id)
@@ -85,26 +115,34 @@ export default function Aprovacoes() {
         await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', s.consulta_id)
         if (paciente_id) {
           await enviarMensagemBot(paciente_id,
-            `✅ Seu cancelamento de consulta do dia ${dataFmt} às ${hora_consulta} foi aprovado.`
+            `✅ Seu cancelamento de consulta do dia ${dataFmt} às ${hora_consulta} foi aprovado.\n\nSe desejar, pode agendar uma nova consulta pelo app.`
           )
         }
+
       } else if (fresh.tipo === 'reagendamento') {
-        await supabase.from('consultas').update({ data: fresh.nova_data, hora: fresh.nova_hora, status: 'confirmada' }).eq('id', s.consulta_id)
+        const novaDataFmt = new Date(fresh.nova_data + 'T12:00:00').toLocaleDateString('pt-BR')
+        await supabase.from('consultas').update({
+          data: fresh.nova_data,
+          hora: fresh.nova_hora,
+          status: 'confirmada'
+        }).eq('id', s.consulta_id)
         if (paciente_id) {
-          const novaDataFmt = new Date(fresh.nova_data + 'T12:00:00').toLocaleDateString('pt-BR')
           await enviarMensagemBot(paciente_id,
-            `📅 Reagendamento aprovado!\n📅 Nova data: ${novaDataFmt} às ${fresh.nova_hora?.slice(0, 5)}\n👤 Profissional: ${estagiarioNome}\n\nAté lá!`
+            `📅 Reagendamento aprovado!\n\n📅 Nova data: ${novaDataFmt} às ${fresh.nova_hora?.slice(0, 5)}\n👤 Profissional: ${estagiarioNome}${codigo}\n\nAté lá! 😊`
           )
         }
+
       } else if (fresh.tipo === 'troca_sala') {
         await supabase.from('consultas').update({ sala_id: fresh.sala_nova_id, status: 'confirmada' }).eq('id', s.consulta_id)
+
       } else if (novoAgendamento) {
-        const sala = await atribuirSalaDisponivel(s.consulta_id, data_consulta, s.consulta?.hora)
-        if (!sala) await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', s.consulta_id)
+        const salaId = await atribuirSalaDisponivel(s.consulta_id, data_consulta, s.consulta?.hora)
+        const { data: consultaAtualizada } = await supabase.from('consultas').select('sala:salas(nome)').eq('id', s.consulta_id).single()
+        const salaNome = consultaAtualizada?.sala?.nome
+
         if (paciente_id) {
-          const salaInfo = sala ? `\n🚪 Sala: aguarde confirmação` : ''
           await enviarMensagemBot(paciente_id,
-            `🎉 Sua consulta foi confirmada!\n📅 Data: ${dataFmt}\n⏰ Horário: ${hora_consulta}\n👤 Profissional: ${estagiarioNome}${salaInfo}\n\nAguardamos você! Em caso de dúvidas, fale conosco por aqui.`
+            `🎉 Sua consulta foi confirmada!\n\n📅 ${dataFmt} às ${hora_consulta}\n👤 ${estagiarioNome}${codigo}${salaNome ? `\n🚪 Sala: ${salaNome}` : ''}\n\nAguardamos você! Qualquer dúvida fale aqui. 😊`
           )
         }
       }
@@ -114,7 +152,9 @@ export default function Aprovacoes() {
   }
 
   const canAct = (s) => {
-    if (profile?.tipo === 'estagiario') return s.consulta?.estagiario?.id === profile.id && s.aprovado_medico === null
+    if (profile?.tipo === 'estagiario') {
+      return s.consulta?.estagiario?.id === profile.id && s.aprovado_medico === null
+    }
     if (['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)) {
       if (s.tipo === 'novo_agendamento') return false
       return s.aprovado_admin === null
@@ -123,10 +163,16 @@ export default function Aprovacoes() {
   }
 
   const tipoConfig = {
-    novo_agendamento: { label: 'Novo Agendamento', icon: 'ti-calendar-plus', color: '#2563eb', bg: '#eff6ff', badgeBg: '#eff6ff', badgeColor: '#1d4ed8' },
-    cancelamento:     { label: 'Cancelamento',      icon: 'ti-calendar-x',    color: '#dc2626', bg: '#fef2f2', badgeBg: '#fef2f2', badgeColor: '#b91c1c' },
-    reagendamento:    { label: 'Reagendamento',      icon: 'ti-calendar-event',color: '#ca8a04', bg: '#fefce8', badgeBg: '#fefce8', badgeColor: '#a16207' },
-    troca_sala:       { label: 'Troca de Sala',      icon: 'ti-door',          color: '#7c3aed', bg: '#faf5ff', badgeBg: '#faf5ff', badgeColor: '#6d28d9' },
+    novo_agendamento: { label: 'Novo Agendamento', emoji: '📋', color: '#2563eb', bg: '#eff6ff', badgeBg: '#dbeafe', badgeColor: '#1d4ed8' },
+    cancelamento:     { label: 'Cancelamento',      emoji: '❌', color: '#dc2626', bg: '#fef2f2', badgeBg: '#fee2e2', badgeColor: '#b91c1c' },
+    reagendamento:    { label: 'Reagendamento',      emoji: '📅', color: '#ca8a04', bg: '#fefce8', badgeBg: '#fef9c3', badgeColor: '#a16207' },
+    troca_sala:       { label: 'Troca de Sala',      emoji: '🚪', color: '#7c3aed', bg: '#faf5ff', badgeBg: '#ede9fe', badgeColor: '#6d28d9' },
+  }
+
+  function fmtCpf(cpf) {
+    if (!cpf) return ''
+    const d = cpf.replace(/\D/g, '')
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
   }
 
   if (loading) return (
@@ -157,6 +203,20 @@ export default function Aprovacoes() {
         </div>
       </div>
 
+      {/* Banner de nova solicitação em tempo real */}
+      {novaSolic && (
+        <div style={{ background: 'linear-gradient(135deg, #0047AB, #1d6fef)', borderRadius: 12, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, animation: 'slideIn 0.3s ease' }}>
+          <span style={{ fontSize: 24 }}>🔔</span>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Nova solicitação recebida!</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', margin: 0 }}>
+              {tipoConfig[novaSolic.tipo]?.label || 'Solicitação'} — aguardando aprovação
+            </p>
+          </div>
+          <button onClick={() => setNovaSolic(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 18, cursor: 'pointer' }}>×</button>
+        </div>
+      )}
+
       {solics.length === 0 ? (
         <div className="card">
           <div style={{ padding: 48, textAlign: 'center', color: 'var(--muted)', fontSize: 15 }}>
@@ -170,93 +230,120 @@ export default function Aprovacoes() {
           const data_consulta = s.consulta?.data
           const hora_consulta = s.consulta?.hora?.slice(0, 5)
           const dataFmt = data_consulta ? new Date(data_consulta + 'T12:00:00').toLocaleDateString('pt-BR') : '—'
+          const pac = s.consulta?.paciente
+          const est = s.consulta?.estagiario
 
           return (
             <div key={s.id} style={{
               background: '#fff',
               border: '1px solid var(--border)',
-              borderLeft: `3px solid ${cfg.color}`,
-              borderRadius: '12px',
+              borderLeft: `4px solid ${cfg.color}`,
+              borderRadius: 12,
               marginBottom: 12,
               overflow: 'hidden',
             }}>
               <div style={{ padding: '16px 18px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
 
-                {/* Ícone */}
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <i className={`ti ${cfg.icon}`} style={{ fontSize: 18, color: cfg.color }} aria-hidden="true" />
+                {/* Ícone tipo */}
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                  {cfg.emoji}
                 </div>
 
                 {/* Conteúdo */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{cfg.label}</p>
-                    <span style={{ background: cfg.badgeBg, color: cfg.badgeColor, fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20 }}>Aguardando</span>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{cfg.label}</p>
+                    <span style={{ background: cfg.badgeBg, color: cfg.badgeColor, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20 }}>Aguardando</span>
                   </div>
 
+                  {/* Paciente + Estagiário */}
                   <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
-                    Paciente: <strong style={{ color: 'var(--text)' }}>{s.consulta?.paciente?.nome}</strong>
-                    {' · '}Estagiário: {s.consulta?.estagiario?.nome}
-                    {s.consulta?.estagiario?.codigo && (
+                    Paciente: <strong style={{ color: 'var(--text)' }}>{pac?.nome}</strong>
+                    {pac?.cpf && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>CPF: {fmtCpf(pac.cpf)}</span>}
+                    {' · '}Estagiário: {est?.nome}
+                    {est?.codigo && (
                       <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 4, marginLeft: 6 }}>
-                        {s.consulta.estagiario.codigo}
+                        {est.codigo}
                       </span>
                     )}
                   </p>
 
                   {/* Info card */}
-                  <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 14px', display: 'grid', gridTemplateColumns: s.tipo === 'reagendamento' ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+                  <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
                     {s.tipo === 'reagendamento' ? (
-                      <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Data atual</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{dataFmt} às {hora_consulta}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{dataFmt} às {hora_consulta}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Nova data</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: cfg.color, margin: 0 }}>
+                          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Nova data solicitada</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: cfg.color, margin: 0 }}>
                             {s.nova_data ? new Date(s.nova_data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'} às {s.nova_hora?.slice(0, 5) || '—'}
                           </p>
                         </div>
-                      </>
+                      </div>
                     ) : s.tipo === 'troca_sala' ? (
-                      <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Data</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{dataFmt}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{dataFmt}</p>
                         </div>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Sala atual</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{s.sala_atual?.nome || '—'}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{s.sala_atual?.nome || '—'}</p>
                         </div>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Nova sala</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: cfg.color, margin: 0 }}>{s.sala_nova?.nome || '—'}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: cfg.color, margin: 0 }}>{s.sala_nova?.nome || '—'}</p>
                         </div>
-                      </>
+                      </div>
                     ) : (
-                      <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Data</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{dataFmt}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{dataFmt}</p>
                         </div>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Horário</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{hora_consulta}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{hora_consulta}</p>
                         </div>
                         <div>
                           <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Tipo</p>
-                          <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{s.consulta?.tipo || '—'}</p>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{s.consulta?.tipo || '—'}</p>
                         </div>
-                      </>
+                      </div>
+                    )}
+
+                    {/* Convênio e telefone se novo agendamento */}
+                    {s.tipo === 'novo_agendamento' && (pac?.convenio || pac?.telefone) && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid #E5E7EB' }}>
+                        {pac?.telefone && (
+                          <div>
+                            <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Telefone</p>
+                            <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{pac.telefone}</p>
+                          </div>
+                        )}
+                        {pac?.convenio && (
+                          <div>
+                            <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 2px' }}>Convênio</p>
+                            <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{pac.convenio}</p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
                   {s.tipo === 'novo_agendamento' && (
-                    <p style={{ fontSize: 11, color: '#2563eb', margin: '0 0 8px' }}>✨ Ao aprovar, sala será atribuída automaticamente e paciente será notificado.</p>
+                    <p style={{ fontSize: 11, color: '#2563eb', margin: '0 0 8px' }}>
+                      ✨ Ao aprovar, sala será atribuída automaticamente e paciente será notificado no chat.
+                    </p>
                   )}
+
                   {s.motivo && (
-                    <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 8px', fontStyle: 'italic' }}>Motivo: {s.motivo}</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 8px', fontStyle: 'italic' }}>
+                      Motivo: {s.motivo}
+                    </p>
                   )}
 
                   {/* Status badges */}
@@ -280,18 +367,18 @@ export default function Aprovacoes() {
                   </div>
                 </div>
 
-                {/* Botões */}
+                {/* Botões Aprovar/Recusar */}
                 {canAct(s) && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
                     <button
-                      style={{ padding: '9px 16px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                      style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                       onClick={() => handleAprovar(s, true)}>
-                      <i className="ti ti-check" aria-hidden="true" /> Aprovar
+                      ✓ Aprovar
                     </button>
                     <button
-                      style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: '#f8fafc', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                      style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--border)', background: '#f8fafc', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                       onClick={() => handleAprovar(s, false)}>
-                      <i className="ti ti-x" aria-hidden="true" /> Recusar
+                      ✗ Recusar
                     </button>
                   </div>
                 )}
@@ -300,6 +387,7 @@ export default function Aprovacoes() {
           )
         })
       )}
+      <style>{`@keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </div>
   )
 }
