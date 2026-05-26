@@ -6,29 +6,25 @@ const AuthContext = createContext({})
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [paciente, setPaciente] = useState(null)
+  const [perfil, setPerfil] = useState(null) // usuário interno
   const [loading, setLoading] = useState(true)
-  const buscando = useRef(false) // CORRIGIDO: evita double fetch
+  const buscando = useRef(false)
 
   useEffect(() => {
-    // Busca sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchPaciente(session.user.email)
-      } else {
-        setLoading(false)
-      }
+      if (session?.user) fetchUsuario(session.user.email)
+      else setLoading(false)
     })
 
-    // Escuta mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        // CORRIGIDO: só busca se ainda não está buscando
-        if (!buscando.current) fetchPaciente(session.user.email)
+        if (!buscando.current) fetchUsuario(session.user.email)
       } else {
         buscando.current = false
         setPaciente(null)
+        setPerfil(null)
         setLoading(false)
       }
     })
@@ -36,23 +32,52 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function fetchPaciente(email) {
+  async function fetchUsuario(email) {
     if (buscando.current) return
     buscando.current = true
 
-    const { data } = await supabase
+    // Primeiro verifica se é usuário interno (profiles)
+    const { data: perfilData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    if (perfilData) {
+      setPerfil(perfilData)
+      setPaciente(null)
+      setLoading(false)
+      buscando.current = false
+      return
+    }
+
+    // Senão busca como paciente
+    const { data: pacienteData } = await supabase
       .from('pacientes')
       .select('*')
       .eq('email', email)
       .single()
 
-    setPaciente(data ?? null)
+    setPaciente(pacienteData ?? null)
+    setPerfil(null)
     setLoading(false)
     buscando.current = false
   }
 
   async function signIn(email, password) {
     return await supabase.auth.signInWithPassword({ email, password })
+  }
+
+  // Login por código EST (ex: EST01 + senha)
+  async function signInWithCodigo(codigo, password) {
+    const { data: perfilData } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('codigo', codigo.toUpperCase().trim())
+      .single()
+
+    if (!perfilData?.email) return { error: { message: 'Código não encontrado.' } }
+    return await supabase.auth.signInWithPassword({ email: perfilData.email, password })
   }
 
   async function signUp({ nome, cpf, data_nascimento, email, telefone, senha }) {
@@ -73,11 +98,7 @@ export function AuthProvider({ children }) {
 
     if (erroPaciente?.code === '23505') {
       await supabase.from('pacientes').update({
-        nome,
-        cpf: cpf.replace(/\D/g, ''),
-        data_nascimento,
-        telefone,
-        ativo: true,
+        nome, cpf: cpf.replace(/\D/g, ''), data_nascimento, telefone, ativo: true,
       }).eq('email', email)
     }
 
@@ -90,7 +111,12 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, paciente, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{
+      user, paciente, perfil, loading,
+      isInterno: !!perfil,
+      isPaciente: !!paciente,
+      signIn, signInWithCodigo, signUp, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   )

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, signInWithCodigo } = useAuth()
   const [aba, setAba] = useState('login')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -18,6 +18,9 @@ export default function Login() {
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
   const [showSenha, setShowSenha] = useState(false)
+  const [modoInterno, setModoInterno] = useState(false)
+  const [codigoInt, setCodigoInt] = useState('')
+  const [senhaInt, setSenhaInt] = useState('')
   const [esqueci, setEsqueci] = useState(false)
   const [esqueciEmail, setEsqueciEmail] = useState('')
   const [esqueciOk, setEsqueciOk] = useState(false)
@@ -48,6 +51,15 @@ export default function Login() {
     else setEsqueciOk(true)
   }
 
+  async function handleLoginInterno(e) {
+    e.preventDefault()
+    if (!codigoInt || !senhaInt) { setErro('Preencha o código e a senha.'); return }
+    setLoading(true); setErro('')
+    const { error } = await signInWithCodigo(codigoInt, senhaInt)
+    if (error) setErro('Código ou senha inválidos.')
+    setLoading(false)
+  }
+
   async function handleLogin(e) {
     e.preventDefault()
     if (!email || !senha) { setErro('Preencha e-mail e senha.'); return }
@@ -74,8 +86,54 @@ export default function Login() {
     setLoading(false)
   }
 
+  if (modoInterno) return (
+    <div style={s.container}>
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
+        <button onClick={() => { setModoInterno(false); setErro('') }}
+          style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+          👤 App Paciente
+        </button>
+      </div>
+      <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }} width="100%" height="120" viewBox="0 0 390 120" preserveAspectRatio="none">
+        <path d="M0,60 C90,100 300,20 390,60 L390,120 L0,120 Z" fill="rgba(255,255,255,0.08)" />
+        <path d="M0,80 C120,40 270,100 390,40 L390,120 L0,120 Z" fill="rgba(255,255,255,0.05)" />
+      </svg>
+      <div style={{ ...s.card, zIndex: 1 }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', boxShadow: '0 4px 16px rgba(0,71,171,0.3)' }}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+          </div>
+          <p style={{ fontSize: 20, fontWeight: 900, color: '#0D1B2A', marginBottom: 4 }}>Acesso Interno</p>
+          <p style={{ fontSize: 13, color: '#6B7280' }}>Entre com seu código e senha</p>
+        </div>
+        <form onSubmit={handleLoginInterno}>
+          <label style={s.label}>Código de acesso</label>
+          <input style={s.input} value={codigoInt} onChange={e => setCodigoInt(e.target.value.toUpperCase())}
+            placeholder="Ex: EST01, ADM01..." autoCapitalize="characters" />
+          <label style={s.label}>Senha</label>
+          <input style={s.input} type="password" value={senhaInt} onChange={e => setSenhaInt(e.target.value)} placeholder="••••••••" />
+          {erro ? <p style={s.erro}>{erro}</p> : null}
+          <button type="submit" style={{ ...s.btn, marginTop: 8 }} disabled={loading}>
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+
   return (
     <div style={s.container}>
+      {/* Toggle modo interno */}
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
+        <button onClick={() => { setModoInterno(v => !v); setErro('') }}
+          style={{ background: modoInterno ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+          {modoInterno ? '👤 Paciente' : '🏥 Acesso interno'}
+        </button>
+      </div>
+
       {/* ONDAS SVG */}
       <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }} width="100%" height="120" viewBox="0 0 390 120" preserveAspectRatio="none">
         <path d="M0,60 C100,20 200,100 300,60 C340,40 370,70 390,50 L390,120 L0,120 Z" fill="#1e3a8a" opacity="0.5"/>
