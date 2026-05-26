@@ -18,6 +18,7 @@ export default function Login() {
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState('')
   const [showSenha, setShowSenha] = useState(false)
+  const [showSenhaInt, setShowSenhaInt] = useState(false)
   const [modoInterno, setModoInterno] = useState(false)
   const [emailInt, setEmailInt] = useState('')
   const [senhaInt, setSenhaInt] = useState('')
@@ -176,8 +177,8 @@ export default function Login() {
       </div>
 
       <div style={s.card}>
-        <p style={s.cardTitle}>{aba === 'login' ? 'Bem-vindo(a) de volta! 👋' : 'Criar sua conta'}</p>
-        <p style={s.cardSub}>{aba === 'login' ? 'Faça login para continuar' : 'Preencha seus dados abaixo'}</p>
+        <p style={s.cardTitle}>{aba === 'login' ? 'Bem-vindo(a) de volta! 👋' : aba === 'cadastro' ? 'Criar sua conta' : 'Acesso da Equipe 🏥'}</p>
+        <p style={s.cardSub}>{aba === 'login' ? 'Faça login para continuar' : aba === 'cadastro' ? 'Preencha seus dados abaixo' : 'Login exclusivo para a equipe clínica'}</p>
 
         <div style={s.abas}>
           {[['login','Entrar'],['cadastro','Cadastrar'],['interno','🏥 Equipe']].map(([a,l]) => (
@@ -275,7 +276,10 @@ export default function Login() {
 
         {aba === 'interno' && (
           <form onSubmit={handleLoginInterno}>
-            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Use o e-mail cadastrado pela clínica</p>
+            <div style={{ background: '#EFF6FF', borderRadius: 12, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p style={{ fontSize: 12, color: '#1d4ed8' }}>Acesso restrito à equipe da clínica</p>
+            </div>
             <label style={s.label}>E-mail</label>
             <div style={{ ...s.inputWrap, borderColor: '#dbeafe', backgroundColor: '#eff6ff' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
@@ -289,7 +293,10 @@ export default function Login() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
                 <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
-              <input style={s.inputInner} type="password" value={senhaInt} onChange={e => setSenhaInt(e.target.value)} placeholder="••••••••" required />
+              <input style={s.inputInner} type={showSenhaInt ? 'text' : 'password'} value={senhaInt} onChange={e => setSenhaInt(e.target.value)} placeholder="••••••••" required />
+              <button type="button" onClick={() => setShowSenhaInt(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
+                {showSenhaInt ? 'ocultar' : 'ver'}
+              </button>
             </div>
             {erroInt && (
               <div style={s.erroBox}>
@@ -298,7 +305,7 @@ export default function Login() {
             )}
             <button type="submit" disabled={loadingInt}
               style={{ width: '100%', background: 'linear-gradient(135deg, #0D1B2A, #1e3a5f)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 6, fontSize: 16, fontWeight: 700, color: '#fff', opacity: loadingInt ? 0.7 : 1, boxShadow: '0 4px 16px rgba(13,27,42,0.3)' }}>
-              {loadingInt ? <span style={s.spinner} /> : 'Entrar como equipe'}
+              {loadingInt ? <span style={s.spinner} /> : 'Entrar'}
             </button>
           </form>
         )}

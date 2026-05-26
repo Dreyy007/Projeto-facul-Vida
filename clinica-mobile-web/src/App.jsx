@@ -23,6 +23,8 @@ import PacientesInterno from './pages/interno/PacientesInterno'
 import ResultadosInterno from './pages/interno/ResultadosInterno'
 import EscalaInterno from './pages/interno/EscalaInterno'
 import PerfilInterno from './pages/interno/PerfilInterno'
+import UsuariosInterno from './pages/interno/UsuariosInterno'
+import RelatoriosInterno from './pages/interno/RelatoriosInterno'
 
 function LoadingScreen() {
   return (
@@ -46,9 +48,8 @@ function PublicRoute({ children }) {
   return <Navigate to={isInterno ? '/interno' : '/'} replace />
 }
 
-// Redireciona para a área correta após login
 function RootRedirect() {
-  const { user, loading, isInterno, isPaciente } = useAuth()
+  const { user, loading, isInterno } = useAuth()
   if (loading) return <LoadingScreen />
   if (!user) return <Navigate to="/login" replace />
   if (isInterno) return <Navigate to="/interno" replace />
@@ -61,7 +62,6 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Público */}
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
@@ -75,7 +75,7 @@ export default function App() {
               <Route path="resultados" element={<Resultados />} />
             </Route>
 
-            {/* App interno (estagiário/admin/coordenador) */}
+            {/* App interno */}
             <Route path="/interno" element={<PrivateRoute><LayoutInterno /></PrivateRoute>}>
               <Route index element={<HomeInterno />} />
               <Route path="agenda" element={<AgendaInterno />} />
@@ -85,6 +85,8 @@ export default function App() {
               <Route path="resultados" element={<ResultadosInterno />} />
               <Route path="escala" element={<EscalaInterno />} />
               <Route path="perfil" element={<PerfilInterno />} />
+              <Route path="usuarios" element={<UsuariosInterno />} />
+              <Route path="relatorios" element={<RelatoriosInterno />} />
             </Route>
 
             <Route path="*" element={<RootRedirect />} />
