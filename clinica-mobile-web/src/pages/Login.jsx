@@ -180,10 +180,10 @@ export default function Login() {
         <p style={s.cardSub}>{aba === 'login' ? 'Faça login para continuar' : 'Preencha seus dados abaixo'}</p>
 
         <div style={s.abas}>
-          {['login', 'cadastro'].map(a => (
-            <button key={a} style={{ ...s.aba, ...(aba === a ? s.abaOn : {}) }}
+          {[['login','Entrar'],['cadastro','Cadastrar'],['interno','🏥 Equipe']].map(([a,l]) => (
+            <button key={a} style={{ ...s.aba, ...(aba === a ? (a === 'interno' ? s.abaOnInterno : s.abaOn) : {}) }}
               onClick={() => { setAba(a); setErro(''); setSucesso('') }}>
-              {a === 'login' ? 'Entrar' : 'Cadastrar'}
+              {l}
             </button>
           ))}
         </div>
@@ -232,12 +232,7 @@ export default function Login() {
               Não tem conta?{' '}
               <button type="button" style={s.linkBtn} onClick={() => setAba('cadastro')}>Cadastre-se</button>
             </p>
-            <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0 16px' }} />
-            <button type="button" onClick={() => { setModoInterno(true); setErro('') }}
-              style={{ width: '100%', background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 13, fontSize: 13, color: '#6B7280', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              Acesso interno (equipe)
-            </button>
+
           </form>
         ) : (
           <form onSubmit={handleCadastro}>
@@ -275,6 +270,36 @@ export default function Login() {
               Já tem conta?{' '}
               <button type="button" style={s.linkBtn} onClick={() => setAba('login')}>Entrar</button>
             </p>
+          </form>
+        )}
+
+        {aba === 'interno' && (
+          <form onSubmit={handleLoginInterno}>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Use o e-mail cadastrado pela clínica</p>
+            <label style={s.label}>E-mail</label>
+            <div style={{ ...s.inputWrap, borderColor: '#dbeafe', backgroundColor: '#eff6ff' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <input style={s.inputInner} type="email" value={emailInt} onChange={e => setEmailInt(e.target.value)} placeholder="seu@clinicavida.com" autoCapitalize="none" required />
+            </div>
+            <label style={s.label}>Senha</label>
+            <div style={{ ...s.inputWrap, borderColor: '#dbeafe', backgroundColor: '#eff6ff' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+              </svg>
+              <input style={s.inputInner} type="password" value={senhaInt} onChange={e => setSenhaInt(e.target.value)} placeholder="••••••••" required />
+            </div>
+            {erroInt && (
+              <div style={s.erroBox}>
+                <p style={{ fontSize: 13, color: '#991B1B' }}>{erroInt}</p>
+              </div>
+            )}
+            <button type="submit" disabled={loadingInt}
+              style={{ width: '100%', background: 'linear-gradient(135deg, #0D1B2A, #1e3a5f)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 6, fontSize: 16, fontWeight: 700, color: '#fff', opacity: loadingInt ? 0.7 : 1, boxShadow: '0 4px 16px rgba(13,27,42,0.3)' }}>
+              {loadingInt ? <span style={s.spinner} /> : 'Entrar como equipe'}
+            </button>
           </form>
         )}
       </div>
@@ -322,17 +347,18 @@ export default function Login() {
 }
 
 const s = {
-  container: { minHeight: '100vh', backgroundColor: '#0c1a3a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 40px', overflowY: 'auto', position: 'relative' },
+  container: { minHeight: '100dvh', backgroundColor: '#0c1a3a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0', overflowY: 'auto', position: 'relative' },
   logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 65, paddingBottom: 28, zIndex: 1 },
   logoCircle: { width: 72, height: 72, borderRadius: 22, backgroundColor: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   brand: { fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 6 },
   sub: { fontSize: 14, color: '#60a5fa', fontWeight: 400 },
-  card: { width: '100%', maxWidth: 390, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 8px', flex: 1, zIndex: 1 },
+  card: { width: '100%', maxWidth: 390, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 40px', flex: 1, zIndex: 1 },
   cardTitle: { fontSize: 22, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 },
   cardSub: { fontSize: 14, color: '#6B7280', marginBottom: 20 },
-  abas: { display: 'flex', backgroundColor: '#eff6ff', borderRadius: 14, padding: 4, marginBottom: 20 },
+  abas: { display: 'flex', backgroundColor: '#f1f5f9', borderRadius: 14, padding: 4, marginBottom: 20 },
   aba: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 11, fontSize: 14, fontWeight: 600, color: '#6B7280', background: 'none', cursor: 'pointer', transition: 'all 0.2s' },
   abaOn: { backgroundColor: '#fff', color: '#1d4ed8', boxShadow: '0 2px 8px rgba(29,78,216,0.15)' },
+  abaOnInterno: { backgroundColor: '#0D1B2A', color: '#fff', boxShadow: '0 2px 8px rgba(13,27,42,0.2)' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, marginTop: 2 },
   inputWrap: { display: 'flex', alignItems: 'center', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '0 14px', marginBottom: 14, height: 52, backgroundColor: '#eff6ff', transition: 'border 0.2s' },
   inputInner: { flex: 1, border: 'none', outline: 'none', fontSize: 14, color: '#0D1B2A', backgroundColor: 'transparent', fontFamily: 'inherit' },
