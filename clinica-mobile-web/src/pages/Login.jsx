@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const { signIn, signUp, signInWithCodigo } = useAuth()
+  const { signIn, signUp } = useAuth()
   const [aba, setAba] = useState('login')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -19,8 +19,10 @@ export default function Login() {
   const [sucesso, setSucesso] = useState('')
   const [showSenha, setShowSenha] = useState(false)
   const [modoInterno, setModoInterno] = useState(false)
-  const [codigoInt, setCodigoInt] = useState('')
+  const [emailInt, setEmailInt] = useState('')
   const [senhaInt, setSenhaInt] = useState('')
+  const [loadingInt, setLoadingInt] = useState(false)
+  const [erroInt, setErroInt] = useState('')
   const [esqueci, setEsqueci] = useState(false)
   const [esqueciEmail, setEsqueciEmail] = useState('')
   const [esqueciOk, setEsqueciOk] = useState(false)
@@ -53,11 +55,11 @@ export default function Login() {
 
   async function handleLoginInterno(e) {
     e.preventDefault()
-    if (!codigoInt || !senhaInt) { setErro('Preencha o código e a senha.'); return }
-    setLoading(true); setErro('')
-    const { error } = await signInWithCodigo(codigoInt, senhaInt)
-    if (error) setErro('Código ou senha inválidos.')
-    setLoading(false)
+    if (!emailInt || !senhaInt) { setErroInt('Preencha e-mail e senha.'); return }
+    setLoadingInt(true); setErroInt('')
+    const { error } = await signIn(emailInt, senhaInt)
+    if (error) setErroInt('E-mail ou senha inválidos.')
+    setLoadingInt(false)
   }
 
   async function handleLogin(e) {
@@ -86,72 +88,83 @@ export default function Login() {
     setLoading(false)
   }
 
+  // ===== TELA INTERNA =====
   if (modoInterno) return (
-    <div style={s.container}>
-      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
-        <button onClick={() => { setModoInterno(false); setErro('') }}
-          style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
-          👤 App Paciente
-        </button>
-      </div>
-      <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }} width="100%" height="120" viewBox="0 0 390 120" preserveAspectRatio="none">
-        <path d="M0,60 C90,100 300,20 390,60 L390,120 L0,120 Z" fill="rgba(255,255,255,0.08)" />
-        <path d="M0,80 C120,40 270,100 390,40 L390,120 L0,120 Z" fill="rgba(255,255,255,0.05)" />
-      </svg>
-      <div style={{ ...s.card, zIndex: 1 }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', boxShadow: '0 4px 16px rgba(0,71,171,0.3)' }}>
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
-              <rect x="3" y="11" width="18" height="11" rx="2"/>
-              <path d="M7 11V7a5 5 0 0110 0v4"/>
-            </svg>
-          </div>
-          <p style={{ fontSize: 20, fontWeight: 900, color: '#0D1B2A', marginBottom: 4 }}>Acesso Interno</p>
-          <p style={{ fontSize: 13, color: '#6B7280' }}>Entre com seu código e senha</p>
+    <div style={{ minHeight: '100vh', backgroundColor: '#0D1B2A', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+      {/* Elementos decorativos */}
+      <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: 150, background: 'rgba(0,71,171,0.15)', top: -100, right: -80 }} />
+      <div style={{ position: 'absolute', width: 200, height: 200, borderRadius: 100, background: 'rgba(0,71,171,0.1)', bottom: 100, left: -60 }} />
+
+      {/* Header */}
+      <div style={{ paddingTop: 56, paddingLeft: 24, paddingRight: 24, paddingBottom: 32, zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ width: 68, height: 68, borderRadius: 20, background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 8px 24px rgba(0,71,171,0.4)' }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
         </div>
+        <p style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Acesso Interno</p>
+        <p style={{ fontSize: 14, color: '#60a5fa' }}>Clínica Vida+ · Equipe</p>
+      </div>
+
+      {/* Card */}
+      <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 40px', zIndex: 1 }}>
+        <p style={{ fontSize: 18, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 }}>Entrar como equipe</p>
+        <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Use o e-mail cadastrado pela clínica</p>
+
+        {erroInt && (
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#FEF2F2', padding: '10px 14px', borderRadius: 12, marginBottom: 16, border: '1px solid #FECACA' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991B1B" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p style={{ fontSize: 13, color: '#991B1B', marginLeft: 8 }}>{erroInt}</p>
+          </div>
+        )}
+
         <form onSubmit={handleLoginInterno}>
-          <label style={s.label}>Código de acesso</label>
-          <input style={s.input} value={codigoInt} onChange={e => setCodigoInt(e.target.value.toUpperCase())}
-            placeholder="Ex: EST01, ADM01..." autoCapitalize="characters" />
+          <label style={s.label}>E-mail da clínica</label>
+          <div style={{ ...s.inputWrap, borderColor: '#dbeafe', backgroundColor: '#eff6ff' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            <input style={s.inputInner} type="email" value={emailInt} onChange={e => setEmailInt(e.target.value)} placeholder="seu@clinicavida.com" autoCapitalize="none" required />
+          </div>
+
           <label style={s.label}>Senha</label>
-          <input style={s.input} type="password" value={senhaInt} onChange={e => setSenhaInt(e.target.value)} placeholder="••••••••" />
-          {erro ? <p style={s.erro}>{erro}</p> : null}
-          <button type="submit" style={{ ...s.btn, marginTop: 8 }} disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
+          <div style={{ ...s.inputWrap, borderColor: '#dbeafe', backgroundColor: '#eff6ff' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <input style={s.inputInner} type="password" value={senhaInt} onChange={e => setSenhaInt(e.target.value)} placeholder="••••••••" required />
+          </div>
+
+          <button type="submit" disabled={loadingInt}
+            style={{ width: '100%', background: 'linear-gradient(135deg, #0D1B2A, #1e3a5f)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 8, fontSize: 16, fontWeight: 700, color: '#fff', opacity: loadingInt ? 0.7 : 1, boxShadow: '0 4px 16px rgba(13,27,42,0.3)' }}>
+            {loadingInt ? <span style={s.spinner} /> : 'Entrar'}
           </button>
         </form>
+
+        <div style={{ height: 1, background: '#F3F4F6', margin: '20px 0' }} />
+
+        <button onClick={() => { setModoInterno(false); setErroInt('') }}
+          style={{ width: '100%', background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 14, fontSize: 14, color: '#6B7280', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          Sou paciente
+        </button>
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
+  // ===== TELA PACIENTE =====
   return (
     <div style={s.container}>
-      {/* Toggle modo interno */}
-      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
-        <button onClick={() => { setModoInterno(v => !v); setErro('') }}
-          style={{ background: modoInterno ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
-          {modoInterno ? '👤 Paciente' : '🏥 Acesso interno'}
-        </button>
-      </div>
-
-      {/* ONDAS SVG */}
       <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }} width="100%" height="120" viewBox="0 0 390 120" preserveAspectRatio="none">
         <path d="M0,60 C100,20 200,100 300,60 C340,40 370,70 390,50 L390,120 L0,120 Z" fill="#1e3a8a" opacity="0.5"/>
         <path d="M0,80 C130,40 260,110 390,75 L390,120 L0,120 Z" fill="#1d4ed8" opacity="0.3"/>
       </svg>
 
-      {/* Elemento decorativo canto superior direito */}
-      <svg style={{ position: 'absolute', top: 16, right: 16, zIndex: 0 }} width="90" height="90" viewBox="0 0 90 90">
-        <circle cx="45" cy="32" r="22" fill="#1e3a8a" opacity="0.4"/>
-        <circle cx="45" cy="32" r="14" fill="#2563eb" opacity="0.3"/>
-        <line x1="45" y1="10" x2="45" y2="54" stroke="#60a5fa" strokeWidth="1.5" opacity="0.6"/>
-        <line x1="23" y1="32" x2="67" y2="32" stroke="#60a5fa" strokeWidth="1.5" opacity="0.6"/>
-        <circle cx="45" cy="32" r="4" fill="#93c5fd"/>
-        <circle cx="15" cy="70" r="8" fill="#1e3a8a" opacity="0.3"/>
-        <circle cx="75" cy="75" r="12" fill="#1e3a8a" opacity="0.2"/>
-      </svg>
-
-      {/* Área do logo */}
       <div style={s.logoArea}>
         <div style={s.logoCircle}>
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
@@ -162,12 +175,10 @@ export default function Login() {
         <p style={s.sub}>Cuidado completo para sua saúde</p>
       </div>
 
-      {/* Card */}
       <div style={s.card}>
         <p style={s.cardTitle}>{aba === 'login' ? 'Bem-vindo(a) de volta! 👋' : 'Criar sua conta'}</p>
         <p style={s.cardSub}>{aba === 'login' ? 'Faça login para continuar' : 'Preencha seus dados abaixo'}</p>
 
-        {/* Tabs */}
         <div style={s.abas}>
           {['login', 'cadastro'].map(a => (
             <button key={a} style={{ ...s.aba, ...(aba === a ? s.abaOn : {}) }}
@@ -179,17 +190,13 @@ export default function Login() {
 
         {sucesso && (
           <div style={s.sucessoBox}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
             <p style={{ fontSize: 13, color: '#166534', marginLeft: 8 }}>{sucesso}</p>
           </div>
         )}
         {erro && (
           <div style={s.erroBox}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991B1B" strokeWidth="2.5" strokeLinecap="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991B1B" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <p style={{ fontSize: 13, color: '#991B1B', marginLeft: 8 }}>{erro}</p>
           </div>
         )}
@@ -204,32 +211,33 @@ export default function Login() {
               </svg>
               <input style={s.inputInner} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" autoCapitalize="none" />
             </div>
-
             <label style={s.label}>Senha</label>
             <div style={s.inputWrap}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
               <input style={s.inputInner} type={showSenha ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)} placeholder="••••••••" />
               <button type="button" onClick={() => setShowSenha(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
                 {showSenha ? 'ocultar' : 'ver'}
               </button>
             </div>
-
             <button style={{ ...s.btn, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
               {loading ? <span style={s.spinner} /> : 'Entrar'}
             </button>
-
-            <button type="button"
-              style={{ ...s.linkBtn, display: 'block', textAlign: 'center', width: '100%', marginTop: 8, marginBottom: 4, fontSize: 13 }}
+            <button type="button" style={{ ...s.linkBtn, display: 'block', textAlign: 'center', width: '100%', marginTop: 8, marginBottom: 4, fontSize: 13 }}
               onClick={() => { setEsqueci(true); setErro(''); setEsqueciOk(false); setEsqueciEmail(email) }}>
               Esqueci minha senha
             </button>
-
             <p style={s.switchText}>
               Não tem conta?{' '}
               <button type="button" style={s.linkBtn} onClick={() => setAba('cadastro')}>Cadastre-se</button>
             </p>
+            <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0 16px' }} />
+            <button type="button" onClick={() => { setModoInterno(true); setErro('') }}
+              style={{ width: '100%', background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 13, fontSize: 13, color: '#6B7280', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              Acesso interno (equipe)
+            </button>
           </form>
         ) : (
           <form onSubmit={handleCadastro}>
@@ -271,7 +279,6 @@ export default function Login() {
         )}
       </div>
 
-      {/* Modal esqueci senha */}
       {esqueci && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ backgroundColor: '#fff', borderRadius: '24px 24px 0 0', width: '100%', padding: '28px 24px 48px' }}>
@@ -279,12 +286,9 @@ export default function Login() {
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <p style={{ fontSize: 20, fontWeight: 800, color: '#0D1B2A' }}>Redefinir senha</p>
-                  <button onClick={() => { setEsqueci(false); setErro('') }}
-                    style={{ background: 'none', border: 'none', fontSize: 22, color: '#9CA3AF', cursor: 'pointer' }}>✕</button>
+                  <button onClick={() => { setEsqueci(false); setErro('') }} style={{ background: 'none', border: 'none', fontSize: 22, color: '#9CA3AF', cursor: 'pointer' }}>✕</button>
                 </div>
-                <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>
-                  Informe o e-mail da sua conta. Enviaremos um link para redefinir sua senha.
-                </p>
+                <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Informe o e-mail da sua conta. Enviaremos um link para redefinir sua senha.</p>
                 {erro && <div style={s.erroBox}><p style={{ fontSize: 13, color: '#991B1B' }}>{erro}</p></div>}
                 <form onSubmit={handleEsqueci}>
                   <label style={s.label}>E-mail cadastrado</label>
@@ -304,8 +308,7 @@ export default function Login() {
                 <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 24, lineHeight: '20px' }}>
                   Verifique sua caixa de entrada em <strong>{esqueciEmail}</strong> e siga as instruções.
                 </p>
-                <button onClick={() => { setEsqueci(false); setEsqueciOk(false); setErro('') }}
-                  style={{ ...s.btn, maxWidth: 280, margin: '0 auto' }}>
+                <button onClick={() => { setEsqueci(false); setEsqueciOk(false); setErro('') }} style={{ ...s.btn, maxWidth: 280, margin: '0 auto' }}>
                   Voltar para o login
                 </button>
               </div>
@@ -313,7 +316,6 @@ export default function Login() {
           </div>
         </div>
       )}
-
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
