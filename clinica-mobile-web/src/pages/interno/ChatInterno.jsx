@@ -1,198 +1,141 @@
-import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../../lib/supabase'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
-import { LOGO_SRC } from '../../lib/logoClinica'
+import { supabase } from '../../lib/supabase'
 
-function tocarSom(tipo) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain); gain.connect(ctx.destination)
-    osc.frequency.value = tipo === 'recv' ? 880 : 600
-    osc.type = 'sine'
-    gain.gain.setValueAtTime(0, ctx.currentTime)
-    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.01)
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15)
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.2)
-  } catch (e) {}
-}
+const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
 
 export default function ChatInterno() {
-  const { perfil } = useAuth()
-  const [conversas, setConversas] = useState([])
-  const [ativa, setAtiva] = useState(null)
+  const { perfil: profile } = useAuth()
+  const [pacientes, setPacientes] = useState([])
+  const [selecionado, setSelecionado] = useState(null)
   const [mensagens, setMensagens] = useState([])
   const [texto, setTexto] = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const [busca, setBusca] = useState('')
-  const bottomRef = useRef(null)
-  const ativaRef = useRef(null)
-  const fileRef = useRef(null)
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
 
-  useEffect(() => { ativaRef.current = ativa }, [ativa])
+  useEffect(() => { fetchPacientes() }, [profile])
 
   useEffect(() => {
-    fetchConversas()
-    const ch = supabase.channel('chat-interno-' + Date.now())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens' }, payload => {
-        if (payload.new.remetente !== 'paciente') return
-        tocarSom('recv')
-        fetchConversas()
-        if (ativaRef.current?.id === payload.new.paciente_id) {
-          setMensagens(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
-          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-        }
-      })
+    if (!selecionado) return
+    fetchMensagens(selecionado.id)
+    const sub = supabase.channel('chat-interno-' + selecionado.id)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `paciente_id=eq.${selecionado.id}` },
+        () => fetchMensagens(selecionado.id))
       .subscribe()
-    return () => supabase.removeChannel(ch)
-  }, [])
+    return () => supabase.removeChannel(sub)
+  }, [selecionado])
 
-  useEffect(() => {
-    if (!ativa) return
-    fetchMensagens(ativa.id)
-    marcarLidas(ativa.id)
-  }, [ativa])
-
-  async function fetchConversas() {
-    const { data: msgs } = await supabase.from('mensagens')
-      .select('paciente_id, paciente:pacientes(id, nome), lida, remetente, conteudo, anexo_tipo, criado_em')
+  async function fetchPacientes() {
+    // Busca pacientes que têm mensagens
+    const { data } = await supabase.from('mensagens')
+      .select('paciente_id, paciente:pacientes(id, nome)')
       .order('criado_em', { ascending: false })
-    const map = {}
-    msgs?.forEach(m => {
-      const pid = m.paciente_id
-      if (!map[pid]) map[pid] = { ...m.paciente, unread: 0, ultima_msg: m.conteudo || (m.anexo_tipo?.startsWith('image/') ? '🖼️ Imagem' : '📄 Arquivo'), ultima_hora: m.criado_em }
-      if (!m.lida && m.remetente === 'paciente') map[pid].unread++
-    })
-    setConversas(Object.values(map))
+
+    const uniq = {}
+    ;(data || []).forEach(m => { if (m.paciente && !uniq[m.paciente_id]) uniq[m.paciente_id] = m.paciente })
+    setPacientes(Object.values(uniq))
+    setLoading(false)
   }
 
   async function fetchMensagens(pacienteId) {
-    const { data } = await supabase.from('mensagens').select('*').eq('paciente_id', pacienteId).order('criado_em')
+    const { data } = await supabase.from('mensagens').select('*')
+      .eq('paciente_id', pacienteId).order('criado_em')
     setMensagens(data || [])
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    // Marca como lidas
+    await supabase.from('mensagens').update({ lida: true })
+      .eq('paciente_id', pacienteId).eq('remetente', 'paciente').eq('lida', false)
   }
 
-  async function marcarLidas(pacienteId) {
-    await supabase.from('mensagens').update({ lida: true }).eq('paciente_id', pacienteId).eq('remetente', 'paciente')
-    fetchConversas()
-  }
-
-  async function handleEnviar() {
-    if (!texto.trim() || !ativa || enviando) return
-    const conteudo = texto.trim()
+  async function handleEnviar(e) {
+    e?.preventDefault()
+    if (!texto.trim() || !selecionado) return
+    setSending(true)
+    await supabase.from('mensagens').insert([{
+      paciente_id: selecionado.id,
+      remetente: 'clinica',
+      conteudo: texto.trim(),
+      lida: false,
+    }])
     setTexto('')
-    setEnviando(true)
-    tocarSom('send')
-    const msgTemp = { id: 'tmp-' + Date.now(), paciente_id: ativa.id, remetente: 'clinica', conteudo, lida: true, criado_em: new Date().toISOString() }
-    setMensagens(prev => [...prev, msgTemp])
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-    const { data } = await supabase.from('mensagens').insert([{ paciente_id: ativa.id, remetente: 'clinica', conteudo, lida: true }]).select().single()
-    if (data) setMensagens(prev => prev.map(m => m.id === msgTemp.id ? data : m))
-    setEnviando(false)
+    setSending(false)
+    fetchMensagens(selecionado.id)
   }
 
-  async function handleAnexo(e) {
-    const file = e.target.files[0]
-    if (!file || !ativa) return
-    if (file.type.startsWith('audio/')) { alert('Áudio não permitido.'); return }
-    setEnviando(true)
-    const ext = file.name.split('.').pop()
-    const path = `${ativa.id}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('chat-anexos').upload(path, file)
-    if (error) { alert('Erro ao enviar arquivo.'); setEnviando(false); return }
-    const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
-    await supabase.from('mensagens').insert([{ paciente_id: ativa.id, remetente: 'clinica', conteudo: file.name, anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: true }])
-    e.target.value = ''
-    setEnviando(false)
-  }
+  if (selecionado) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F0F4FF' }}>
+        <div style={{ background: 'linear-gradient(135deg, #0047AB, #1d6fef)', padding: '48px 16px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => setSelecionado(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div style={{ width: 38, height: 38, borderRadius: 19, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>
+            {selecionado.nome?.slice(0, 2).toUpperCase()}
+          </div>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{selecionado.nome}</p>
+        </div>
 
-  const fmtHora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
-  function iniciais(nome) { if (!nome) return '?'; const p = nome.trim().split(' '); return (p.length >= 2 ? p[0][0] + p[p.length-1][0] : p[0].slice(0,2)).toUpperCase() }
-  function corAvatar(nome) { const cores = ['#0047AB','#7C3AED','#059669','#DC2626','#D97706']; let h = 0; for (let c of (nome||'')) h += c.charCodeAt(0); return cores[h % cores.length] }
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+          {mensagens.filter(m => m.tipo !== 'bot' || m.remetente === 'clinica').map(m => {
+            const isMe = m.remetente === 'clinica'
+            return (
+              <div key={m.id} style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', marginBottom: 8, gap: 8, alignItems: 'flex-end' }}>
+                {!isMe && (
+                  <div style={{ width: 28, height: 28, borderRadius: 14, background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0047AB', flexShrink: 0 }}>
+                    {selecionado.nome?.slice(0, 1)}
+                  </div>
+                )}
+                <div style={{ maxWidth: '78%', background: isMe ? 'linear-gradient(135deg, #0047AB, #1d6fef)' : '#fff', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', padding: '10px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                  {!!m.conteudo && <p style={{ fontSize: 14, color: isMe ? '#fff' : '#0D1B2A', whiteSpace: 'pre-line', lineHeight: '20px' }}>{m.conteudo}</p>}
+                  <p style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.55)' : '#9CA3AF', marginTop: 4, textAlign: 'right' }}>{fmtHora(m.criado_em)}</p>
+                </div>
+              </div>
+            )
+          })}
+          <div style={{ height: 8 }} />
+        </div>
 
-  const conversasFiltradas = conversas.filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()))
-  const lastDate = { current: null }
-
-  if (ativa) return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F0F4FF' }}>
-      {/* Header conversa */}
-      <div style={{ background: 'linear-gradient(135deg, #0047AB, #1d6fef)', padding: '48px 16px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => setAtiva(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>←</button>
-        <div style={{ width: 38, height: 38, borderRadius: '50%', background: corAvatar(ativa.nome), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 13 }}>{iniciais(ativa.nome)}</div>
-        <div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: '#fff', margin: 0 }}>{ativa.nome}</p>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: 0 }}>Paciente</p>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', backgroundColor: '#fff', borderTop: '1px solid #F3F4F6', gap: 10 }}>
+          <textarea
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEnviar() } }}
+            placeholder="Escreva uma mensagem..."
+            rows={1}
+            style={{ flex: 1, backgroundColor: '#F1F5F9', borderRadius: 22, padding: '10px 16px', fontSize: 14, color: '#0D1B2A', border: 'none', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+          />
+          <button onClick={handleEnviar} disabled={!texto.trim() || sending}
+            style={{ width: 44, height: 44, borderRadius: 22, background: texto.trim() ? 'linear-gradient(135deg, #0047AB, #1d6fef)' : '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" style={{ transform: 'rotate(45deg)', marginLeft: 2 }}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
         </div>
       </div>
-
-      {/* Mensagens */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 80px' }}>
-        {mensagens.map(m => {
-          const msgDate = fmtData(m.criado_em)
-          const showDate = msgDate !== lastDate.current
-          lastDate.current = msgDate
-          const isClinica = m.remetente === 'clinica'
-          return (
-            <div key={m.id}>
-              {showDate && <div style={{ textAlign: 'center', margin: '10px 0' }}><span style={{ background: '#E5E7EB', color: '#6B7280', fontSize: 11, padding: '3px 10px', borderRadius: 20 }}>{msgDate}</span></div>}
-              <div style={{ display: 'flex', justifyContent: isClinica ? 'flex-end' : 'flex-start', marginBottom: 6, gap: 8, alignItems: 'flex-end' }}>
-                {!isClinica && <div style={{ width: 28, height: 28, borderRadius: '50%', background: corAvatar(ativa.nome), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 10, flexShrink: 0 }}>{iniciais(ativa.nome)}</div>}
-                <div style={{ maxWidth: '75%' }}>
-                  <div style={{ background: isClinica ? 'linear-gradient(135deg, #0047AB, #1a6fdf)' : '#fff', color: isClinica ? '#fff' : '#0D1B2A', borderRadius: isClinica ? '16px 4px 16px 16px' : '4px 16px 16px 16px', padding: '10px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-                    {m.anexo_url && m.anexo_tipo?.startsWith('image/') && <a href={m.anexo_url} target="_blank" rel="noreferrer"><img src={m.anexo_url} alt={m.anexo_nome} style={{ maxWidth: 200, borderRadius: 8, marginBottom: 4 }} /></a>}
-                    {m.conteudo && <p style={{ fontSize: 14, margin: 0, lineHeight: 1.4 }}>{m.conteudo}</p>}
-                  </div>
-                  <p style={{ fontSize: 10, color: '#9CA3AF', margin: '2px 4px 0', textAlign: isClinica ? 'right' : 'left' }}>{fmtHora(m.criado_em)}</p>
-                </div>
-                {isClinica && <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}><img src={LOGO_SRC} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
-              </div>
-            </div>
-          )
-        })}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleAnexo} />
-        <button onClick={() => fileRef.current?.click()} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>📎</button>
-        <input value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleEnviar()}
-          placeholder="Digite sua mensagem..." disabled={enviando}
-          style={{ flex: 1, background: '#F1F5F9', border: 'none', borderRadius: 22, padding: '10px 16px', fontSize: 14, outline: 'none' }} />
-        <button onClick={handleEnviar} disabled={!texto.trim() || enviando}
-          style={{ width: 44, height: 44, borderRadius: '50%', background: texto.trim() ? 'linear-gradient(135deg, #0047AB, #1a6fdf)' : '#E5E7EB', border: 'none', color: '#fff', fontSize: 18, cursor: texto.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          ➤
-        </button>
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
-      <div style={{ background: 'linear-gradient(135deg, #0047AB, #1d6fef)', padding: '52px 20px 16px' }}>
-        <p style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>Chat</p>
-        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔍 Buscar paciente..."
-          style={{ width: '100%', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 12, padding: '10px 14px', fontSize: 13, color: '#fff', outline: 'none', boxSizing: 'border-box' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
+      <div style={{ position: 'relative', background: 'linear-gradient(135deg, #0047AB, #1d6fef)', paddingTop: 52, paddingBottom: 20, paddingLeft: 20, paddingRight: 20, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.07)', top: -60, right: -40 }} />
+        <p style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Chat</p>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Mensagens dos pacientes</p>
       </div>
+
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {conversasFiltradas.length === 0 && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 40, fontSize: 14 }}>Nenhuma conversa.</p>}
-        {conversasFiltradas.map(c => (
-          <div key={c.id} onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}
-            style={{ display: 'flex', gap: 12, padding: '14px 16px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer', background: '#fff' }}>
-            <div style={{ width: 46, height: 46, borderRadius: '50%', background: corAvatar(c.nome), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>{iniciais(c.nome)}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#0D1B2A' }}>{c.nome}</span>
-                <span style={{ fontSize: 11, color: '#9CA3AF' }}>{c.ultima_hora ? fmtHora(c.ultima_hora) : ''}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%' }}>{c.ultima_msg}</span>
-                {c.unread > 0 && <span style={{ background: '#0047AB', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 50, padding: '2px 6px', minWidth: 18, textAlign: 'center' }}>{c.unread}</span>}
-              </div>
+        {loading && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 40 }}>Carregando...</p>}
+        {!loading && pacientes.length === 0 && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 40 }}>Nenhuma mensagem ainda.</p>}
+        {pacientes.map(p => (
+          <button key={p.id} onClick={() => setSelecionado(p)}
+            style={{ width: '100%', background: '#fff', border: 'none', borderBottom: '1px solid #F3F4F6', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ width: 44, height: 44, borderRadius: 22, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#0047AB', flexShrink: 0 }}>
+              {p.nome?.slice(0, 2).toUpperCase()}
             </div>
-          </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#0D1B2A', marginBottom: 2 }}>{p.nome}</p>
+              <p style={{ fontSize: 12, color: '#9CA3AF' }}>Toque para ver mensagens</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         ))}
       </div>
     </div>

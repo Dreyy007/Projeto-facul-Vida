@@ -1,109 +1,55 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
-const roleLabel = { admin: 'Administrador', coordenador: 'Coordenador', estagiario: 'Estagiário', recepcionista: 'Recepcionista' }
+const tipoLabel = { estagiario: 'Estagiário', admin: 'Administrador', coordenador: 'Coordenador', recepcionista: 'Recepcionista' }
 
 export default function PerfilInterno() {
-  const { perfil, signOut } = useAuth()
-  const [form, setForm] = useState({ nome: '', especialidade: '', crp_crm: '' })
-  const [senhaForm, setSenhaForm] = useState({ nova: '', confirma: '' })
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState('')
-  const [aba, setAba] = useState('perfil')
+  const { perfil: profile, signOut } = useAuth()
+  const navigate = useNavigate()
 
-  useEffect(() => {
-    if (perfil) setForm({ nome: perfil.nome || '', especialidade: perfil.especialidade || '', crp_crm: perfil.crp_crm || '' })
-  }, [perfil])
-
-  async function salvarPerfil() {
-    setSaving(true)
-    const { error } = await supabase.from('profiles').update({ nome: form.nome, especialidade: form.especialidade, crp_crm: form.crp_crm }).eq('id', perfil.id)
-    setMsg(error ? '❌ Erro ao salvar.' : '✅ Perfil atualizado!')
-    setTimeout(() => setMsg(''), 3000)
-    setSaving(false)
-  }
-
-  async function salvarSenha() {
-    if (senhaForm.nova !== senhaForm.confirma) { setMsg('❌ Senhas não coincidem.'); return }
-    if (senhaForm.nova.length < 6) { setMsg('❌ Mínimo 6 caracteres.'); return }
-    setSaving(true)
-    const { error } = await supabase.auth.updateUser({ password: senhaForm.nova })
-    setMsg(error ? '❌ Erro ao alterar senha.' : '✅ Senha alterada!')
-    if (!error) setSenhaForm({ nova: '', confirma: '' })
-    setTimeout(() => setMsg(''), 3000)
-    setSaving(false)
+  async function handleSair() {
+    await signOut()
+    navigate('/login')
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
-      <div style={{ background: 'linear-gradient(135deg, #0047AB, #1d6fef)', padding: '52px 20px 20px', textAlign: 'center' }}>
-        <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 24, fontWeight: 800, color: '#fff' }}>
-          {perfil?.nome?.slice(0,2).toUpperCase()}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
+      <div style={{ position: 'relative', background: 'linear-gradient(135deg, #0047AB, #1d6fef)', paddingTop: 52, paddingBottom: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.07)', top: -80, right: -60 }} />
+        <div style={{ width: 72, height: 72, borderRadius: 36, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 12 }}>
+          {profile?.nome?.slice(0, 2).toUpperCase()}
         </div>
-        <p style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: '0 0 4px' }}>{perfil?.nome}</p>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{roleLabel[perfil?.tipo] || perfil?.tipo}</span>
-          {perfil?.codigo && <span style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{perfil.codigo}</span>}
-        </div>
-      </div>
-
-      {/* Abas */}
-      <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
-        {[['perfil', 'Meus dados'], ['senha', 'Senha']].map(([k, l]) => (
-          <button key={k} onClick={() => setAba(k)} style={{ flex: 1, padding: '12px 0', fontSize: 13, fontWeight: aba === k ? 700 : 500, color: aba === k ? '#0047AB' : '#9CA3AF', border: 'none', background: 'none', borderBottom: aba === k ? '2px solid #0047AB' : '2px solid transparent', cursor: 'pointer' }}>{l}</button>
-        ))}
+        <p style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{profile?.nome}</p>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>{profile?.email}</p>
+        {profile?.codigo && (
+          <span style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 14px', borderRadius: 20 }}>
+            {profile.codigo}
+          </span>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {msg && <div style={{ background: msg.startsWith('✅') ? '#D1FAE5' : '#FEE2E2', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, color: msg.startsWith('✅') ? '#166534' : '#991B1B' }}>{msg}</div>}
-
-        {aba === 'perfil' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              { label: 'Nome completo', key: 'nome', placeholder: 'Seu nome' },
-              { label: 'Especialidade', key: 'especialidade', placeholder: 'Ex: Psicologia Infantil' },
-              { label: 'CRP / CRM', key: 'crp_crm', placeholder: 'Ex: CRP 06/12345' },
-            ].map(f => (
-              <div key={f.key}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', margin: '0 0 6px' }}>{f.label}</p>
-                <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder}
-                  style={{ width: '100%', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: 13, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-            ))}
-            <button onClick={salvarPerfil} disabled={saving}
-              style={{ background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', color: '#fff', border: 'none', borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Salvando...' : 'Salvar perfil'}
-            </button>
-          </div>
-        )}
-
-        {aba === 'senha' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              { label: 'Nova senha', key: 'nova', placeholder: '••••••••' },
-              { label: 'Confirmar senha', key: 'confirma', placeholder: '••••••••' },
-            ].map(f => (
-              <div key={f.key}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', margin: '0 0 6px' }}>{f.label}</p>
-                <input type="password" value={senhaForm[f.key]} onChange={e => setSenhaForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder}
-                  style={{ width: '100%', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: 13, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-            ))}
-            <button onClick={salvarSenha} disabled={saving || !senhaForm.nova}
-              style={{ background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', color: '#fff', border: 'none', borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Alterando...' : 'Alterar senha'}
-            </button>
-          </div>
-        )}
-
-        <div style={{ marginTop: 24 }}>
-          <button onClick={signOut}
-            style={{ width: '100%', background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            Sair da conta
-          </button>
+        <div style={{ background: '#fff', borderRadius: 18, overflow: 'hidden', border: '1px solid #F3F4F6', marginBottom: 16 }}>
+          {[
+            { label: 'Nome', value: profile?.nome },
+            { label: 'E-mail', value: profile?.email },
+            { label: 'Perfil', value: tipoLabel[profile?.tipo] || profile?.tipo },
+            { label: 'Código', value: profile?.codigo || '—' },
+            { label: 'Especialidade', value: profile?.especialidade || '—' },
+            { label: 'CRP/CRM', value: profile?.crp_crm || '—' },
+          ].map((item, i, arr) => (
+            <div key={item.label} style={{ padding: '14px 16px', borderBottom: i < arr.length - 1 ? '1px solid #F3F4F6' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#9CA3AF' }}>{item.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#0D1B2A' }}>{item.value}</span>
+            </div>
+          ))}
         </div>
-        <div style={{ height: 32 }} />
+
+        <button onClick={handleSair}
+          style={{ width: '100%', background: '#FEE2E2', color: '#991B1B', border: 'none', borderRadius: 14, padding: 16, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+          Sair da conta
+        </button>
+        <div style={{ height: 24 }} />
       </div>
     </div>
   )
