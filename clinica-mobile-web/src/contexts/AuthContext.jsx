@@ -6,7 +6,7 @@ const AuthContext = createContext({})
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [paciente, setPaciente] = useState(null)
-  const [perfil, setPerfil] = useState(null) // usuário interno
+  const [perfil, setPerfil] = useState(null)
   const [loading, setLoading] = useState(true)
   const buscando = useRef(false)
 
@@ -36,12 +36,12 @@ export function AuthProvider({ children }) {
     if (buscando.current) return
     buscando.current = true
 
-    // Primeiro verifica se é usuário interno (profiles)
+    // 1. Busca em profiles (equipe interna)
     const { data: perfilData } = await supabase
       .from('profiles')
       .select('*')
       .eq('email', email)
-      .single()
+      .maybeSingle()
 
     if (perfilData) {
       setPerfil(perfilData)
@@ -51,12 +51,12 @@ export function AuthProvider({ children }) {
       return
     }
 
-    // Senão busca como paciente
+    // 2. Busca em pacientes
     const { data: pacienteData } = await supabase
       .from('pacientes')
       .select('*')
       .eq('email', email)
-      .single()
+      .maybeSingle()
 
     setPaciente(pacienteData ?? null)
     setPerfil(null)
@@ -64,20 +64,34 @@ export function AuthProvider({ children }) {
     buscando.current = false
   }
 
+  // Login normal por email + senha
   async function signIn(email, password) {
     return await supabase.auth.signInWithPassword({ email, password })
   }
 
-  // Login por código EST (ex: EST01 + senha)
-  async function signInWithCodigo(codigo, password) {
-    const { data: perfilData } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('codigo', codigo.toUpperCase().trim())
-      .single()
+  // Login por código (EST01, ADM01...) + senha
+  // Busca o email do perfil e faz login normal
+  async function signInWithCodigo(codigoOuEmail, password) {
+    let emailParaLogin = codigoOuEmail.trim()
 
-    if (!perfilData?.email) return { error: { message: 'Código não encontrado.' } }
-    return await supabase.auth.signInWithPassword({ email: perfilData.email, password })
+    // Se parece um código (não tem @), busca o email pelo código
+    if (!emailParaLogin.includes('@')) {
+      const { data: perfilData } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('codigo', emailParaLogin.toUpperCase())
+        .maybeSingle()
+
+      if (!perfilData?.email) {
+        return { error: { message: 'Código não encontrado.' } }
+      }
+      emailParaLogin = perfilData.email
+    }
+
+    return await supabase.auth.signInWithPassword({
+      email: emailParaLogin,
+      password,
+    })
   }
 
   async function signUp({ nome, cpf, data_nascimento, email, telefone, senha }) {

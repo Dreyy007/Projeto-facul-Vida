@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, signInWithCodigo } = useAuth()
 
   // Paciente states
   const [aba, setAba] = useState('login') // 'login' | 'cadastro'
@@ -73,13 +73,13 @@ export default function Login() {
     setLoading(false)
   }
 
-  // ===== LOGIN EQUIPE: só email + senha =====
+  // ===== LOGIN EQUIPE: aceita código (EST01) ou email + senha =====
   async function handleLoginEquipe(e) {
     e.preventDefault()
-    if (!emailEq || !senhaEq) { setErroEq('Preencha e-mail e senha.'); return }
+    if (!emailEq || !senhaEq) { setErroEq('Preencha o identificador e a senha.'); return }
     setLoadingEq(true); setErroEq('')
-    const { error } = await signIn(emailEq, senhaEq)
-    if (error) setErroEq('E-mail ou senha inválidos.')
+    const { error } = await signInWithCodigo(emailEq, senhaEq)
+    if (error) setErroEq('Código/e-mail ou senha inválidos.')
     setLoadingEq(false)
   }
 
@@ -114,8 +114,8 @@ export default function Login() {
 
       {/* Card */}
       <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 48px', zIndex: 1 }}>
-        <p style={{ fontSize: 18, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 }}>Entrar</p>
-        <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Use seu e-mail e senha corporativos</p>
+        <p style={{ fontSize: 18, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 }}>Entrar como equipe</p>
+        <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Use seu código (EST01) ou e-mail corporativo</p>
 
         {erroEq && (
           <div style={s.erroBox}>
@@ -127,7 +127,7 @@ export default function Login() {
         )}
 
         <form onSubmit={handleLoginEquipe}>
-          <label style={s.label}>E-mail corporativo</label>
+          <label style={s.label}>Código ou e-mail</label>
           <div style={s.inputWrap}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -135,7 +135,7 @@ export default function Login() {
             </svg>
             <input style={s.inputInner} type="email" value={emailEq}
               onChange={e => setEmailEq(e.target.value)}
-              placeholder="seu@clinicavida.com" autoCapitalize="none" required />
+              placeholder="EST01 ou seu@clinicavida.com" autoCapitalize="characters" required />
           </div>
 
           <label style={s.label}>Senha</label>
