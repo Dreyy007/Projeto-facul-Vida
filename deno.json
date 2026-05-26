@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/deno.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "jsx": "react-jsx",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "esnext"
+  },
+  "lint": {
+    "rules": {
+      "include": ["**/*.{js,jsx,ts,tsx}"],
+      "exclude": ["node_modules", "public", "dist"]
+    }
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "semiColons": "always"
+  }
+}

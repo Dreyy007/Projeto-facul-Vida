@@ -1,0 +1,20 @@
+{
+  "deno.enable": true,
+  "deno.unstable": true,
+  "deno.lint": true,
+  "deno.format": true,
+  "deno.suggest.imports.hosts": {
+    "https://deno.land": true,
+    "https://cdn.skypack.dev": true
+  },
+  "deno.importMap": "./import_map.json",
+  "javascript.validate.enable": false,
+  "typescript.validate.enable": false,
+  "editor.defaultFormatter": "denoland.vscode-deno",
+  "[javascript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
+}
