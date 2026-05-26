@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     if (buscando.current) return
     buscando.current = true
 
-    // 1. Busca em profiles (equipe interna)
+    // SEMPRE busca profiles PRIMEIRO — se encontrar, é interno, ponto final
     const { data: perfilData } = await supabase
       .from('profiles')
       .select('*')
@@ -44,6 +44,7 @@ export function AuthProvider({ children }) {
       .maybeSingle()
 
     if (perfilData) {
+      // É membro da equipe — ignora pacientes completamente
       setPerfil(perfilData)
       setPaciente(null)
       setLoading(false)
@@ -51,7 +52,7 @@ export function AuthProvider({ children }) {
       return
     }
 
-    // 2. Busca em pacientes
+    // Só busca paciente se NÃO encontrou em profiles
     const { data: pacienteData } = await supabase
       .from('pacientes')
       .select('*')
@@ -64,17 +65,13 @@ export function AuthProvider({ children }) {
     buscando.current = false
   }
 
-  // Login normal por email + senha
   async function signIn(email, password) {
     return await supabase.auth.signInWithPassword({ email, password })
   }
 
-  // Login por código (EST01, ADM01...) + senha
-  // Busca o email do perfil e faz login normal
   async function signInWithCodigo(codigoOuEmail, password) {
     let emailParaLogin = codigoOuEmail.trim()
 
-    // Se parece um código (não tem @), busca o email pelo código
     if (!emailParaLogin.includes('@')) {
       const { data: perfilData } = await supabase
         .from('profiles')
@@ -82,32 +79,21 @@ export function AuthProvider({ children }) {
         .eq('codigo', emailParaLogin.toUpperCase())
         .maybeSingle()
 
-      if (!perfilData?.email) {
-        return { error: { message: 'Código não encontrado.' } }
-      }
+      if (!perfilData?.email) return { error: { message: 'Código não encontrado.' } }
       emailParaLogin = perfilData.email
     }
 
-    return await supabase.auth.signInWithPassword({
-      email: emailParaLogin,
-      password,
-    })
+    return await supabase.auth.signInWithPassword({ email: emailParaLogin, password })
   }
 
   async function signUp({ nome, cpf, data_nascimento, email, telefone, senha }) {
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password: senha,
-      options: { data: { nome } },
+      email, password: senha, options: { data: { nome } },
     })
     if (error) return { error }
 
     const { error: erroPaciente } = await supabase.from('pacientes').insert([{
-      nome, email,
-      cpf: cpf.replace(/\D/g, ''),
-      data_nascimento,
-      telefone,
-      ativo: true,
+      nome, email, cpf: cpf.replace(/\D/g, ''), data_nascimento, telefone, ativo: true,
     }])
 
     if (erroPaciente?.code === '23505') {
