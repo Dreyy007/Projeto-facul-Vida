@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import './Pages.css'
 
 const roleClass = { admin: 'role-adm', coordenador: 'role-coo', estagiario: 'role-med', recepcionista: 'role-rec' }
@@ -11,6 +12,13 @@ const DIAS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export default function Configuracoes() {
   const { profile } = useAuth()
+  const { signOut } = useAuth()
+const navigate = useNavigate()
+
+async function handleLogout() {
+  await signOut()
+  navigate('/login')
+}
   const { tema, setTema } = useTheme()
   const [aba, setAba] = useState('perfil')
   const [formPerfil, setFormPerfil] = useState({ nome: '', crp_crm: '', especialidade: '' })
@@ -201,6 +209,7 @@ export default function Configuracoes() {
       ['consultas', '📋 Tipos de consulta'],
       ['salas', '🚪 Salas'],
       ['escalas', '📅 Escalas'],
+      ['sair', '🚪 Sair da conta'],
     ] : []),
   ]
 
@@ -578,6 +587,23 @@ export default function Configuracoes() {
           </div>
         </div>
       )}
+      {/* Sair da conta */}
+{aba === 'sair' && (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div>
+      <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Sair da conta</h3>
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>Você será desconectado do sistema</p>
+    </div>
+    <div style={{ background: 'var(--dbg)', borderRadius: 10, padding: '16px 18px', fontSize: 13, color: 'var(--danger)' }}>
+      ⚠️ Ao sair, você precisará fazer login novamente para acessar o painel.
+    </div>
+    <div>
+      <button className="btn-danger" onClick={handleLogout} style={{ padding: '12px 24px', fontSize: 14 }}>
+        Sair da conta
+      </button>
+    </div>
+  </div>
+)}
     </div>
   )
 }
