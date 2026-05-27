@@ -772,3 +772,9 @@
     padding: 16px;
   }
 }
+/* Sair da conta — sempre visível no mobile */
+@media (max-width: 900px) {
+  .cfg-menu {
+    flex-wrap: wrap !important;
+  }
+}
