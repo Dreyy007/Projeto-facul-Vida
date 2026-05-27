@@ -755,10 +755,6 @@
     font-size: 14px;
   }
 
-  .modal .fld textarea {
-    rows: 2;
-  }
-
   .modal-btns {
     gap: 8px;
   }
