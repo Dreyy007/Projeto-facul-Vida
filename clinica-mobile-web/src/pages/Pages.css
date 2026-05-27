@@ -719,19 +719,52 @@
     grid-template-columns: repeat(4, 1fr);
   }
 }
-/* ===== MODAL MOBILE SCROLL ===== */
+/* ===== MODAL MOBILE COMPACTO ===== */
 @media (max-width: 900px) {
   .modal-overlay {
-    align-items: flex-end;
-    padding: 0;
+    padding: 12px;
+    align-items: center;
   }
 
   .modal {
-    border-radius: 20px 20px 0 0;
-    max-height: 92vh;
+    max-height: 90vh;
     overflow-y: auto;
     width: 100%;
     max-width: 100% !important;
-    padding: 20px 16px 32px;
+    padding: 16px;
+    gap: 12px;
+    border-radius: 16px;
+  }
+
+  .modal h2 {
+    font-size: 16px;
+  }
+
+  .modal .form-grid {
+    gap: 10px;
+  }
+
+  .modal .fld label {
+    font-size: 10px;
+  }
+
+  .modal .fld input,
+  .modal .fld select,
+  .modal .fld textarea {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  .modal .fld textarea {
+    rows: 2;
+  }
+
+  .modal-btns {
+    gap: 8px;
+  }
+
+  .modal-btns button {
+    padding: 10px;
+    font-size: 13px;
   }
 }
