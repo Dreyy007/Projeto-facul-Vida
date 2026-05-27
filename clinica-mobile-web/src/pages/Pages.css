@@ -764,3 +764,11 @@
     font-size: 13px;
   }
 }
+/* ===== MODAL OVERLAY SCROLL MOBILE ===== */
+@media (max-width: 900px) {
+  .modal-overlay {
+    overflow-y: auto;
+    align-items: flex-start;
+    padding: 16px;
+  }
+}
