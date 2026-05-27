@@ -21,7 +21,7 @@ export default function RelatoriosInterno() {
     setLoading(false)
   }
 
-  async function fetchConsultas(estId) {
+  async function fetchConsultas(estId, f) {
     setLoadingCons(true)
     const hoje = new Date().toISOString().split('T')[0]
     let q = supabase.from('consultas')
@@ -29,17 +29,24 @@ export default function RelatoriosInterno() {
       .eq('medico_id', estId)
       .order('data', { ascending: false })
 
-    if (filtro === 'hoje') q = q.eq('data', hoje)
-    else if (filtro === 'mes') q = q.gte('data', hoje.slice(0, 7) + '-01')
+    if (f === 'hoje') q = q.eq('data', hoje)
+    else if (f === 'mes') q = q.gte('data', hoje.slice(0, 7) + '-01')
+    else if (f === 'semana') {
+      const agora = new Date()
+      const ds = agora.getDay() === 0 ? 6 : agora.getDay() - 1
+      const ini = new Date(agora); ini.setDate(agora.getDate() - ds)
+      const fim = new Date(ini); fim.setDate(ini.getDate() + 6)
+      q = q.gte('data', ini.toISOString().split('T')[0]).lte('data', fim.toISOString().split('T')[0])
+    }
 
     const { data } = await q
     setConsultas(data || [])
     setLoadingCons(false)
   }
 
-  function handleSelecionarEst(est) {
+  function selecionarEst(est) {
     setSelecionado(est)
-    fetchConsultas(est.id)
+    fetchConsultas(est.id, filtro)
   }
 
   const statusColor = { confirmada: '#166534', aguardando: '#92400E', cancelada: '#991B1B', realizada: '#1e40af' }
@@ -50,32 +57,32 @@ export default function RelatoriosInterno() {
     !busca || e.nome?.toLowerCase().includes(busca.toLowerCase()) || e.codigo?.toLowerCase().includes(busca.toLowerCase())
   )
 
+  // Tela detalhe do estagiário
   if (selecionado) {
     const total = consultas.length
     const realizadas = consultas.filter(c => c.status === 'realizada').length
     const confirmadas = consultas.filter(c => c.status === 'confirmada').length
     const canceladas = consultas.filter(c => c.status === 'cancelada').length
+    const aguardando = consultas.filter(c => c.status === 'aguardando').length
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
         <div style={{ position: 'relative', background: 'linear-gradient(135deg, #0047AB, #1d6fef)', paddingTop: 52, paddingBottom: 20, paddingLeft: 20, paddingRight: 20, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.07)', top: -60, right: -40 }} />
           <button onClick={() => { setSelecionado(null); setConsultas([]) }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, padding: 0 }}>
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, padding: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>Voltar</span>
           </button>
           <p style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 2 }}>{selecionado.nome}</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             {selecionado.codigo && <span style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>{selecionado.codigo}</span>}
-            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{selecionado.especialidade || 'Estagiário'}</span>
+            {selecionado.especialidade && <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{selecionado.especialidade}</span>}
           </div>
-
-          {/* Filtros */}
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[['todos','Todos'],['mes','Este mês'],['hoje','Hoje']].map(([v,l]) => (
-              <button key={v} onClick={() => { setFiltro(v); fetchConsultas(selecionado.id) }}
-                style={{ padding: '5px 12px', borderRadius: 20, border: 'none', background: filtro === v ? '#fff' : 'rgba(255,255,255,0.15)', color: filtro === v ? '#0047AB' : '#fff', fontSize: 12, fontWeight: filtro === v ? 700 : 400, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+            {[['todos','Todos'],['mes','Mês'],['semana','Semana'],['hoje','Hoje']].map(([v,l]) => (
+              <button key={v} onClick={() => { setFiltro(v); fetchConsultas(selecionado.id, v) }}
+                style={{ padding: '5px 14px', borderRadius: 20, border: 'none', background: filtro === v ? '#fff' : 'rgba(255,255,255,0.15)', color: filtro === v ? '#0047AB' : '#fff', fontSize: 12, fontWeight: filtro === v ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 {l}
               </button>
             ))}
@@ -84,21 +91,21 @@ export default function RelatoriosInterno() {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Total', value: total, bg: '#EFF6FF', color: '#0047AB' },
               { label: 'Realizadas', value: realizadas, bg: '#D1FAE5', color: '#166534' },
               { label: 'Confirmadas', value: confirmadas, bg: '#DBEAFE', color: '#1e40af' },
               { label: 'Canceladas', value: canceladas, bg: '#FEE2E2', color: '#991B1B' },
             ].map(s => (
-              <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}>
-                <p style={{ fontSize: 20, fontWeight: 800, color: s.color, lineHeight: 1, marginBottom: 3 }}>{s.value}</p>
-                <p style={{ fontSize: 10, color: s.color, opacity: 0.7 }}>{s.label}</p>
+              <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ fontSize: 13, color: s.color, margin: 0 }}>{s.label}</p>
+                <p style={{ fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1, margin: 0 }}>{s.value}</p>
               </div>
             ))}
           </div>
 
-          {loadingCons && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 30 }}>Carregando...</p>}
+          {loadingCons && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 20 }}>Carregando...</p>}
           {!loadingCons && consultas.length === 0 && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 30 }}>Nenhuma consulta encontrada.</p>}
 
           {consultas.map(c => (
@@ -120,6 +127,7 @@ export default function RelatoriosInterno() {
     )
   }
 
+  // Lista estagiários
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#F8FAFC' }}>
       <div style={{ position: 'relative', background: 'linear-gradient(135deg, #0047AB, #1d6fef)', paddingTop: 52, paddingBottom: 20, paddingLeft: 20, paddingRight: 20, overflow: 'hidden' }}>
@@ -129,11 +137,10 @@ export default function RelatoriosInterno() {
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔍 Buscar por nome ou código..."
           style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: 12, border: 'none', fontSize: 13, outline: 'none' }} />
       </div>
-
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {loading && <p style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 40 }}>Carregando...</p>}
         {lista.map(e => (
-          <button key={e.id} onClick={() => handleSelecionarEst(e)}
+          <button key={e.id} onClick={() => selecionarEst(e)}
             style={{ width: '100%', background: '#fff', border: 'none', borderRadius: 16, padding: '14px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ width: 46, height: 46, borderRadius: 23, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#0047AB', flexShrink: 0 }}>
               {e.nome?.slice(0, 2).toUpperCase()}
