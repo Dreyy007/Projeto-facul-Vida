@@ -51,6 +51,7 @@ export default function Chat() {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [busca, setBusca] = useState('')
+  const [mobileAberto, setMobileAberto] = useState(false)
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
   const ativaRef = useRef(null)
@@ -63,18 +64,15 @@ export default function Chat() {
       Notification.requestPermission()
     }
 
-    // Canal global — notifica mensagens de qualquer paciente
     const globalCh = supabase
       .channel('chat-global-' + Date.now())
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'mensagens',
       }, payload => {
-        // Sempre adiciona na conversa ativa (independente do remetente)
         if (ativaRef.current?.id === payload.new.paciente_id) {
           setMensagens(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
         }
-        // Som e notificação só para mensagens do paciente
         if (payload.new.remetente === 'paciente') {
           tocarSomNotificacao()
           notificarBrowser('Nova mensagem', payload.new.conteudo || '📎 Anexo')
@@ -139,7 +137,6 @@ export default function Chat() {
     setEnviando(true)
     tocarSomEnvio()
 
-    // Adiciona mensagem localmente de imediato (sem esperar realtime)
     const msgTemp = {
       id: 'temp-' + Date.now(),
       paciente_id: ativa.id,
@@ -155,7 +152,6 @@ export default function Chat() {
       paciente_id: ativa.id, remetente: 'clinica', conteudo, lida: true,
     }]).select().single()
 
-    // Substitui a mensagem temp pelo registro real do banco
     if (data) {
       setMensagens(prev => prev.map(m => m.id === msgTemp.id ? data : m))
     }
@@ -236,7 +232,7 @@ export default function Chat() {
         {conversasFiltradas.length === 0 && <div className="empty" style={{ padding: 20 }}>Nenhuma conversa.</div>}
         {conversasFiltradas.map(c => (
           <div key={c.id} className={`chat-list-item${ativa?.id === c.id ? ' active' : ''}`}
-            onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id) }}>
+            onClick={() => { setAtiva(c); fetchMensagens(c.id); marcarLidas(c.id); setMobileAberto(true) }}>
             <div className="chat-av" style={{ background: corAvatar(c.nome) }}>{iniciais(c.nome)}</div>
             <div className="chat-item-info">
               <div className="chat-item-top">
@@ -252,7 +248,7 @@ export default function Chat() {
         ))}
       </div>
 
-      <div className="chat-window">
+      <div className={`chat-window${mobileAberto ? ' mobile-open' : ''}`}>
         {!ativa ? (
           <div className="chat-empty">
             <div style={{ fontSize: 48 }}>💬</div>
@@ -261,6 +257,7 @@ export default function Chat() {
         ) : (
           <>
             <div className="chat-win-header">
+              <button className="btn-voltar-chat" onClick={() => setMobileAberto(false)}>←</button>
               <div className="chat-av-lg" style={{ background: '#0047AB', padding: 4 }}>
                 <img src={LOGO_SRC} alt="Clínica Vida+" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
               </div>
