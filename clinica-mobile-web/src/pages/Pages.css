@@ -648,3 +648,74 @@
     padding: 12px 14px;
   }
 }
+
+/* ===== CONFIGURAÇÕES RESPONSIVO ===== */
+.cfg-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.cfg-menu {
+  padding: 8px 0 !important;
+}
+
+.cfg-menu-item {
+  padding: 11px 18px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: .15s;
+}
+
+.cfg-menu-item.cfg-menu-active {
+  font-weight: 700;
+  color: var(--p);
+  background: var(--p3);
+  border-left: 3px solid var(--p);
+}
+
+.escala-grade {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .cfg-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cfg-menu {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    padding: 8px !important;
+    gap: 4px;
+  }
+
+  .cfg-menu::-webkit-scrollbar { display: none; }
+
+  .cfg-menu-item {
+    white-space: nowrap;
+    border-left: none !important;
+    border-radius: 20px !important;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    flex-shrink: 0;
+  }
+
+  .cfg-menu-item.cfg-menu-active {
+    border-left: none !important;
+    border-radius: 20px !important;
+  }
+
+  .escala-grade {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

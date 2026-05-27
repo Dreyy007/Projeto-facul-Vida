@@ -216,20 +216,14 @@ export default function Configuracoes() {
       {msgOk && <div style={{ background: 'var(--sbg)', color: 'var(--success)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>✅ {msgOk}</div>}
       {msgErr && <div style={{ background: 'var(--dbg)', color: 'var(--danger)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>❌ {msgErr}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="cfg-grid">
 
         {/* Menu lateral */}
-        <div className="card" style={{ padding: '8px 0' }}>
+        <div className="card cfg-menu">
           {menuItens.map(([k, l]) => (
-            <div key={k} onClick={() => setAba(k)} style={{
-              padding: '11px 18px', fontSize: 13,
-              fontWeight: aba === k ? 700 : 400,
-              color: aba === k ? 'var(--p)' : 'var(--text)',
-              background: aba === k ? 'var(--p3)' : 'transparent',
-              cursor: 'pointer',
-              borderLeft: aba === k ? '3px solid var(--p)' : '3px solid transparent',
-              transition: '.15s',
-            }}>{l}</div>
+            <div key={k} onClick={() => setAba(k)} className={`cfg-menu-item${aba === k ? ' cfg-menu-active' : ''}`}>
+              {l}
+            </div>
           ))}
         </div>
 
@@ -299,7 +293,6 @@ export default function Configuracoes() {
               </div>
             </div>
           )}
-
           {/* Dados da clínica */}
           {aba === 'clinica' && isAdmin && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -426,7 +419,7 @@ export default function Configuracoes() {
                   </div>
 
                   {/* Grade visual dos dias */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                  <div className="escala-grade">
                     {[0,1,2,3,4,5,6].map(dia => {
                       const escDia = escalas.filter(e => e.dia_semana === dia)
                       const temEscala = escDia.length > 0
@@ -491,7 +484,7 @@ export default function Configuracoes() {
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{profile?.especialidade || 'Estagiário'} · {profile?.codigo}</div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+              <div className="escala-grade">
                 {[0,1,2,3,4,5,6].map(dia => {
                   const escDia = escalas.filter(e => e.dia_semana === dia)
                   const temEscala = escDia.length > 0
@@ -588,3 +581,5 @@ export default function Configuracoes() {
     </div>
   )
 }
+
+    
