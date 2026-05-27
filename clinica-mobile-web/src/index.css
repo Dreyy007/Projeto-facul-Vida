@@ -1,94 +1,56 @@
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@import url('https://api.fontshare.com/v2/css?f[]=general-sans@300,400,500,600,700&display=swap');
 
-/* ============ TEMA CLARO ============ */
-#root[data-theme="claro"] {
-  --bg: #ffffff;
-  --bg2: #F8FAFC;
-  --bg3: #F3F4F6;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ===== TEMA CLARO (padrão) ===== */
+body, body[data-theme="claro"] {
+  --bg: #F0F4FA;
   --card: #ffffff;
-  --border: #E5E7EB;
   --text: #0D1B2A;
-  --text2: #374151;
-  --muted: #9CA3AF;
+  --muted: #5A6A80;
+  --border: #DDE3EE;
   --p: #0047AB;
-  --p2: #1d6fef;
-  --p3: #EFF6FF;
-  --nav-bg: #ffffff;
-  --nav-border: #E5E7EB;
+  --p2: #003280;
+  --p3: #E8F0FE;
+  --p4: #C7D8FA;
+  --danger: #991B1B;
+  --dbg: #FEE2E2;
+  --success: #166534;
+  --sbg: #DCFCE7;
+  --warn: #854D0E;
+  --wbg: #FEF9C3;
+  --r: 12px;
 }
 
-/* ============ TEMA ESCURO ============ */
-#root[data-theme="escuro"] {
-  --bg: #0f1117;
-  --bg2: #161b27;
-  --bg3: #1e2435;
-  --card: #1a2035;
-  --border: #2a3349;
-  --text: #f0f4ff;
-  --text2: #c8d0e7;
-  --muted: #6b7a99;
-  --p: #4d8ef0;
-  --p2: #6aa3f5;
-  --p3: #1a2f5c;
-  --nav-bg: #161b27;
-  --nav-border: #2a3349;
-}
-
-/* Trava bounce do iOS no body */
-html {
-  height: 100%;
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-  background: #ffffff;
+/* ===== TEMA ESCURO ===== */
+body[data-theme="escuro"] {
+  --bg: #0D0F1C;
+  --card: #13152A;
+  --text: #ffffff;
+  --muted: #94A3B8;
+  --border: #1A1D30;
+  --p: #818CF8;
+  --p2: #6366F1;
+  --p3: rgba(79,70,229,.15);
+  --p4: rgba(79,70,229,.25);
+  --danger: #F87171;
+  --dbg: rgba(248,113,113,.1);
+  --success: #4ADE80;
+  --sbg: rgba(74,222,128,.1);
+  --warn: #FBBF24;
+  --wbg: rgba(251,191,36,.1);
+  --r: 12px;
 }
 
 body {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  background: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'General Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s, color 0.3s;
 }
 
-#root {
-  height: 100%;
-  width: 100%;
-  max-width: 430px;
-  margin: 0 auto;
-  background: var(--bg, #fff);
-  color: var(--text, #0D1B2A);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Área de conteúdo — só ela scrolla */
-.page-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
-}
-
-/* Navbar sempre colada ao fundo com safe area */
-.navbar {
-  flex-shrink: 0;
-  display: flex;
-  background: var(--nav-bg, #fff);
-  border-top: 1px solid var(--nav-border, #E5E7EB);
-  padding-bottom: max(env(safe-area-inset-bottom), 8px);
-}
-
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
-
-input, textarea, button { font-family: inherit; }
-button { cursor: pointer; border: none; background: none; }
-a { text-decoration: none; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--p4); }

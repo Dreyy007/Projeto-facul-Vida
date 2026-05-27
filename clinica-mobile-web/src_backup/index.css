@@ -1,0 +1,94 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ============ TEMA CLARO ============ */
+#root[data-theme="claro"] {
+  --bg: #ffffff;
+  --bg2: #F8FAFC;
+  --bg3: #F3F4F6;
+  --card: #ffffff;
+  --border: #E5E7EB;
+  --text: #0D1B2A;
+  --text2: #374151;
+  --muted: #9CA3AF;
+  --p: #0047AB;
+  --p2: #1d6fef;
+  --p3: #EFF6FF;
+  --nav-bg: #ffffff;
+  --nav-border: #E5E7EB;
+}
+
+/* ============ TEMA ESCURO ============ */
+#root[data-theme="escuro"] {
+  --bg: #0f1117;
+  --bg2: #161b27;
+  --bg3: #1e2435;
+  --card: #1a2035;
+  --border: #2a3349;
+  --text: #f0f4ff;
+  --text2: #c8d0e7;
+  --muted: #6b7a99;
+  --p: #4d8ef0;
+  --p2: #6aa3f5;
+  --p3: #1a2f5c;
+  --nav-bg: #161b27;
+  --nav-border: #2a3349;
+}
+
+/* Trava bounce do iOS no body */
+html {
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  background: #ffffff;
+}
+
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  background: var(--bg, #fff);
+  color: var(--text, #0D1B2A);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Área de conteúdo — só ela scrolla */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+}
+
+/* Navbar sempre colada ao fundo com safe area */
+.navbar {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--nav-bg, #fff);
+  border-top: 1px solid var(--nav-border, #E5E7EB);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+input, textarea, button { font-family: inherit; }
+button { cursor: pointer; border: none; background: none; }
+a { text-decoration: none; }

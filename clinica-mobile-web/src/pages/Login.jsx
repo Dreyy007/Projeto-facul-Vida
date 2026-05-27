@@ -1,324 +1,93 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../lib/supabase'
 
-export default function Login() {
-  const { signIn, signUp, signInWithCodigo } = useAuth()
-
-  // Paciente states
-  const [aba, setAba] = useState('login') // 'login' | 'cadastro'
+export default function LoginJ() {
   const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState('')
-  const [showSenha, setShowSenha] = useState(false)
-  const [cNome, setCNome] = useState('')
-  const [cCpf, setCCpf] = useState('')
-  const [cNasc, setCNasc] = useState('')
-  const [cEmail, setCEmail] = useState('')
-  const [cTel, setCTel] = useState('')
-  const [cSenha, setCSenha] = useState('')
-  const [cSenha2, setCSenha2] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [erro, setErro] = useState('')
-  const [sucesso, setSucesso] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const { signIn } = useAuth()
+  const navigate = useNavigate()
 
-  // Equipe states
-  const [telaEquipe, setTelaEquipe] = useState(false)
-  const [emailEq, setEmailEq] = useState('')
-  const [senhaEq, setSenhaEq] = useState('')
-  const [showSenhaEq, setShowSenhaEq] = useState(false)
-  const [loadingEq, setLoadingEq] = useState(false)
-  const [erroEq, setErroEq] = useState('')
-
-  // Esqueci senha
-  const [esqueci, setEsqueci] = useState(false)
-  const [esqueciEmail, setEsqueciEmail] = useState('')
-  const [esqueciOk, setEsqueciOk] = useState(false)
-  const [esqueciLoading, setEsqueciLoading] = useState(false)
-
-  function fmtCpf(v) {
-    return v.replace(/\D/g, '').slice(0, 11)
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-  }
-  function fmtTel(v) {
-    return v.replace(/\D/g, '').slice(0, 11)
-      .replace(/(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d{4})$/, '$1-$2')
-  }
-
-  async function handleLogin(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (!email || !senha) { setErro('Preencha e-mail e senha.'); return }
-    setLoading(true); setErro('')
-    const { error } = await signIn(email, senha)
-    if (error) setErro('E-mail ou senha inválidos.')
-    setLoading(false)
-  }
-
-  async function handleCadastro(e) {
-    e.preventDefault()
-    setErro(''); setSucesso('')
-    if (!cNome || !cCpf || !cNasc || !cEmail || !cTel || !cSenha) { setErro('Preencha todos os campos.'); return }
-    if (cSenha !== cSenha2) { setErro('As senhas não coincidem.'); return }
-    if (cSenha.length < 6) { setErro('Senha deve ter pelo menos 6 caracteres.'); return }
+    setError('')
     setLoading(true)
-    const { error } = await signUp({ nome: cNome, cpf: cCpf, data_nascimento: cNasc, email: cEmail, telefone: cTel, senha: cSenha })
-    if (error) {
-      setErro(error.message?.includes('already registered') ? 'E-mail já cadastrado.' : 'Erro ao criar conta.')
-    } else {
-      setSucesso('Conta criada com sucesso!')
-      setAba('login'); setEmail(cEmail)
-    }
-    setLoading(false)
+    const { error } = await signIn(email, password)
+    if (error) { setError('E-mail ou senha inválidos.'); setLoading(false) }
+    else navigate('/dashboard')
   }
 
-  // ===== LOGIN EQUIPE: aceita código (EST01) ou email + senha =====
-  async function handleLoginEquipe(e) {
-    e.preventDefault()
-    if (!emailEq || !senhaEq) { setErroEq('Preencha o identificador e a senha.'); return }
-    setLoadingEq(true); setErroEq('')
-    const { error } = await signInWithCodigo(emailEq, senhaEq)
-    if (error) setErroEq('Código/e-mail ou senha inválidos.')
-    setLoadingEq(false)
-  }
-
-  async function handleEsqueci(e) {
-    e.preventDefault()
-    if (!esqueciEmail) { setErro('Informe seu e-mail.'); return }
-    setEsqueciLoading(true); setErro('')
-    const { error } = await supabase.auth.resetPasswordForEmail(esqueciEmail, {
-      redirectTo: 'https://clinica-vida-mobile.vercel.app/redefinir-senha'
-    })
-    setEsqueciLoading(false)
-    if (error) setErro('Erro ao enviar e-mail.')
-    else setEsqueciOk(true)
-  }
-
-  // ===== TELA DA EQUIPE =====
-  if (telaEquipe) return (
-    <div style={{ minHeight: '100dvh', backgroundColor: '#0D1B2A', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', width: 280, height: 280, borderRadius: 140, background: 'rgba(0,71,171,0.2)', top: -100, right: -80 }} />
-      <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: 90, background: 'rgba(0,71,171,0.1)', bottom: 80, left: -50 }} />
-
-      {/* Header */}
-      <div style={{ paddingTop: 60, paddingLeft: 24, paddingRight: 24, paddingBottom: 32, zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ width: 68, height: 68, borderRadius: 20, background: 'linear-gradient(135deg, #0047AB, #1a6fdf)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 8px 24px rgba(0,71,171,0.4)' }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
-            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-          </svg>
-        </div>
-        <p style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Acesso da Equipe</p>
-        <p style={{ fontSize: 14, color: '#60a5fa' }}>Clínica Vida+ · Profissionais</p>
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1a3a', fontFamily: 'system-ui, sans-serif', position: 'relative', overflow: 'hidden' }}>
+      {/* ONDAS */}
+      <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} width="100%" height="160" viewBox="0 0 1440 160" preserveAspectRatio="none">
+        <path d="M0,80 C240,30 480,130 720,80 C960,30 1200,100 1440,60 L1440,160 L0,160 Z" fill="#1e3a8a" opacity="0.5"/>
+        <path d="M0,100 C300,50 600,130 900,90 C1100,65 1300,110 1440,85 L1440,160 L0,160 Z" fill="#1d4ed8" opacity="0.3"/>
+      </svg>
+      {/* ELEMENTOS DECORATIVOS */}
+      <svg style={{ position: 'absolute', top: 20, right: 60 }} width="140" height="140" viewBox="0 0 140 140">
+        <circle cx="70" cy="50" r="35" fill="#1e3a8a" opacity="0.5"/>
+        <circle cx="70" cy="50" r="24" fill="#2563eb" opacity="0.4"/>
+        <line x1="70" y1="15" x2="70" y2="85" stroke="#60a5fa" strokeWidth="2" opacity="0.7"/>
+        <line x1="35" y1="50" x2="105" y2="50" stroke="#60a5fa" strokeWidth="2" opacity="0.7"/>
+        <circle cx="70" cy="50" r="6" fill="#93c5fd"/>
+        <circle cx="20" cy="100" r="10" fill="#1e3a8a" opacity="0.4"/>
+        <circle cx="110" cy="110" r="15" fill="#1e3a8a" opacity="0.3"/>
+        <circle cx="120" cy="85" r="6" fill="#3b82f6" opacity="0.5"/>
+      </svg>
+      <div style={{ position: 'absolute', top: 30, left: 40 }}>
+        <svg width="60" height="60" viewBox="0 0 60 60">
+          <circle cx="30" cy="30" r="25" fill="#1e3a8a" opacity="0.3"/>
+          <circle cx="30" cy="30" r="15" fill="#2563eb" opacity="0.2"/>
+        </svg>
       </div>
 
-      {/* Card */}
-      <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 48px', zIndex: 1 }}>
-        <p style={{ fontSize: 18, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 }}>Entrar como equipe</p>
-        <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Use seu código (EST01) ou e-mail corporativo</p>
-
-        {erroEq && (
-          <div style={s.erroBox}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991B1B" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <p style={{ fontSize: 13, color: '#991B1B', marginLeft: 8 }}>{erroEq}</p>
+      {/* CARD */}
+      <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: '2.5rem', width: '100%', maxWidth: 360, zIndex: 1, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 13, background: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
           </div>
-        )}
-
-        <form onSubmit={handleLoginEquipe}>
-          <label style={s.label}>Código ou e-mail</label>
-          <div style={s.inputWrap}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-              <polyline points="22,6 12,13 2,6"/>
-            </svg>
-            <input style={s.inputInner} type="email" value={emailEq}
-              onChange={e => setEmailEq(e.target.value)}
-              placeholder="EST01 ou seu@clinicavida.com" autoCapitalize="characters" required />
+          <div>
+            <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>Clínica Vida+</p>
+            <p style={{ color: '#60a5fa', fontSize: 12, margin: 0 }}>Painel interno</p>
           </div>
+        </div>
 
-          <label style={s.label}>Senha</label>
-          <div style={s.inputWrap}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}>
-              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-            </svg>
-            <input style={s.inputInner} type={showSenhaEq ? 'text' : 'password'} value={senhaEq}
-              onChange={e => setSenhaEq(e.target.value)} placeholder="••••••••" required />
-            <button type="button" onClick={() => setShowSenhaEq(v => !v)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#0047AB', fontSize: 12, fontWeight: 700 }}>
-              {showSenhaEq ? 'ocultar' : 'ver'}
+        <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 700, margin: '0 0 4px' }}>Bem-vindo</h1>
+        <p style={{ color: '#475569', fontSize: 13, margin: '0 0 24px' }}>Entre com suas credenciais</p>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input
+            type="email" value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="seu@clinica.com" required
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px 16px', fontSize: 14, color: '#94a3b8', outline: 'none', fontFamily: 'inherit' }}
+          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••" required
+              style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '13px 44px 13px 16px', fontSize: 14, color: '#94a3b8', outline: 'none', fontFamily: 'inherit' }}
+            />
+            <button type="button" onClick={() => setShowPass(p => !p)}
+              style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 0 }}>
+              {showPass
+                ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
             </button>
           </div>
-
-          <button type="submit" disabled={loadingEq}
-            style={{ width: '100%', background: 'linear-gradient(135deg, #0D1B2A, #1e3a5f)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 8, fontSize: 16, fontWeight: 700, color: '#fff', opacity: loadingEq ? 0.7 : 1, boxShadow: '0 4px 16px rgba(13,27,42,0.3)' }}>
-            {loadingEq ? <span style={s.spinner} /> : 'Entrar'}
+          {error && <p style={{ color: '#f87171', fontSize: 13, margin: 0 }}>{error}</p>}
+          <button type="submit" disabled={loading}
+            style={{ background: '#2563eb', border: 'none', borderRadius: 12, padding: '14px', fontSize: 15, color: '#fff', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4, opacity: loading ? 0.7 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {loading ? 'Entrando...' : 'Entrar'}
+            {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>}
           </button>
         </form>
-
-        <div style={{ height: 1, background: '#F3F4F6', margin: '24px 0 20px' }} />
-
-        <button onClick={() => { setTelaEquipe(false); setErroEq('') }}
-          style={{ width: '100%', background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: 14, fontSize: 14, color: '#6B7280', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round">
-            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-          </svg>
-          Sou paciente
-        </button>
       </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
-
-  // ===== TELA DO PACIENTE =====
-  return (
-    <div style={s.container}>
-      <svg style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 0 }} width="100%" height="120" viewBox="0 0 390 120" preserveAspectRatio="none">
-        <path d="M0,60 C100,20 200,100 300,60 C340,40 370,70 390,50 L390,120 L0,120 Z" fill="#1e3a8a" opacity="0.5"/>
-        <path d="M0,80 C130,40 260,110 390,75 L390,120 L0,120 Z" fill="#1d4ed8" opacity="0.3"/>
-      </svg>
-
-      <div style={s.logoArea}>
-        <div style={s.logoCircle}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
-            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-          </svg>
-        </div>
-        <p style={s.brand}>Clínica Vida+</p>
-        <p style={s.sub}>Cuidado completo para sua saúde</p>
-      </div>
-
-      <div style={s.card}>
-        <p style={s.cardTitle}>{aba === 'login' ? 'Bem-vindo(a) de volta! 👋' : 'Criar sua conta'}</p>
-        <p style={s.cardSub}>{aba === 'login' ? 'Faça login para continuar' : 'Preencha seus dados abaixo'}</p>
-
-        {/* Abas: só Entrar e Cadastrar */}
-        <div style={s.abas}>
-          {[['login','Entrar'],['cadastro','Cadastrar']].map(([a,l]) => (
-            <button key={a} style={{ ...s.aba, ...(aba === a ? s.abaOn : {}) }}
-              onClick={() => { setAba(a); setErro(''); setSucesso('') }}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {sucesso && <div style={s.sucessoBox}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg><p style={{ fontSize: 13, color: '#166534', marginLeft: 8 }}>{sucesso}</p></div>}
-        {erro && <div style={s.erroBox}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#991B1B" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p style={{ fontSize: 13, color: '#991B1B', marginLeft: 8 }}>{erro}</p></div>}
-
-        {aba === 'login' ? (
-          <form onSubmit={handleLogin}>
-            <label style={s.label}>E-mail</label>
-            <div style={s.inputWrap}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              <input style={s.inputInner} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" autoCapitalize="none" />
-            </div>
-            <label style={s.label}>Senha</label>
-            <div style={s.inputWrap}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" style={{ marginRight: 10, flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              <input style={s.inputInner} type={showSenha ? 'text' : 'password'} value={senha} onChange={e => setSenha(e.target.value)} placeholder="••••••••" />
-              <button type="button" onClick={() => setShowSenha(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>{showSenha ? 'ocultar' : 'ver'}</button>
-            </div>
-            <button style={{ ...s.btn, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
-              {loading ? <span style={s.spinner} /> : 'Entrar'}
-            </button>
-            <button type="button" style={{ ...s.linkBtn, display: 'block', textAlign: 'center', width: '100%', marginTop: 8, marginBottom: 4, fontSize: 13 }}
-              onClick={() => { setEsqueci(true); setErro(''); setEsqueciOk(false); setEsqueciEmail(email) }}>
-              Esqueci minha senha
-            </button>
-            <p style={s.switchText}>Não tem conta?{' '}<button type="button" style={s.linkBtn} onClick={() => setAba('cadastro')}>Cadastre-se</button></p>
-            <div style={{ height: 1, background: '#F3F4F6', margin: '12px 0 16px' }} />
-            {/* BOTÃO EQUIPE — apenas abre tela de login, sem cadastro */}
-            <button type="button" onClick={() => { setTelaEquipe(true); setErroEq('') }}
-              style={{ width: '100%', background: '#EFF6FF', border: '1.5px solid #BFDBFE', borderRadius: 14, padding: 14, fontSize: 14, color: '#0047AB', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              🏥 Acesso interno — Equipe
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleCadastro}>
-            {[
-              { label: 'Nome completo', value: cNome, set: setCNome, placeholder: 'Seu nome completo', type: 'text' },
-              { label: 'CPF', value: cCpf, set: v => setCCpf(fmtCpf(v)), placeholder: '000.000.000-00', type: 'text', maxLength: 14 },
-              { label: 'E-mail', value: cEmail, set: setCEmail, placeholder: 'seu@email.com', type: 'email' },
-              { label: 'Telefone', value: cTel, set: v => setCTel(fmtTel(v)), placeholder: '(11) 99999-9999', type: 'text', maxLength: 15 },
-            ].map(f => (
-              <div key={f.label}>
-                <label style={s.label}>{f.label}</label>
-                <div style={s.inputWrap}>
-                  <input style={{ ...s.inputInner, paddingLeft: 0 }} type={f.type} value={f.value}
-                    onChange={e => f.set(e.target.value)} placeholder={f.placeholder} maxLength={f.maxLength} autoCapitalize="none" />
-                </div>
-              </div>
-            ))}
-            <label style={s.label}>Data de nascimento</label>
-            <div style={s.inputWrap}><input style={{ ...s.inputInner, paddingLeft: 0 }} type="date" value={cNasc} onChange={e => setCNasc(e.target.value)} /></div>
-            <label style={s.label}>Senha</label>
-            <div style={s.inputWrap}><input style={{ ...s.inputInner, paddingLeft: 0 }} type="password" value={cSenha} onChange={e => setCSenha(e.target.value)} placeholder="Mínimo 6 caracteres" /></div>
-            <label style={s.label}>Confirmar senha</label>
-            <div style={s.inputWrap}><input style={{ ...s.inputInner, paddingLeft: 0 }} type="password" value={cSenha2} onChange={e => setCSenha2(e.target.value)} placeholder="Repita a senha" /></div>
-            <button style={{ ...s.btn, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
-              {loading ? <span style={s.spinner} /> : 'Criar conta'}
-            </button>
-            <p style={s.switchText}>Já tem conta?{' '}<button type="button" style={s.linkBtn} onClick={() => setAba('login')}>Entrar</button></p>
-          </form>
-        )}
-      </div>
-
-      {esqueci && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'flex-end' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '24px 24px 0 0', width: '100%', padding: '28px 24px 48px' }}>
-            {!esqueciOk ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: '#0D1B2A' }}>Redefinir senha</p>
-                  <button onClick={() => { setEsqueci(false); setErro('') }} style={{ background: 'none', border: 'none', fontSize: 22, color: '#9CA3AF', cursor: 'pointer' }}>✕</button>
-                </div>
-                <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Informe o e-mail da sua conta.</p>
-                {erro && <div style={s.erroBox}><p style={{ fontSize: 13, color: '#991B1B' }}>{erro}</p></div>}
-                <form onSubmit={handleEsqueci}>
-                  <label style={s.label}>E-mail</label>
-                  <div style={s.inputWrap}><input style={{ ...s.inputInner, paddingLeft: 0 }} type="email" value={esqueciEmail} onChange={e => setEsqueciEmail(e.target.value)} placeholder="seu@email.com" autoCapitalize="none" /></div>
-                  <button type="submit" style={{ ...s.btn, opacity: esqueciLoading ? 0.7 : 1 }} disabled={esqueciLoading}>
-                    {esqueciLoading ? <span style={s.spinner} /> : 'Enviar link'}
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 56, marginBottom: 16 }}>📧</div>
-                <p style={{ fontSize: 20, fontWeight: 800, color: '#0D1B2A', marginBottom: 8 }}>E-mail enviado!</p>
-                <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 24 }}>Verifique sua caixa de entrada em <strong>{esqueciEmail}</strong>.</p>
-                <button onClick={() => { setEsqueci(false); setEsqueciOk(false); setErro('') }} style={{ ...s.btn, maxWidth: 280, margin: '0 auto' }}>Voltar</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
-}
-
-const s = {
-  container: { minHeight: '100dvh', backgroundColor: '#0c1a3a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0', overflowY: 'auto', position: 'relative' },
-  logoArea: { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 65, paddingBottom: 28, zIndex: 1 },
-  logoCircle: { width: 72, height: 72, borderRadius: 22, backgroundColor: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  brand: { fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 6 },
-  sub: { fontSize: 14, color: '#60a5fa', fontWeight: 400 },
-  card: { width: '100%', maxWidth: 390, backgroundColor: '#fff', borderRadius: '28px 28px 0 0', padding: '28px 24px 40px', flex: 1, zIndex: 1 },
-  cardTitle: { fontSize: 22, fontWeight: 800, color: '#0D1B2A', marginBottom: 4 },
-  cardSub: { fontSize: 14, color: '#6B7280', marginBottom: 20 },
-  abas: { display: 'flex', backgroundColor: '#eff6ff', borderRadius: 14, padding: 4, marginBottom: 20 },
-  aba: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 11, fontSize: 14, fontWeight: 600, color: '#6B7280', background: 'none', cursor: 'pointer', transition: 'all 0.2s' },
-  abaOn: { backgroundColor: '#fff', color: '#1d4ed8', boxShadow: '0 2px 8px rgba(29,78,216,0.15)' },
-  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, marginTop: 2 },
-  inputWrap: { display: 'flex', alignItems: 'center', border: '1.5px solid #bfdbfe', borderRadius: 14, padding: '0 14px', marginBottom: 14, height: 52, backgroundColor: '#eff6ff' },
-  inputInner: { flex: 1, border: 'none', outline: 'none', fontSize: 14, color: '#0D1B2A', backgroundColor: 'transparent', fontFamily: 'inherit' },
-  btn: { width: '100%', background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', borderRadius: 14, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', marginTop: 6, marginBottom: 4, fontSize: 16, fontWeight: 700, color: '#fff', boxShadow: '0 4px 16px rgba(29,78,216,0.35)' },
-  spinner: { width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' },
-  erroBox: { display: 'flex', alignItems: 'center', backgroundColor: '#FEF2F2', padding: '10px 14px', borderRadius: 12, marginBottom: 14, border: '1px solid #FECACA' },
-  sucessoBox: { display: 'flex', alignItems: 'center', backgroundColor: '#F0FDF4', padding: '10px 14px', borderRadius: 12, marginBottom: 14, border: '1px solid #BBF7D0' },
-  switchText: { textAlign: 'center', fontSize: 13, color: '#9CA3AF', marginTop: 14, marginBottom: 8 },
-  linkBtn: { background: 'none', border: 'none', color: '#1d4ed8', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
 }

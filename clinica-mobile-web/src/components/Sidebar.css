@@ -1,0 +1,42 @@
+/* ===== MOBILE ===== */
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100vh;
+    width: 260px;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 6px 0 32px rgba(0,0,0,0.35);
+  }
+  .sidebar-close-btn {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 901px) {
+  .sidebar-close-btn { display: none; }
+}
+
+.sidebar-close-btn {
+  margin-left: auto;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: rgba(255,255,255,0.7);
+  border-radius: 7px;
+  width: 30px; height: 30px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.sidebar-close-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}

@@ -1,0 +1,164 @@
+:root {
+  --p: #0047AB;
+  --p2: #003280;
+  --p3: #E8F0FE;
+  --bg: #F0F4FA;
+  --card: #ffffff;
+  --text: #0D1B2A;
+  --muted: #5A6A80;
+  --border: #DDE3EE;
+  --danger: #991B1B;
+  --dbg: #FEE2E2;
+  --success: #166534;
+  --sbg: #DCFCE7;
+  --warn: #854D0E;
+  --wbg: #FEF9C3;
+  --r: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); }
+
+.login-page {
+  display: flex;
+  min-height: 100vh;
+}
+
+.login-left {
+  flex: 1;
+  background: var(--p);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-brand-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.login-brand-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,.6);
+}
+
+.login-tagline h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.login-tagline p {
+  font-size: 15px;
+  color: rgba(255,255,255,.7);
+}
+
+.login-right {
+  width: 440px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 40px;
+  background: var(--bg);
+}
+
+.login-card {
+  width: 100%;
+}
+
+.login-card h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.login-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
+.fld {
+  margin-bottom: 18px;
+}
+
+.fld label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 7px;
+}
+
+.fld input {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  background: var(--card);
+  color: var(--text);
+  transition: border-color .2s;
+}
+
+.fld input:focus { border-color: var(--p); }
+
+.login-error {
+  background: var(--dbg);
+  color: var(--danger);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.btn-login {
+  width: 100%;
+  background: var(--p);
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: 15px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: .15s;
+  margin-top: 4px;
+}
+
+.btn-login:hover { background: var(--p2); }
+.btn-login:disabled { opacity: .7; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .login-left { display: none; }
+  .login-right { width: 100%; }
+}

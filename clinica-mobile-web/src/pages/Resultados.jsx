@@ -1,209 +1,308 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '../contexts/AuthContext'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import './Pages.css'
 
-const catIcon = {
-  'Exame de Sangue': { bg: '#FEF3C7', stroke: '#D97706' },
-  'Psicologia':      { bg: '#F5F3FF', stroke: '#7C3AED' },
-  'Cardiologia':     { bg: '#FEE2E2', stroke: '#DC2626' },
-  'Neuropsicologia': { bg: '#EFF6FF', stroke: '#0047AB' },
-  'Imagem':          { bg: '#F0FDF4', stroke: '#059669' },
-  'Laudo':           { bg: '#FFF7ED', stroke: '#EA580C' },
-  'Outro':           { bg: '#F3F4F6', stroke: '#6B7280' },
-}
-
-const fmtData = d => new Date(d).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+const categorias = ['Exame de Sangue', 'Psicologia', 'Cardiologia', 'Neuropsicologia', 'Imagem', 'Outro']
 
 export default function Resultados() {
-  const { paciente } = useAuth()
+  const { profile } = useAuth()
+  const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const [resultados, setResultados] = useState([])
+  const [pacientes, setPacientes] = useState([])
   const [loading, setLoading] = useState(true)
-  const [aberto, setAberto] = useState(null)
+  const [modal, setModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filtroCat, setFiltroCat] = useState('todos')
+  const [form, setForm] = useState({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
+  const [arquivo, setArquivo] = useState(null)
+  const fileRef = useRef(null)
 
-  useEffect(() => {
-    if (!paciente) return
-    fetchResultados()
-  }, [paciente])
+  // Busca por CPF no modal
+  const [cpfBusca, setCpfBusca] = useState('')
+  const [pacienteEncontrado, setPacienteEncontrado] = useState(null)
+  const [resultadosCpf, setResultadosCpf] = useState([])
+  const [cpfErro, setCpfErro] = useState('')
 
-  async function fetchResultados() {
+  useEffect(() => { fetchAll() }, [])
+
+  async function fetchAll() {
     setLoading(true)
-    const { data } = await supabase
-      .from('resultados')
-      .select('*')
-      .eq('paciente_id', paciente.id)
-      .order('criado_em', { ascending: false })
-    setResultados(data || [])
+    const [{ data: res }, { data: pac }] = await Promise.all([
+      (() => {
+        let q = supabase.from('resultados').select('*, paciente:pacientes(nome), medico:profiles(nome)').order('criado_em', { ascending: false })
+        if (!isAdmin) q = q.eq('medico_id', profile?.id)
+        return q
+      })(),
+      (() => {
+        if (isAdmin) return supabase.from('pacientes').select('id, nome, cpf').order('nome')
+        return supabase.from('consultas').select('paciente:pacientes(id, nome, cpf)').eq('medico_id', profile?.id)
+      })(),
+    ])
+    setResultados(res || [])
+    const pacientesNorm = isAdmin
+      ? (pac || [])
+      : [...new Map((pac || []).filter(p => p.paciente).map(p => [p.paciente.id, p.paciente])).values()]
+    setPacientes(pacientesNorm)
     setLoading(false)
   }
 
-  const laudos = resultados.filter(r => r.categoria === 'Laudo')
-  const exames = resultados.filter(r => r.categoria !== 'Laudo')
+  function handleCpfBusca(valor) {
+    setCpfBusca(valor)
+    setCpfErro('')
+    setPacienteEncontrado(null)
+    setResultadosCpf([])
+    setForm(f => ({ ...f, paciente_id: '' }))
+
+    const cpfLimpo = valor.replace(/\D/g, '')
+    if (cpfLimpo.length < 3) return
+
+    const encontrados = pacientes.filter(p => p.cpf?.replace(/\D/g, '').includes(cpfLimpo))
+    if (encontrados.length > 0) {
+      setResultadosCpf(encontrados)
+    } else if (cpfLimpo.length >= 6) {
+      setCpfErro('Nenhum paciente encontrado com este CPF.')
+    }
+  }
+
+  function selecionarPaciente(p) {
+    setPacienteEncontrado(p)
+    setResultadosCpf([])
+    setForm(f => ({ ...f, paciente_id: p.id }))
+  }
+
+  function abrirModal() {
+    setCpfBusca('')
+    setPacienteEncontrado(null)
+    setResultadosCpf([])
+    setCpfErro('')
+    setForm({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
+    setArquivo(null)
+    setModal(true)
+  }
+
+  async function handleSalvar() {
+    if (!form.paciente_id || !form.nome) return
+    setSaving(true)
+    let arquivo_url = null
+    let arquivo_nome = null
+    let arquivo_tipo = null
+
+    if (arquivo) {
+      const ext = arquivo.name.split('.').pop()
+      const path = `${form.paciente_id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('resultados').upload(path, arquivo)
+      if (upErr) { alert('Erro ao enviar arquivo: ' + upErr.message); setSaving(false); return }
+      const { data: urlData } = supabase.storage.from('resultados').getPublicUrl(path)
+      arquivo_url = urlData.publicUrl
+      arquivo_nome = arquivo.name
+      arquivo_tipo = arquivo.type
+    }
+
+    const { error } = await supabase.from('resultados').insert([{
+      paciente_id: form.paciente_id,
+      medico_id: profile.id,
+      nome: form.nome,
+      categoria: form.categoria,
+      conteudo: form.conteudo || null,
+      arquivo_url,
+      arquivo_nome,
+      arquivo_tipo,
+    }])
+
+    if (error) { alert('Erro: ' + error.message) }
+    else {
+      setModal(false)
+      fetchAll()
+    }
+    setSaving(false)
+  }
+
+  async function handleExcluir(id) {
+    if (!window.confirm('Excluir este resultado?')) return
+    await supabase.from('resultados').delete().eq('id', id)
+    fetchAll()
+  }
+
+  const filtered = resultados.filter(r => {
+    const matchSearch = !search || r.nome.toLowerCase().includes(search.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(search.toLowerCase())
+    const matchCat = filtroCat === 'todos' || r.categoria === filtroCat
+    return matchSearch && matchCat
+  })
+
+  const catColor = { 'Exame de Sangue': 'tp', 'Psicologia': 'ta', 'Cardiologia': 'tr', 'Neuropsicologia': 'ta', 'Imagem': 'tg', 'Outro': 'tp' }
+
+  if (loading) return <div className="page-loading">Carregando...</div>
 
   return (
-    <div style={{ backgroundColor: '#F8FAFC', minHeight: '100%' }}>
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1>Resultados</h1>
+          <p className="page-sub">{resultados.length} resultado(s) cadastrado(s)</p>
+        </div>
+        <button className="btn-primary" onClick={abrirModal}>+ Novo resultado</button>
+      </div>
 
-      {/* Header */}
-      <div style={s.header}>
-        <div style={s.circle1} />
-        <div style={s.circle2} />
-        <p style={s.title}>Meus Resultados</p>
-        <p style={s.sub}>Exames e laudos liberados pela clínica</p>
-        <div style={s.statsRow}>
-          <div style={s.statBox}>
-            <p style={s.statNum}>{exames.length}</p>
-            <p style={s.statLabel}>Exames</p>
-          </div>
-          <div style={s.statDivider} />
-          <div style={s.statBox}>
-            <p style={s.statNum}>{laudos.length}</p>
-            <p style={s.statLabel}>Laudos</p>
-          </div>
+      {/* Filtros */}
+      <div className="card" style={{ padding: '14px 18px' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input className="search-input" placeholder="🔍 Buscar por paciente ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
+          <select value={filtroCat} onChange={e => setFiltroCat(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
+            <option value="todos">Todas as categorias</option>
+            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(search || filtroCat !== 'todos') && (
+            <button className="btn-outline" style={{ fontSize: 12, padding: '8px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => { setSearch(''); setFiltroCat('todos') }}>✕ Limpar</button>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>{filtered.length} resultado(s)</span>
         </div>
       </div>
 
-      <div style={{ padding: '16px 16px 40px' }}>
-
-        {loading && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF', fontSize: 14 }}>
-            Carregando...
-          </div>
-        )}
-
-        {!loading && resultados.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#0D1B2A', marginBottom: 6 }}>Nenhum resultado ainda</p>
-            <p style={{ fontSize: 13, color: '#9CA3AF' }}>Seus exames e laudos aparecerão aqui quando forem liberados pela clínica.</p>
-          </div>
-        )}
-
-        {/* Exames */}
-        {!loading && exames.length > 0 && (
-          <>
-            <p style={s.sectionTitle}>🔬 Exames</p>
-            {exames.map(r => {
-              const ci = catIcon[r.categoria] || { bg: '#F3F4F6', stroke: '#6B7280' }
-              const isOpen = aberto === r.id
-              return (
-                <div key={r.id} style={s.card}>
-                  <button style={s.cardBtn} onClick={() => setAberto(isOpen ? null : r.id)}>
-                    <div style={{ ...s.catIcon, backgroundColor: ci.bg }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ci.stroke} strokeWidth="2" strokeLinecap="round">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-                      </svg>
+      {/* Tabela */}
+      <div className="card">
+        <div className="card-body">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Paciente</th>
+                <th>Exame / Laudo</th>
+                <th>Categoria</th>
+                <th>Arquivo</th>
+                <th>Observações</th>
+                <th>Liberado por</th>
+                <th>Data</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(r => (
+                <tr key={r.id}>
+                  <td>
+                    <div className="td-user">
+                      <div className="av">{r.paciente?.nome?.slice(0, 2).toUpperCase()}</div>
+                      {r.paciente?.nome}
                     </div>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <p style={s.cardTipo}>{r.nome}</p>
-                      <p style={s.cardMeta}>{fmtData(r.criado_em)}</p>
-                      <span style={s.catTag}>{r.categoria}</span>
-                    </div>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round"
-                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: '.2s', flexShrink: 0 }}>
-                      <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                  </button>
+                  </td>
+                  <td style={{ fontWeight: 600 }}>{r.nome}</td>
+                  <td><span className={`tag ${catColor[r.categoria] || 'tp'}`}>{r.categoria}</span></td>
+                  <td>
+                    {r.arquivo_url
+                      ? <a href={r.arquivo_url} target="_blank" rel="noreferrer" style={{ color: 'var(--p)', fontWeight: 600, fontSize: 12 }}>📎 {r.arquivo_nome?.length > 20 ? r.arquivo_nome.slice(0, 20) + '...' : r.arquivo_nome}</a>
+                      : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                    }
+                  </td>
+                  <td style={{ maxWidth: 200 }}>
+                    {r.conteudo
+                      ? <span style={{ fontSize: 12, color: 'var(--muted)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }} title={r.conteudo}>{r.conteudo}</span>
+                      : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                    }
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.medico?.nome || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                    {new Date(r.criado_em).toLocaleDateString('pt-BR')}
+                  </td>
+                  <td>
+                    <button onClick={() => handleExcluir(r.id)} className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }}>Excluir</button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>Nenhum resultado encontrado.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-                  {isOpen && (
-                    <div style={s.detalhe}>
-                      <div style={s.divider} />
-                      {r.arquivo_url && (
-                        <a href={r.arquivo_url} target="_blank" rel="noreferrer" style={s.arquivoBtn}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round">
-                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
-                          </svg>
-                          📎 Ver arquivo anexo
-                        </a>
-                      )}
-                      {r.conteudo && (
-                        <div>
-                          <p style={s.detalheLabel}>OBSERVAÇÕES</p>
-                          <p style={s.laudoText}>{r.conteudo}</p>
+      {/* Modal */}
+      {modal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+          <div className="modal" style={{ maxWidth: 600 }}>
+            <h2>Novo Resultado</h2>
+            <div className="form-grid">
+
+              {/* Busca por CPF */}
+              <div className="fld" style={{ gridColumn: '1/-1' }}>
+                <label>CPF do paciente *</label>
+                <input
+                  value={cpfBusca}
+                  onChange={e => handleCpfBusca(e.target.value)}
+                  placeholder="Digite o CPF para buscar o paciente..."
+                  maxLength={14}
+                />
+                {resultadosCpf.length > 0 && !pacienteEncontrado && (
+                  <div style={{ marginTop: 8, border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    {resultadosCpf.map(p => (
+                      <div key={p.id} onClick={() => selecionarPaciente(p)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: '#fff', transition: '.1s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                      >
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--p3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, color: 'var(--p)', flexShrink: 0 }}>
+                          {p.nome.slice(0, 2).toUpperCase()}
                         </div>
-                      )}
-                      {!r.arquivo_url && !r.conteudo && (
-                        <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>Sem detalhes adicionais.</p>
-                      )}
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{p.nome}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>CPF: {p.cpf}</div>
+                        </div>
+                        <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--p)', fontWeight: 600 }}>Selecionar →</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pacienteEncontrado && (
+                  <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--sbg, #f0fdf4)', border: '1.5px solid var(--success, #16a34a)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--p3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, color: 'var(--p)' }}>
+                      {pacienteEncontrado.nome.slice(0, 2).toUpperCase()}
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </>
-        )}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{pacienteEncontrado.nome}</div>
+                      <div style={{ fontSize: 11, color: 'var(--success, #16a34a)', fontWeight: 600 }}>✓ Paciente encontrado</div>
+                    </div>
+                    <button onClick={() => { setPacienteEncontrado(null); setForm(f => ({...f, paciente_id: ''})) }}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' }}>
+                      Trocar
+                    </button>
+                  </div>
+                )}
+                {cpfErro && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>⚠ {cpfErro}</div>
+                )}
+              </div>
 
-        {/* Laudos */}
-        {!loading && laudos.length > 0 && (
-          <>
-            <p style={{ ...s.sectionTitle, marginTop: 24 }}>📄 Laudos</p>
-            {laudos.map(r => {
-              const isOpen = aberto === r.id
-              return (
-                <div key={r.id} style={s.card}>
-                  <button style={s.cardBtn} onClick={() => setAberto(isOpen ? null : r.id)}>
-                    <div style={{ ...s.catIcon, backgroundColor: '#FFF7ED' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <p style={s.cardTipo}>{r.nome}</p>
-                      <p style={s.cardMeta}>{fmtData(r.criado_em)}</p>
-                      <span style={{ ...s.catTag, backgroundColor: '#FFF7ED', color: '#EA580C' }}>Laudo</span>
-                    </div>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2.5" strokeLinecap="round"
-                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: '.2s', flexShrink: 0 }}>
-                      <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                  </button>
-                  {isOpen && (
-                    <div style={s.detalhe}>
-                      <div style={s.divider} />
-                      <p style={s.detalheLabel}>LAUDO MÉDICO</p>
-                      <p style={s.laudoText}>{r.conteudo}</p>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </>
-        )}
-
-        <div style={s.avisoCard}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0047AB" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <p style={s.avisoText}>Resultados são liberados pela equipe médica após análise. Em caso de dúvidas, use o chat.</p>
+              <div className="fld">
+                <label>Nome do exame / laudo *</label>
+                <input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex: Hemograma Completo" />
+              </div>
+              <div className="fld">
+                <label>Categoria</label>
+                <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
+                  {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="fld">
+                <label>Arquivo (PDF, imagem)</label>
+                <input ref={fileRef} type="file" accept=".pdf,image/*" style={{ display: 'none' }} onChange={e => setArquivo(e.target.files[0])} />
+                <button className="btn-outline" style={{ textAlign: 'left' }} onClick={() => fileRef.current?.click()}>
+                  {arquivo ? `📎 ${arquivo.name}` : '📎 Selecionar arquivo...'}
+                </button>
+              </div>
+              <div className="fld" style={{ gridColumn: '1/-1' }}>
+                <label>Observações / texto (opcional)</label>
+                <textarea rows={4} value={form.conteudo} onChange={e => setForm({ ...form, conteudo: e.target.value })} placeholder="Digite o laudo ou observações médicas aqui..." style={{ resize: 'vertical' }} />
+              </div>
+            </div>
+            <div className="modal-btns">
+              <button className="btn-outline" onClick={() => { setModal(false); setArquivo(null) }}>Cancelar</button>
+              <button className="btn-primary" onClick={handleSalvar} disabled={saving || !form.paciente_id || !form.nome}>
+                {saving ? 'Salvando...' : 'Liberar resultado'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
-}
-
-const s = {
-  header: { position: 'relative', background: 'linear-gradient(135deg, #0047AB 0%, #1d6fef 100%)', padding: '52px 20px 24px', overflow: 'hidden' },
-  circle1: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.07)', top: -70, right: -50 },
-  circle2: { position: 'absolute', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.05)', bottom: -30, left: 10 },
-  title: { fontSize: 26, fontWeight: 900, color: '#fff', marginBottom: 4 },
-  sub: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginBottom: 20 },
-  statsRow: { display: 'flex', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: '12px 0' },
-  statBox: { flex: 1, textAlign: 'center' },
-  statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
-  statNum: { fontSize: 24, fontWeight: 900, color: '#fff' },
-  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 },
-  sectionTitle: { fontSize: 14, fontWeight: 700, color: '#6B7280', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  card: { backgroundColor: '#fff', borderRadius: 20, marginBottom: 10, border: '1px solid #F3F4F6', boxShadow: '0 2px 12px rgba(0,0,0,0.05)', overflow: 'hidden' },
-  cardBtn: { display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' },
-  catIcon: { width: 46, height: 46, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  cardTipo: { fontSize: 14, fontWeight: 700, color: '#0D1B2A', marginBottom: 3 },
-  cardMeta: { fontSize: 12, color: '#9CA3AF', marginBottom: 5 },
-  catTag: { fontSize: 10, fontWeight: 700, color: '#6B7280', backgroundColor: '#F3F4F6', padding: '2px 8px', borderRadius: 50 },
-  detalhe: { padding: '0 18px 18px' },
-  divider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 14 },
-  detalheLabel: { fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1.5, marginBottom: 12 },
-  laudoText: { fontSize: 13, color: '#374151', lineHeight: '20px', backgroundColor: '#F8FAFC', borderRadius: 12, padding: '12px 14px', border: '1px solid #F3F4F6' },
-  arquivoBtn: { display: 'flex', alignItems: 'center', gap: 8, color: '#0047AB', fontSize: 13, fontWeight: 600, textDecoration: 'none', backgroundColor: '#EFF6FF', borderRadius: 10, padding: '10px 14px', marginBottom: 12 },
-  avisoCard: { backgroundColor: '#EFF6FF', borderRadius: 14, padding: '12px 16px', marginTop: 20, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid #BFDBFE' },
-  avisoText: { fontSize: 12, color: '#1d4ed8', lineHeight: '18px' },
 }
