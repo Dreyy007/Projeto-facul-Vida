@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 export default function Aprovacoes() {
   const { profile } = useAuth()
+  const toast = useToast()
   const [aba, setAba] = useState('pendentes')
   const [solics, setSolics] = useState([])
   const [historico, setHistorico] = useState([])
@@ -106,7 +108,7 @@ export default function Aprovacoes() {
   async function handleAprovar(s, aprovado) {
     const isEstagiario = profile?.tipo === 'estagiario'
     const isAdmin = ['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)
-    if (!isEstagiario && !isAdmin) return alert('Sem permissão.')
+    if (!isEstagiario && !isAdmin) { toast.error('Sem permissão.'); return }
 
     const update = {}
     if (isEstagiario) update.aprovado_medico = aprovado

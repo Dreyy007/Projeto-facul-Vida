@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 function validarSenha(senha) {
@@ -22,6 +23,7 @@ const especialidadesPorTipo = {
 
 export default function Usuarios() {
   const { profile } = useAuth()
+  const toast = useToast()
   const [usuarios, setUsuarios] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -48,7 +50,7 @@ export default function Usuarios() {
   }
 
   async function handleSave() {
-    if (!['admin', 'coordenador'].includes(profile?.tipo)) return alert('Sem permissão.')
+    if (!['admin', 'coordenador'].includes(profile?.tipo)) { toast.error('Sem permissão.'); return }
     const erros = validarSenha(form.senha)
     if (erros.length > 0) { setSenhaErros(erros); return }
     setSaving(true)
@@ -78,8 +80,9 @@ export default function Usuarios() {
 
     const json = await res.json()
     if (!res.ok || json.error) {
-      alert('Erro: ' + (json.error || 'Falha ao criar usuário'))
+      toast.error('Erro: ' + (json.error || 'Falha ao criar usuário'))
     } else {
+      toast.success('Usuário criado com sucesso!')
       setCodigoCriado(form.tipo === 'estagiario' ? codigo : null)
       setModal(false)
       setForm({ nome: '', email: '', senha: '', tipo: 'recepcionista', crp_crm: '', especialidade: '' })

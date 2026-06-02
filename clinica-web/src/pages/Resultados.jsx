@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 const categorias = ['Exame de Sangue', 'Psicologia', 'Cardiologia', 'Neuropsicologia', 'Imagem', 'Outro']
 
 export default function Resultados() {
   const { profile } = useAuth()
+  const toast = useToast()
   const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const [resultados, setResultados] = useState([])
   const [pacientes, setPacientes] = useState([])
@@ -93,7 +95,7 @@ export default function Resultados() {
       const ext = arquivo.name.split('.').pop()
       const path = `${form.paciente_id}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('resultados').upload(path, arquivo)
-      if (upErr) { alert('Erro ao enviar arquivo: ' + upErr.message); setSaving(false); return }
+      if (upErr) { toast.error('Erro ao enviar arquivo: ' + upErr.message); setSaving(false); return }
       const { data: urlData } = supabase.storage.from('resultados').getPublicUrl(path)
       arquivo_url = urlData.publicUrl
       arquivo_nome = arquivo.name
@@ -111,7 +113,7 @@ export default function Resultados() {
       arquivo_tipo,
     }])
 
-    if (error) { alert('Erro: ' + error.message) }
+    if (error) { toast.error('Erro: ' + error.message) }
     else {
       setModal(false)
       fetchAll()

@@ -2,12 +2,14 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 export default function PacienteDetalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { profile } = useAuth()
+  const toast = useToast()
   const [paciente, setPaciente] = useState(null)
   const [consultas, setConsultas] = useState([])
   const [mensagens, setMensagens] = useState([])
@@ -67,8 +69,8 @@ export default function PacienteDetalhe() {
       data_nascimento: form.data_nascimento || null, convenio: form.convenio,
       numero_convenio: form.numero_convenio, medico_id: form.medico_id || null,
     }).eq('id', id)
-    if (!error) { setEditando(false); fetchAll() }
-    else alert('Erro ao salvar: ' + error.message)
+    if (!error) { setEditando(false); fetchAll(); toast.success('Paciente atualizado!') }
+    else toast.error('Erro ao salvar: ' + error.message)
     setSaving(false)
   }
 
@@ -81,7 +83,7 @@ export default function PacienteDetalhe() {
     if (!window.confirm(`Tem certeza que deseja EXCLUIR permanentemente o paciente? Todos os dados serão apagados e essa ação não pode ser desfeita.`)) return
     if (!window.confirm("Confirme novamente: excluir tudo permanentemente?")) return
     const { error } = await supabase.from("pacientes").delete().eq("id", id)
-    if (error) { alert("Erro ao excluir: " + error.message); return }
+    if (error) { toast.error('Erro ao excluir: ' + error.message); return }
     navigate("/pacientes")
   }
 

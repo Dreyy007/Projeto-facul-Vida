@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { LOGO_SRC } from '../lib/logoClinica'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 import './Chat.css'
 
@@ -45,6 +46,7 @@ function tocarSomEnvio() {
 
 // ===================== CHAT PACIENTES =====================
 function ChatPacientes({ profile }) {
+  const toast = useToast()
   const [conversas, setConversas] = useState([])
   const [ativa, setAtiva] = useState(null)
   const [mensagens, setMensagens] = useState([])
@@ -124,12 +126,12 @@ function ChatPacientes({ profile }) {
   async function handleAnexo(e) {
     const file = e.target.files[0]
     if (!file || !ativa) return
-    if (file.type.startsWith('audio/')) { alert('Envio de áudio não permitido.'); return }
+    if (file.type.startsWith('audio/')) { toast.error('Envio de áudio não permitido.'); return }
     setEnviando(true)
     const ext = file.name.split('.').pop()
     const path = `${ativa.id}/${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('chat-anexos').upload(path, file)
-    if (error) { alert('Erro ao enviar arquivo.'); setEnviando(false); return }
+    if (error) { toast.error('Erro ao enviar arquivo.'); setEnviando(false); return }
     const { data: urlData } = supabase.storage.from('chat-anexos').getPublicUrl(path)
     await supabase.from('mensagens').insert([{ paciente_id: ativa.id, remetente: 'clinica', conteudo: file.name, anexo_url: urlData.publicUrl, anexo_tipo: file.type, anexo_nome: file.name, lida: true }])
     e.target.value = ''
@@ -235,6 +237,7 @@ function ChatPacientes({ profile }) {
 
 // ===================== CHAT EQUIPE =====================
 function ChatEquipe({ profile }) {
+  const toast = useToast()
   const [conversas, setConversas] = useState([])
   const [ativa, setAtiva] = useState(null)
   const [mensagens, setMensagens] = useState([])

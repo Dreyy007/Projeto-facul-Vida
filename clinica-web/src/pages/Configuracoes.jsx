@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 const roleClass = { admin: 'role-adm', coordenador: 'role-coo', estagiario: 'role-med', recepcionista: 'role-rec' }
@@ -11,6 +12,7 @@ const DIAS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export default function Configuracoes() {
   const { profile } = useAuth()
+  const toast = useToast()
   const { tema, setTema } = useTheme()
   const [aba, setAba] = useState('perfil')
   const [formPerfil, setFormPerfil] = useState({ nome: '', crp_crm: '', especialidade: '' })
@@ -27,8 +29,6 @@ export default function Configuracoes() {
   const [formEscala, setFormEscala] = useState({ dia_semana: 1, hora_inicio: '08:00', hora_fim: '18:00', intervalo_minutos: 50, ativo: true })
   const [buscaEst, setBuscaEst] = useState('')
   const [saving, setSaving] = useState(false)
-  const [msgOk, setMsgOk] = useState('')
-  const [msgErr, setMsgErr] = useState('')
 
   useEffect(() => {
     if (profile) setFormPerfil({ nome: profile.nome || '', crp_crm: profile.crp_crm || '', especialidade: profile.especialidade || '' })
@@ -67,8 +67,8 @@ export default function Configuracoes() {
   }
 
   function notify(ok, msg) {
-    if (ok) { setMsgOk(msg); setTimeout(() => setMsgOk(''), 3000) }
-    else { setMsgErr(msg); setTimeout(() => setMsgErr(''), 4000) }
+    if (ok) toast.success(msg)
+    else toast.error(msg)
   }
 
   async function salvarPerfil() {
@@ -212,9 +212,6 @@ export default function Configuracoes() {
           <p className="page-sub">Gerencie seu perfil e as configurações da clínica</p>
         </div>
       </div>
-
-      {msgOk && <div style={{ background: 'var(--sbg)', color: 'var(--success)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>✅ {msgOk}</div>}
-      {msgErr && <div style={{ background: 'var(--dbg)', color: 'var(--danger)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>❌ {msgErr}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 20, alignItems: 'start' }}>
 

@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 export default function Pacientes() {
   const { profile } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [pacientes, setPacientes] = useState([])
   const [medicos, setMedicos] = useState([])
@@ -66,7 +68,7 @@ export default function Pacientes() {
       setForm({ nome: '', email: '', cpf: '', telefone: '', data_nascimento: '', convenio: '', numero_convenio: '', medico_id: '' })
       fetchAll()
     } else {
-      alert('Erro: ' + error.message)
+      toast.error('Erro: ' + error.message)
     }
     setSaving(false)
   }

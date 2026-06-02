@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
 export default function Agenda() {
   const { profile } = useAuth()
+  const toast = useToast()
   const [consultas, setConsultas] = useState([])
   const [pacientes, setPacientes] = useState([])
   const [estagiarios, setEstagiarios] = useState([])
@@ -136,7 +138,7 @@ export default function Agenda() {
       setForm({ paciente_id: '', estagiario_id: profile?.tipo === 'estagiario' ? profile.id : '', tipo: 'Psicoterapia', data: '', hora: '', sala_id: '' })
       if (profile?.tipo !== 'estagiario') { setEstagiarioSelecionado(null); setBuscaEstagiario('') }
       fetchConsultas()
-    } else alert('Erro: ' + error.message)
+    } else toast.error('Erro: ' + error.message)
     setSaving(false)
   }
 
@@ -144,14 +146,14 @@ export default function Agenda() {
     const { consulta, tipo, nova_data, nova_hora, motivo } = modalSolic
     await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo, nova_data: nova_data || null, nova_hora: nova_hora || null, motivo: motivo || null }])
     await supabase.from('consultas').update({ status: tipo === 'cancelamento' ? 'cancelamento_pendente' : 'reagendamento_pendente' }).eq('id', consulta.id)
-    setModalSolic(null); fetchConsultas(); alert('Solicitação enviada para aprovação!')
+    setModalSolic(null); fetchConsultas(); toast.success('Solicitação enviada para aprovação!')
   }
 
   async function handleTrocaSala() {
     const { consulta, sala_nova_id, motivo } = modalTrocaSala
     await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo: 'troca_sala', sala_atual_id: consulta.sala_id || null, sala_nova_id: sala_nova_id || null, motivo: motivo || null }])
     await supabase.from('consultas').update({ status: 'troca_sala_pendente' }).eq('id', consulta.id)
-    setModalTrocaSala(null); fetchConsultas(); alert('Solicitação de troca de sala enviada!')
+    setModalTrocaSala(null); fetchConsultas(); toast.success('Solicitação de troca de sala enviada!')
   }
 
   const navData = d => { const dt = new Date(data + 'T12:00:00'); dt.setDate(dt.getDate() + d); setData(dt.toISOString().split('T')[0]) }
