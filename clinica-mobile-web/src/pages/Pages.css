@@ -286,6 +286,13 @@
 }
 
 /* ===== BUTTONS ===== */
+.btn-primary,
+.btn-outline,
+.btn-danger {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 .btn-primary {
   background: var(--p);
   color: #fff;
@@ -301,6 +308,7 @@
   display: inline-block;
 }
 .btn-primary:hover { background: var(--p2); }
+.btn-primary:active { transform: scale(0.96); }
 
 .btn-outline {
   background: none;
@@ -315,6 +323,8 @@
   transition: .15s;
 }
 .btn-outline:hover { border-color: var(--p); color: var(--p); }
+.btn-outline:active { transform: scale(0.96); }
+.btn-danger:active { transform: scale(0.96); }
 
 .btn-danger {
   background: var(--dbg);

@@ -74,6 +74,15 @@ body[data-theme="escuro"] .mobile-topbar {
   to { opacity: 1; }
 }
 
+.nav-tab-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.1s;
+}
+.nav-tab-btn:active {
+  transform: scale(0.88);
+}
+
 @media (max-width: 900px) {
   .main {
     margin-left: 0;

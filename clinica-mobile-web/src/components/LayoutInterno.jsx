@@ -1,4 +1,5 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import './Layout.css'
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -95,7 +96,7 @@ export default function LayoutInterno() {
         <>
           <div onClick={() => setMenuAberto(false)}
             style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-          <div style={{ position: 'fixed', bottom: 80, right: 12, background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, overflow: 'hidden', minWidth: 200 }}>
+          <div style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: 12, background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, overflow: 'hidden', minWidth: 200 }}>
             {itensVisiveis.map(item => (
               <div key={item.to}
                 onClick={() => { navigate(item.to); setMenuAberto(false) }}
@@ -108,14 +109,14 @@ export default function LayoutInterno() {
       )}
 
       {/* Navbar inferior */}
-      <nav style={{ display: 'flex', backgroundColor: '#0D1B2A', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 4px 20px', flexShrink: 0 }}>
+      <nav style={{ display: 'flex', backgroundColor: '#0D1B2A', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 4px', paddingBottom: 'max(20px, calc(8px + env(safe-area-inset-bottom, 0px)))', flexShrink: 0 }}>
         {mainTabs.map(tab => {
           const active = tab.exact
             ? location.pathname === tab.to || location.pathname === '/'
             : location.pathname.startsWith(tab.to)
           const badge = badges[tab.to] || 0
           return (
-            <NavLink key={tab.to} to={tab.to}
+            <NavLink key={tab.to} to={tab.to} className="nav-tab-btn"
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, textDecoration: 'none', position: 'relative' }}>
               <div style={{ width: 48, height: 48, borderRadius: 14, border: active ? '1.5px solid #0047AB' : '1.5px dashed #BFDBFE', backgroundColor: active ? '#EFF6FF' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', position: 'relative' }}>
                 <tab.Icon active={active} />
@@ -131,7 +132,7 @@ export default function LayoutInterno() {
         })}
 
         {/* Botão "Mais" */}
-        <button onClick={() => setMenuAberto(v => !v)}
+        <button onClick={() => setMenuAberto(v => !v)} className="nav-tab-btn"
           style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
           <div style={{ width: 48, height: 48, borderRadius: 14, border: maisAtivo || menuAberto ? '1.5px solid #0047AB' : '1.5px dashed #BFDBFE', backgroundColor: maisAtivo || menuAberto ? '#EFF6FF' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <IconMais active={maisAtivo || menuAberto} />
