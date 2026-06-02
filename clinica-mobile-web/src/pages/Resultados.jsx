@@ -148,18 +148,16 @@ export default function Resultados() {
       </div>
 
       {/* Filtros */}
-      <div className="card" style={{ padding: '14px 18px' }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="search-input" placeholder="🔍 Buscar por paciente ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} />
-          <select value={filtroCat} onChange={e => setFiltroCat(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
-            <option value="todos">Todas as categorias</option>
-            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {(search || filtroCat !== 'todos') && (
-            <button className="btn-outline" style={{ fontSize: 12, padding: '8px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => { setSearch(''); setFiltroCat('todos') }}>✕ Limpar</button>
-          )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>{filtered.length} resultado(s)</span>
-        </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="search-input" placeholder="🔍 Buscar por paciente ou exame..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1 }} />
+        <select value={filtroCat} onChange={e => setFiltroCat(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none', background: 'var(--card)', color: 'var(--text)' }}>
+          <option value="todos">Todas as categorias</option>
+          {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {(search || filtroCat !== 'todos') && (
+          <button className="btn-outline" style={{ fontSize: 12, padding: '8px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => { setSearch(''); setFiltroCat('todos') }}>✕ Limpar</button>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{filtered.length} resultado(s)</span>
       </div>
 
       {/* Tabela */}

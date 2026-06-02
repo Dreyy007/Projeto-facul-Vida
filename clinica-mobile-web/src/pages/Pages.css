@@ -59,8 +59,15 @@
   border-radius: var(--r);
   padding: 18px;
   border: 1px solid var(--border);
+  border-top: 3px solid var(--border);
   transition: background 0.3s, border-color 0.3s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
+
+.stat-card:has(.stat-num.blue)  { border-top-color: var(--p); }
+.stat-card:has(.stat-num.green) { border-top-color: var(--success); }
+.stat-card:has(.stat-num.warn)  { border-top-color: var(--warn); }
+.stat-card:has(.stat-num.red)   { border-top-color: var(--danger); }
 
 .stat-label {
   font-size: 11px;
@@ -94,6 +101,7 @@
   border: 1px solid var(--border);
   overflow: hidden;
   transition: background 0.3s, border-color 0.3s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 
 .card-head {
@@ -283,6 +291,41 @@
   padding: 2px 8px;
   font-size: 10px;
   font-weight: 700;
+}
+
+/* ===== FILTER CHIPS ===== */
+.chip-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: .15s;
+  font-family: inherit;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.chip:hover { border-color: var(--p); color: var(--p); }
+.chip:active { transform: scale(0.95); }
+.chip.chip-active {
+  background: var(--p);
+  border-color: var(--p);
+  color: #fff;
+  font-weight: 600;
 }
 
 /* ===== BUTTONS ===== */
@@ -490,13 +533,21 @@
   }
 
   .page-header {
-    flex-direction: column;
+    flex-direction: row;
     gap: 10px;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
 
   .page-header h1 {
     font-size: 20px;
+  }
+
+  .page-header .btn-primary {
+    flex-shrink: 0;
+    font-size: 13px;
+    padding: 8px 14px;
   }
 
   .stats-grid {
@@ -532,16 +583,23 @@
 
   .tbl tr {
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     margin-bottom: 10px;
-    padding: 10px 12px;
+    padding: 14px;
     background: var(--card);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   }
 
   .tbl td {
-    padding: 5px 0;
+    padding: 4px 0;
     border-bottom: none;
     font-size: 13px;
+  }
+
+  /* Oculta colunas menos importantes no mobile */
+  .tbl td[data-label="Observações"],
+  .tbl td[data-label="Arquivo"] {
+    display: none;
   }
 
   .tbl td::before {
@@ -611,11 +669,19 @@
   }
 
   .stat-card {
-    padding: 12px;
+    padding: 14px 12px;
   }
 
   .stat-num {
-    font-size: 22px;
+    font-size: 26px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-sub {
+    font-size: 11px;
   }
 
   .page-header h1 {
@@ -785,6 +851,6 @@
 /* Sair da conta — sempre visível no mobile */
 @media (max-width: 900px) {
   .cfg-menu {
-    flex-wrap: wrap !important;
+    flex-wrap: nowrap !important;
   }
 }

@@ -192,16 +192,15 @@ export default function Dashboard() {
             <a href="/agenda">Ver agenda →</a>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', padding: '0 16px 12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="chip-row" style={{ padding: '0 16px 12px' }}>
             {['hoje', 'semana', 'mes', 'todas', 'data'].map(op => (
-              <button key={op} onClick={() => setFiltro(op)}
-                style={{ padding: '4px 12px', borderRadius: '20px', border: '1px solid #d1d5db', background: filtro === op ? '#2563eb' : '#fff', color: filtro === op ? '#fff' : '#374151', cursor: 'pointer', fontSize: '13px', fontWeight: filtro === op ? 600 : 400 }}>
+              <button key={op} onClick={() => setFiltro(op)} className={`chip${filtro === op ? ' chip-active' : ''}`} style={{ padding: '4px 12px', fontSize: 12 }}>
                 {op === 'hoje' ? 'Hoje' : op === 'semana' ? 'Esta semana' : op === 'mes' ? 'Este mês' : op === 'todas' ? 'Todas' : 'Data específica'}
               </button>
             ))}
             {filtro === 'data' && (
               <input type="date" value={dataCustom} onChange={e => setDataCustom(e.target.value)}
-                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }} />
+                style={{ padding: '4px 8px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: 'var(--card)', color: 'var(--text)' }} />
             )}
           </div>
 

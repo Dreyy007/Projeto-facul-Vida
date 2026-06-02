@@ -88,24 +88,23 @@ export default function Consultas() {
       </div>
 
       {/* FILTROS */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="chip-row">
         {['hoje', 'semana', 'mes', 'todas', 'data'].map(op => (
-          <button key={op} onClick={() => setFiltro(op)}
-            style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #d1d5db', background: filtro === op ? '#2563eb' : '#fff', color: filtro === op ? '#fff' : '#374151', cursor: 'pointer', fontSize: 13, fontWeight: filtro === op ? 600 : 400 }}>
+          <button key={op} onClick={() => setFiltro(op)} className={`chip${filtro === op ? ' chip-active' : ''}`}>
             {op === 'hoje' ? 'Hoje' : op === 'semana' ? 'Esta semana' : op === 'mes' ? 'Este mês' : op === 'todas' ? 'Todas' : 'Data específica'}
           </button>
         ))}
         {filtro === 'data' && (
           <input type="date" value={dataCustom} onChange={e => setDataCustom(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }} />
+            style={{ padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: 'var(--card)', color: 'var(--text)' }} />
         )}
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <input placeholder="🔍 Buscar paciente, CPF, estagiário ou código..." value={busca} onChange={e => setBusca(e.target.value)}
-          style={{ flex: 1, minWidth: 260, padding: '8px 14px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }} />
+          className="search-input" style={{ flex: 1 }} />
         <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, background: '#fff' }}>
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', background: 'var(--card)', color: 'var(--text)', outline: 'none' }}>
           <option value="">Todos os status</option>
           <option value="confirmada">Confirmada</option>
           <option value="aguardando">Aguardando</option>
