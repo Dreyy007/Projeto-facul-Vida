@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import './Pages.css'
 
 export default function Dashboard() {
   const { profile } = useAuth()
+  const { tema } = useTheme()
+  const dark = tema === 'escuro'
   const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const isEstagiario = profile?.tipo === 'estagiario'
   const [stats, setStats] = useState({ hoje: 0, pacientes: 0, pendentes: 0, msgs: 0 })
@@ -176,11 +179,14 @@ export default function Dashboard() {
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={grafico} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#6b7280' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} allowDecimals={false} />
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} formatter={(v) => [v, 'Consultas']} />
-            <Bar dataKey="consultas" fill="#2563eb" radius={[4,4,0,0]} name="Consultas" />
+            <CartesianGrid strokeDasharray="3 3" stroke={dark ? '#1A1D30' : '#f0f0f0'} />
+            <XAxis dataKey="dia" tick={{ fontSize: 11, fill: dark ? '#94A3B8' : '#6b7280' }} />
+            <YAxis tick={{ fontSize: 11, fill: dark ? '#94A3B8' : '#6b7280' }} allowDecimals={false} />
+            <Tooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${dark ? '#1A1D30' : '#e5e7eb'}`, background: dark ? '#13152A' : '#fff', color: dark ? '#fff' : '#0D1B2A' }}
+              formatter={(v) => [v, 'Consultas']}
+            />
+            <Bar dataKey="consultas" fill={dark ? '#818CF8' : '#0047AB'} radius={[4,4,0,0]} name="Consultas" />
           </BarChart>
         </ResponsiveContainer>
       </div>

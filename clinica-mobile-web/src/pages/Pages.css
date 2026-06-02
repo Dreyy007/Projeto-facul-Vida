@@ -584,8 +584,8 @@
 
   /* Tema escuro */
   body[data-theme="escuro"] .page-header {
-    background: linear-gradient(135deg, #1e2875 0%, #2d3a9c 60%, #3949b5 100%);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    background: linear-gradient(135deg, #312e81 0%, #4338CA 55%, #6d28d9 100%);
+    box-shadow: 0 4px 24px rgba(99,66,210,0.35);
   }
 
   .stats-grid {
