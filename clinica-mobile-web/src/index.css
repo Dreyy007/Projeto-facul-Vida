@@ -24,21 +24,21 @@ body, body[data-theme="claro"] {
 
 /* ===== TEMA ESCURO ===== */
 body[data-theme="escuro"] {
-  --bg: #0D0F1C;
-  --card: #13152A;
-  --text: #ffffff;
-  --muted: #94A3B8;
-  --border: #1A1D30;
+  --bg: #0A0C18;
+  --card: #131726;
+  --text: #F0F4FF;
+  --muted: #8896B3;
+  --border: #232840;
   --p: #818CF8;
   --p2: #6366F1;
-  --p3: rgba(79,70,229,.15);
-  --p4: rgba(79,70,229,.25);
-  --danger: #F87171;
-  --dbg: rgba(248,113,113,.1);
-  --success: #4ADE80;
-  --sbg: rgba(74,222,128,.1);
-  --warn: #FBBF24;
-  --wbg: rgba(251,191,36,.1);
+  --p3: rgba(129,140,248,.18);
+  --p4: rgba(129,140,248,.28);
+  --danger: #FC8181;
+  --dbg: rgba(252,129,129,.12);
+  --success: #6EE7B7;
+  --sbg: rgba(110,231,183,.12);
+  --warn: #FCD34D;
+  --wbg: rgba(252,211,77,.12);
   --r: 12px;
 }
 

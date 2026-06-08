@@ -69,6 +69,19 @@
 .stat-card:has(.stat-num.warn)  { border-top-color: var(--warn); }
 .stat-card:has(.stat-num.red)   { border-top-color: var(--danger); }
 
+/* Dark mode: mais contraste nos cards */
+body[data-theme="escuro"] .stat-card {
+  background: #181c2e;
+  border-color: #2a3050;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+}
+
+body[data-theme="escuro"] .card {
+  background: #181c2e;
+  border-color: #2a3050;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
 .stat-label {
   font-size: 11px;
   font-weight: 700;
