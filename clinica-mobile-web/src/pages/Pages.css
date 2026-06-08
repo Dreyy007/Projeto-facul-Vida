@@ -854,12 +854,6 @@ body[data-theme="escuro"] .card {
     grid-template-columns: 1fr;
   }
 
-  /* Sair desktop: some nos chips */
-  .cfg-sair-desktop { display: none !important; }
-
-  /* Sair mobile: aparece abaixo do grid */
-  .cfg-sair-mobile { display: block !important; }
-
   .cfg-menu {
     display: flex !important;
     flex-direction: row !important;

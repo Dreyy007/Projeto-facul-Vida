@@ -231,11 +231,6 @@ async function handleLogout() {
               {l}
             </div>
           ))}
-          {/* Sair no desktop — fica dentro do sidebar */}
-          <div className="cfg-menu-item cfg-sair-desktop" onClick={handleLogout}
-            style={{ color: 'var(--danger)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
-            🚪 Sair da conta
-          </div>
         </div>
 
         {/* Conteúdo */}
@@ -598,9 +593,9 @@ async function handleLogout() {
           </div>
         </div>
       )}
-      {/* Botão Sair — mobile only, abaixo do grid */}
-      <button className="cfg-sair-mobile btn-danger" onClick={handleLogout}
-        style={{ width: '100%', padding: '13px', fontSize: 14, fontWeight: 600, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'none' }}>
+      {/* Botão Sair — único, sempre ao final */}
+      <button onClick={handleLogout} className="btn-danger"
+        style={{ width: '100%', padding: '13px', fontSize: 14, fontWeight: 600, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', touchAction: 'manipulation' }}>
         🚪 Sair da conta
       </button>
     </div>
