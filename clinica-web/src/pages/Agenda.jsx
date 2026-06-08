@@ -1,122 +1,121 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
 
-// Etapas do fluxo de atendimento
 const ETAPAS_ATENDIMENTO = ['Triagem', 'Avaliação', 'Consulta', 'Direcionamento Final']
+const ETAPA_ICONS  = ['🔍', '📋', '🩺', '🎯']
+const ETAPA_COLORS = ['#0891b2', '#7c3aed', '#0047AB', '#059669']
+const ETAPA_BGS    = ['#e0f7fa', '#f3e8ff', '#eff6ff', '#d1fae5']
+
+// ── Utilitários ──────────────────────────────────────────────────────────────
+function fmtCpf(cpf) {
+  if (!cpf) return ''
+  return cpf.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+function fmtData(d) {
+  if (!d) return '—'
+  return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
+}
+function fmtHora(h) { return h ? h.slice(0, 5) : '—' }
+
+/** Gera array de N datas (YYYY-MM-DD) a partir de uma data base */
+function gerarDias(base, n = 10) {
+  const dias = []
+  for (let i = 0; i < n; i++) {
+    const d = new Date(base + 'T12:00:00')
+    d.setDate(d.getDate() + i)
+    dias.push(d.toISOString().split('T')[0])
+  }
+  return dias
+}
 
 export default function Agenda() {
   const { profile } = useAuth()
   const toast = useToast()
-  const [consultas, setConsultas] = useState([])
-  const [pacientes, setPacientes] = useState([])
+
+  // ── Estado principal ──────────────────────────────────────────────────────
+  const [consultas,   setConsultas]   = useState([])
+  const [pacientes,   setPacientes]   = useState([])
   const [estagiarios, setEstagiarios] = useState([])
-  const [salas, setSalas] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState(new Date().toISOString().split('T')[0])
-  const [modal, setModal] = useState(false)
-  const [modalSolic, setModalSolic] = useState(null)
+  const [salas,       setSalas]       = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [dataAgenda,  setDataAgenda]  = useState(new Date().toISOString().split('T')[0])
+  const [viewMode,    setViewMode]    = useState('dia')
+  const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [filtroSala,   setFiltroSala]   = useState('todos')
+  const [busca,        setBusca]        = useState('')
+
+  // ── Modal de agendamento ──────────────────────────────────────────────────
+  const [modal,        setModal]       = useState(false)
+  const [modalSolic,   setModalSolic]  = useState(null)
   const [modalTrocaSala, setModalTrocaSala] = useState(null)
 
-  // Conflitos detalhados
-  const [conflitoEstagiario, setConflitoEstagiario] = useState(null)   // { paciente, data, hora }
-  const [conflitoPaciente, setConflitoPaciente] = useState(null)        // { data, hora }
-  const [salaOcupada, setSalaOcupada] = useState(null)                  // { paciente, estagiario, data, hora }
-
-  // Busca paciente por CPF
-  const [buscaPaciente, setBuscaPaciente] = useState('')
+  const [buscaPaciente,      setBuscaPaciente]      = useState('')
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null)
-  const [showDropPaciente, setShowDropPaciente] = useState(false)
-
-  // Busca estagiário por nome/código
-  const [buscaEstagiario, setBuscaEstagiario] = useState('')
+  const [showDropPaciente,   setShowDropPaciente]   = useState(false)
+  const [buscaEstagiario,    setBuscaEstagiario]    = useState('')
   const [estagiarioSelecionado, setEstagiarioSelecionado] = useState(null)
-  const [showDropEst, setShowDropEst] = useState(false)
+  const [showDropEst,        setShowDropEst]        = useState(false)
 
   const [form, setForm] = useState({
     paciente_id: '', estagiario_id: '',
-    tipo: 'Triagem', data: '', hora: '', sala_id: ''
+    tipo: 'Triagem', data: '', hora: '', sala_id: '',
   })
   const [saving, setSaving] = useState(false)
-  const [filtroStatus, setFiltroStatus] = useState('todos')
-  const [filtroSala, setFiltroSala] = useState('todos')
-  const [busca, setBusca] = useState('')
-  const [viewMode, setViewMode] = useState('dia')
 
-  // Ocupação de salas para o modal (carregada automaticamente quando data+hora mudam)
-  const [ocupacaoSalas, setOcupacaoSalas] = useState({}) // { sala_id: { paciente, estagiario, hora, data } }
-  const [loadingOcupacao, setLoadingOcupacao] = useState(false)
+  // ── 10 dias: estado ───────────────────────────────────────────────────────
+  const [baseDias,       setBaseDias]       = useState(new Date().toISOString().split('T')[0])
+  const [disponib10,     setDisponib10]     = useState({}) // { 'YYYY-MM-DD': { sala_id: { paciente, estagiario } | null } }
+  const [loadingDias,    setLoadingDias]    = useState(false)
 
-  useEffect(() => { fetchConsultas() }, [data, viewMode])
-  useEffect(() => { fetchSelects() }, [])
+  // ── Conflitos (validação final) ───────────────────────────────────────────
+  const [conflitoEstagiario, setConflitoEstagiario] = useState(null)
+  const [conflitoPaciente,   setConflitoPaciente]   = useState(null)
+  const [salaOcupada,        setSalaOcupada]        = useState(null)
 
-  // Limpa conflitos quando campos mudam
+  // ── Effects ───────────────────────────────────────────────────────────────
+  useEffect(() => { fetchConsultas() }, [dataAgenda, viewMode])
+  useEffect(() => { fetchSelects()   }, [])
   useEffect(() => {
-    setConflitoEstagiario(null)
-    setConflitoPaciente(null)
-    setSalaOcupada(null)
+    setConflitoEstagiario(null); setConflitoPaciente(null); setSalaOcupada(null)
   }, [form.estagiario_id, form.paciente_id, form.data, form.hora, form.sala_id])
 
-  // Carrega ocupação das salas em tempo real quando data + hora são preenchidos
+  // Carrega 10 dias sempre que hora OU sala mudam (e ambos estão preenchidos)
   useEffect(() => {
-    if (form.data && form.hora) {
-      carregarOcupacaoSalas(form.data, form.hora)
+    if (form.hora && form.sala_id) {
+      carregar10Dias(baseDias, form.hora, form.sala_id)
     } else {
-      setOcupacaoSalas({})
+      setDisponib10({})
+      setForm(f => ({ ...f, data: '' })) // limpa data ao trocar sala/hora
     }
-  }, [form.data, form.hora])
+  }, [form.hora, form.sala_id, baseDias])
 
-  async function carregarOcupacaoSalas(dataVal, horaVal) {
-    setLoadingOcupacao(true)
-    const { data: rows } = await supabase
-      .from('consultas')
-      .select('sala_id, paciente:pacientes(nome), estagiario:profiles(nome, codigo), data, hora')
-      .eq('data', dataVal)
-      .eq('hora', horaVal)
-      .not('status', 'in', '("cancelada","realizada")')
-      .not('sala_id', 'is', null)
-
-    const mapa = {}
-    ;(rows || []).forEach(c => {
-      if (c.sala_id) mapa[c.sala_id] = {
-        paciente: c.paciente?.nome || '—',
-        estagiario: c.estagiario?.nome || '—',
-        codigo: c.estagiario?.codigo || '',
-        data: c.data,
-        hora: c.hora,
-      }
-    })
-    setOcupacaoSalas(mapa)
-    setLoadingOcupacao(false)
-  }
-
+  // ── Busca principal (tabela) ──────────────────────────────────────────────
   async function fetchConsultas() {
     setLoading(true)
-    let query = supabase.from('consultas')
-      .select('*, paciente:pacientes(nome, cpf), estagiario:profiles(nome, codigo), sala:salas(nome, id)')
+    let q = supabase.from('consultas')
+      .select('*, paciente:pacientes(nome,cpf), estagiario:profiles(nome,codigo), sala:salas(nome,id)')
       .order('data').order('hora')
-
-    if (viewMode === 'dia') query = query.eq('data', data)
+    if (viewMode === 'dia') q = q.eq('data', dataAgenda)
     else if (viewMode === 'semana') {
-      const d = new Date(data + 'T12:00:00')
+      const d = new Date(dataAgenda + 'T12:00:00')
       const ds = d.getDay() === 0 ? 6 : d.getDay() - 1
       const ini = new Date(d); ini.setDate(d.getDate() - ds)
       const fim = new Date(ini); fim.setDate(ini.getDate() + 6)
-      query = query.gte('data', ini.toISOString().split('T')[0]).lte('data', fim.toISOString().split('T')[0])
+      q = q.gte('data', ini.toISOString().split('T')[0]).lte('data', fim.toISOString().split('T')[0])
     }
-    if (profile?.tipo === 'estagiario') query = query.eq('medico_id', profile.id)
-
-    const { data: rows } = await query
+    if (profile?.tipo === 'estagiario') q = q.eq('medico_id', profile.id)
+    const { data: rows } = await q
     setConsultas(rows || [])
     setLoading(false)
   }
 
   async function fetchSelects() {
     const [{ data: p }, { data: e }, { data: s }] = await Promise.all([
-      supabase.from('pacientes').select('id, nome, cpf').eq('ativo', true).order('nome'),
-      supabase.from('profiles').select('id, nome, codigo').eq('tipo', 'estagiario').order('nome'),
+      supabase.from('pacientes').select('id,nome,cpf').eq('ativo', true).order('nome'),
+      supabase.from('profiles').select('id,nome,codigo').eq('tipo', 'estagiario').order('nome'),
       supabase.from('salas').select('*').eq('ativa', true).order('nome'),
     ])
     setPacientes(p || [])
@@ -129,27 +128,38 @@ export default function Agenda() {
     }
   }
 
-  function fmtCpf(cpf) {
-    if (!cpf) return ''
-    const d = cpf.replace(/\D/g, '')
-    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  // ── Carrega 10 dias de disponibilidade para sala + hora ──────────────────
+  async function carregar10Dias(base, hora, salaId) {
+    setLoadingDias(true)
+    const dias = gerarDias(base, 10)
+
+    const { data: rows } = await supabase
+      .from('consultas')
+      .select('data, sala_id, medico_id, paciente:pacientes(nome), estagiario:profiles(nome,codigo)')
+      .in('data', dias)
+      .eq('hora', hora)
+      .not('status', 'in', '("cancelada","realizada")')
+
+    // Monta mapa: { 'YYYY-MM-DD': { [sala_id]: { paciente, estagiario, codigo } } }
+    const mapa = {}
+    dias.forEach(d => { mapa[d] = {} })
+    ;(rows || []).forEach(c => {
+      if (!mapa[c.data]) mapa[c.data] = {}
+      mapa[c.data][c.sala_id] = {
+        paciente:   c.paciente?.nome || '—',
+        estagiario: c.estagiario?.nome || '—',
+        codigo:     c.estagiario?.codigo || '',
+      }
+    })
+    setDisponib10(mapa)
+    setLoadingDias(false)
   }
 
-  function fmtData(d) {
-    if (!d) return '—'
-    return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  }
-
-  function fmtHora(h) {
-    if (!h) return '—'
-    return h.slice(0, 5)
-  }
-
-  // Filtra pacientes por CPF ou nome
-  const pacientesFiltrados = pacientes.filter(p => {
+  // ── Paciente / Estagiário ─────────────────────────────────────────────────
+  const pacsFiltrados = pacientes.filter(p => {
     const q = buscaPaciente.toLowerCase().replace(/\D/g, '') || buscaPaciente.toLowerCase()
-    const cpfLimpo = (p.cpf || '').replace(/\D/g, '')
-    return p.nome?.toLowerCase().includes(buscaPaciente.toLowerCase()) || cpfLimpo.includes(q)
+    return p.nome?.toLowerCase().includes(buscaPaciente.toLowerCase()) ||
+           (p.cpf || '').replace(/\D/g, '').includes(q)
   }).slice(0, 8)
 
   function selecionarPaciente(p) {
@@ -159,7 +169,6 @@ export default function Agenda() {
     setShowDropPaciente(false)
   }
 
-  // Filtra estagiários por nome ou código
   const estFiltrados = estagiarios.filter(e => {
     const q = buscaEstagiario.toLowerCase()
     return e.nome?.toLowerCase().includes(q) || e.codigo?.toLowerCase().includes(q)
@@ -172,50 +181,25 @@ export default function Agenda() {
     setShowDropEst(false)
   }
 
+  // ── Verificação final antes de salvar ────────────────────────────────────
   async function verificarConflitos() {
-    setConflitoEstagiario(null)
-    setConflitoPaciente(null)
-    setSalaOcupada(null)
-
+    setConflitoEstagiario(null); setConflitoPaciente(null); setSalaOcupada(null)
     if (!form.estagiario_id || !form.data || !form.hora) return false
 
-    // Conflito estagiário no horário
-    const { data: c1 } = await supabase
-      .from('consultas')
-      .select('id, paciente:pacientes(nome), data, hora')
-      .eq('medico_id', form.estagiario_id)
-      .eq('data', form.data)
-      .eq('hora', form.hora)
+    const { data: c1 } = await supabase.from('consultas')
+      .select('id,paciente:pacientes(nome),data,hora')
+      .eq('medico_id', form.estagiario_id).eq('data', form.data).eq('hora', form.hora)
       .not('status', 'in', '("cancelada","realizada")')
-    if (c1?.length > 0) {
-      setConflitoEstagiario({
-        paciente: c1[0].paciente?.nome || '—',
-        data: c1[0].data,
-        hora: c1[0].hora,
-      })
-      return true
-    }
+    if (c1?.length) { setConflitoEstagiario({ paciente: c1[0].paciente?.nome, data: c1[0].data, hora: c1[0].hora }); return true }
 
-    // Conflito paciente no horário
-    const { data: c2 } = await supabase
-      .from('consultas')
-      .select('id, data, hora')
-      .eq('paciente_id', form.paciente_id)
-      .eq('data', form.data)
-      .eq('hora', form.hora)
+    const { data: c2 } = await supabase.from('consultas')
+      .select('id,data,hora').eq('paciente_id', form.paciente_id).eq('data', form.data).eq('hora', form.hora)
       .not('status', 'in', '("cancelada","realizada")')
-    if (c2?.length > 0) {
-      setConflitoPaciente({ data: c2[0].data, hora: c2[0].hora })
-      return true
-    }
+    if (c2?.length) { setConflitoPaciente({ data: c2[0].data, hora: c2[0].hora }); return true }
 
-    // Sala ocupada
     if (form.sala_id) {
-      const ocu = ocupacaoSalas[form.sala_id]
-      if (ocu) {
-        setSalaOcupada({ ...ocu, data: form.data, hora: form.hora })
-        return true
-      }
+      const ocu = disponib10[form.data]?.[form.sala_id]
+      if (ocu) { setSalaOcupada({ ...ocu, data: form.data, hora: form.hora }); return true }
     }
     return false
   }
@@ -223,20 +207,14 @@ export default function Agenda() {
   async function handleAgendar() {
     setSaving(true)
     if (await verificarConflitos()) { setSaving(false); return }
-    // Admin e Coordenador confirmam direto; Estagiário vai para aprovação
-    const statusInicial = ['admin', 'coordenador'].includes(profile?.tipo) ? 'confirmada' : 'aguardando'
+    const statusInicial = ['admin','coordenador'].includes(profile?.tipo) ? 'confirmada' : 'aguardando'
     const { error } = await supabase.from('consultas').insert([{
       paciente_id: form.paciente_id, medico_id: form.estagiario_id,
       tipo: form.tipo, data: form.data, hora: form.hora,
       sala_id: form.sala_id || null, status: statusInicial, criado_por: profile.id,
     }])
     if (!error) {
-      setModal(false)
-      setConflitoEstagiario(null); setConflitoPaciente(null); setSalaOcupada(null)
-      setBuscaPaciente(''); setPacienteSelecionado(null)
-      setForm({ paciente_id: '', estagiario_id: profile?.tipo === 'estagiario' ? profile.id : '', tipo: 'Triagem', data: '', hora: '', sala_id: '' })
-      if (profile?.tipo !== 'estagiario') { setEstagiarioSelecionado(null); setBuscaEstagiario('') }
-      fetchConsultas()
+      fecharModal(); fetchConsultas()
       toast.success('Consulta agendada com sucesso!')
     } else toast.error('Erro: ' + error.message)
     setSaving(false)
@@ -253,7 +231,7 @@ export default function Agenda() {
     const { consulta, sala_nova_id, motivo } = modalTrocaSala
     await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo: 'troca_sala', sala_atual_id: consulta.sala_id || null, sala_nova_id: sala_nova_id || null, motivo: motivo || null }])
     await supabase.from('consultas').update({ status: 'troca_sala_pendente' }).eq('id', consulta.id)
-    setModalTrocaSala(null); fetchConsultas(); toast.success('Solicitação de troca de sala enviada!')
+    setModalTrocaSala(null); fetchConsultas(); toast.success('Solicitação enviada!')
   }
 
   function fecharModal() {
@@ -261,23 +239,29 @@ export default function Agenda() {
     setConflitoEstagiario(null); setConflitoPaciente(null); setSalaOcupada(null)
     setShowDropPaciente(false); setShowDropEst(false)
     setBuscaPaciente(''); setPacienteSelecionado(null)
-    setOcupacaoSalas({})
+    setDisponib10({})
+    setBaseDias(new Date().toISOString().split('T')[0])
     setForm({ paciente_id: '', estagiario_id: profile?.tipo === 'estagiario' ? profile.id : '', tipo: 'Triagem', data: '', hora: '', sala_id: '' })
     if (profile?.tipo !== 'estagiario') { setEstagiarioSelecionado(null); setBuscaEstagiario('') }
   }
 
-  const navData = d => { const dt = new Date(data + 'T12:00:00'); dt.setDate(dt.getDate() + d); setData(dt.toISOString().split('T')[0]) }
-  const tagClass = s => ({ confirmada: 'tag tg', aguardando: 'tag ta', cancelada: 'tag tr', realizada: 'tag tp', cancelamento_pendente: 'tag tr', reagendamento_pendente: 'tag ta', troca_sala_pendente: 'tag ta' }[s] || 'tag tp')
-  const tagLabel = s => ({ confirmada: 'Confirmada', aguardando: 'Aguardando', cancelada: 'Cancelada', realizada: 'Realizada', cancelamento_pendente: 'Cancel. pend.', reagendamento_pendente: 'Reagend. pend.', troca_sala_pendente: 'Troca sala pend.' }[s] || s)
-  const canApprove = ['admin', 'coordenador'].includes(profile?.tipo)
+  // ── Helpers de UI ─────────────────────────────────────────────────────────
+  const navData = d => {
+    const dt = new Date(dataAgenda + 'T12:00:00')
+    dt.setDate(dt.getDate() + d)
+    setDataAgenda(dt.toISOString().split('T')[0])
+  }
+  const tagClass = s => ({ confirmada:'tag tg', aguardando:'tag ta', cancelada:'tag tr', realizada:'tag tp', cancelamento_pendente:'tag tr', reagendamento_pendente:'tag ta', troca_sala_pendente:'tag ta' }[s] || 'tag tp')
+  const tagLabel = s => ({ confirmada:'Confirmada', aguardando:'Aguardando', cancelada:'Cancelada', realizada:'Realizada', cancelamento_pendente:'Cancel. pend.', reagendamento_pendente:'Reagend. pend.', troca_sala_pendente:'Troca sala pend.' }[s] || s)
+  const canApprove = ['admin','coordenador'].includes(profile?.tipo)
   const isEstagiario = profile?.tipo === 'estagiario'
 
   const filtered = consultas.filter(c => {
     const matchStatus = filtroStatus === 'todos' || c.status === filtroStatus
-    const matchSala = filtroSala === 'todos' || c.sala_id === filtroSala
-    const matchBusca = !busca ||
+    const matchSala   = filtroSala   === 'todos' || c.sala_id === filtroSala
+    const matchBusca  = !busca ||
       c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-      c.paciente?.cpf?.replace(/\D/g, '').includes(busca.replace(/\D/g, '')) ||
+      c.paciente?.cpf?.replace(/\D/g,'').includes(busca.replace(/\D/g,'')) ||
       c.estagiario?.nome?.toLowerCase().includes(busca.toLowerCase()) ||
       c.estagiario?.codigo?.toLowerCase().includes(busca.toLowerCase())
     return matchStatus && matchSala && matchBusca
@@ -285,7 +269,7 @@ export default function Agenda() {
 
   const dataLabel = viewMode === 'todos'
     ? 'Todas as consultas'
-    : new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+    : new Date(dataAgenda + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   const dropStyle = {
     position: 'absolute', top: '100%', left: 0, right: 0,
@@ -294,11 +278,13 @@ export default function Agenda() {
     boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
   }
 
-  // Índice da etapa atual no fluxo
-  const etapaIdx = ETAPAS_ATENDIMENTO.indexOf(form.tipo)
+  // Dias exibidos no picker
+  const dias10 = form.hora && form.sala_id ? gerarDias(baseDias, 10) : []
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="page">
+      {/* ── Cabeçalho ── */}
       <div className="page-header">
         <div>
           <h1>Agenda</h1>
@@ -312,15 +298,15 @@ export default function Agenda() {
           </div>
           {viewMode !== 'todos' && (<>
             <button className="btn-outline" onClick={() => navData(-1)}>← Anterior</button>
-            <button className="btn-outline" style={{ fontWeight: 700 }} onClick={() => setData(new Date().toISOString().split('T')[0])}>Hoje</button>
-            <input type="date" value={data} onChange={e => setData(e.target.value)} style={{ padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13 }} />
+            <button className="btn-outline" style={{ fontWeight: 700 }} onClick={() => setDataAgenda(new Date().toISOString().split('T')[0])}>Hoje</button>
+            <input type="date" value={dataAgenda} onChange={e => setDataAgenda(e.target.value)} style={{ padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13 }} />
             <button className="btn-outline" onClick={() => navData(1)}>Próximo →</button>
           </>)}
           <button className="btn-primary" onClick={() => setModal(true)}>+ Agendar</button>
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* ── Filtros ── */}
       <div className="card" style={{ padding: '14px 18px' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <input className="search-input" placeholder="🔍 Buscar paciente, CPF, estagiário ou código..." value={busca} onChange={e => setBusca(e.target.value)} style={{ width: 340 }} />
@@ -330,7 +316,6 @@ export default function Agenda() {
             <option value="confirmada">Confirmada</option>
             <option value="realizada">Realizada</option>
             <option value="cancelada">Cancelada</option>
-            <option value="troca_sala_pendente">Troca sala pend.</option>
           </select>
           <select value={filtroSala} onChange={e => setFiltroSala(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
             <option value="todos">Todas as salas</option>
@@ -343,7 +328,7 @@ export default function Agenda() {
         </div>
       </div>
 
-      {/* Tabela */}
+      {/* ── Tabela ── */}
       <div className="card">
         <div className="card-head"><h3>Consultas {viewMode === 'semana' ? 'da semana' : viewMode === 'todos' ? '— todas' : 'do dia'}</h3></div>
         <div className="card-body">
@@ -351,7 +336,7 @@ export default function Agenda() {
             <div className="empty">
               <span style={{ fontSize: 32 }}>📅</span>
               <span>Nenhuma consulta encontrada</span>
-              <button className="btn-primary" style={{ marginTop: 8 }} onClick={() => setModal(true)}>+ Agendar consulta</button>
+              <button className="btn-primary" style={{ marginTop: 8 }} onClick={() => setModal(true)}>+ Agendar</button>
             </div>
           ) : (
             <table className="tbl">
@@ -362,72 +347,62 @@ export default function Agenda() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(c => (
-                  <tr key={c.id}>
-                    {viewMode !== 'dia' && <td style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })}</td>}
-                    <td style={{ fontWeight: 700, color: 'var(--p)' }}>{c.hora?.slice(0, 5)}</td>
-                    <td><div className="td-user"><div className="av">{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>{c.paciente?.nome}</div></td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtCpf(c.paciente?.cpf) || '—'}</td>
-                    <td style={{ fontWeight: 500 }}>{c.estagiario?.nome || '—'}</td>
-                    <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
-                    <td>
-                      {/* Badge colorido por etapa */}
-                      {(() => {
-                        const colors = { Triagem: '#0891b2', Avaliação: '#7c3aed', Consulta: '#0047AB', 'Direcionamento Final': '#059669' }
-                        const bgs   = { Triagem: '#e0f7fa', Avaliação: '#f3e8ff', Consulta: '#eff6ff', 'Direcionamento Final': '#d1fae5' }
-                        return (
-                          <span style={{ background: bgs[c.tipo] || 'var(--p3)', color: colors[c.tipo] || 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
-                            {c.tipo || '—'}
-                          </span>
-                        )
-                      })()}
-                    </td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      {c.sala?.nome
-                        ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, display: 'inline-block' }}>{c.sala.nome}</span>
-                        : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}
-                    </td>
-                    <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {c.status === 'aguardando' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12 }} onClick={async () => { await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', c.id); fetchConsultas() }}>Confirmar</button>}
-                        {c.status === 'confirmada' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12, background: 'var(--p3)', color: 'var(--p)' }} onClick={async () => { await supabase.from('consultas').update({ status: 'realizada' }).eq('id', c.id); fetchConsultas() }}>Realizada</button>}
-                        {!['cancelada','realizada','cancelamento_pendente','reagendamento_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'reagendamento', nova_data: '', nova_hora: '', motivo: '' })}>Reagendar</button>}
-                        {!['cancelada','realizada','troca_sala_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setModalTrocaSala({ consulta: c, sala_nova_id: '', motivo: '' })}>Trocar sala</button>}
-                        {!['cancelada','realizada','cancelamento_pendente'].includes(c.status) && <button className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'cancelamento', nova_data: '', nova_hora: '', motivo: '' })}>Cancelar</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map(c => {
+                  const eIdx = ETAPAS_ATENDIMENTO.indexOf(c.tipo)
+                  return (
+                    <tr key={c.id}>
+                      {viewMode !== 'dia' && <td style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'})}</td>}
+                      <td style={{ fontWeight: 700, color: 'var(--p)' }}>{c.hora?.slice(0,5)}</td>
+                      <td><div className="td-user"><div className="av">{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>{c.paciente?.nome}</div></td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtCpf(c.paciente?.cpf) || '—'}</td>
+                      <td style={{ fontWeight: 500 }}>{c.estagiario?.nome || '—'}</td>
+                      <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                      <td>
+                        <span style={{ background: eIdx >= 0 ? ETAPA_BGS[eIdx] : 'var(--p3)', color: eIdx >= 0 ? ETAPA_COLORS[eIdx] : 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                          {eIdx >= 0 ? ETAPA_ICONS[eIdx] : ''} {c.tipo || '—'}
+                        </span>
+                      </td>
+                      <td>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, display: 'inline-block' }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                      <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {c.status === 'aguardando' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12 }} onClick={async () => { await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', c.id); fetchConsultas() }}>Confirmar</button>}
+                          {c.status === 'confirmada' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12, background: 'var(--p3)', color: 'var(--p)' }} onClick={async () => { await supabase.from('consultas').update({ status: 'realizada' }).eq('id', c.id); fetchConsultas() }}>Realizada</button>}
+                          {!['cancelada','realizada','cancelamento_pendente','reagendamento_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'reagendamento', nova_data: '', nova_hora: '', motivo: '' })}>Reagendar</button>}
+                          {!['cancelada','realizada','troca_sala_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setModalTrocaSala({ consulta: c, sala_nova_id: '', motivo: '' })}>Trocar sala</button>}
+                          {!['cancelada','realizada','cancelamento_pendente'].includes(c.status) && <button className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'cancelamento', nova_data: '', nova_hora: '', motivo: '' })}>Cancelar</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
         </div>
       </div>
 
-      {/* ══════════════ MODAL AGENDAR ══════════════ */}
+      {/* ══════════════════════════════════════════════════════════════
+          MODAL AGENDAR
+      ══════════════════════════════════════════════════════════════ */}
       {modal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) fecharModal() }}>
-          <div className="modal" style={{ maxWidth: 680 }}>
+          <div className="modal" style={{ maxWidth: 720 }}>
             <h2 style={{ marginBottom: 4 }}>Agendar Consulta</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Preencha os dados abaixo para registrar o atendimento</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Preencha os dados e selecione o dia disponível</p>
 
             <div className="form-grid">
 
-              {/* ── Busca Paciente ── */}
+              {/* ── Paciente ── */}
               <div className="fld" style={{ position: 'relative', gridColumn: '1/-1' }}>
                 <label>Paciente * <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 11 }}>— busque por CPF ou nome</span></label>
-                <input
-                  value={buscaPaciente}
+                <input value={buscaPaciente}
                   onChange={e => { setBuscaPaciente(e.target.value); setShowDropPaciente(true); setPacienteSelecionado(null); setForm(f => ({ ...f, paciente_id: '' })) }}
                   onFocus={() => setShowDropPaciente(true)}
-                  placeholder="Digite o CPF (ex: 123.456.789-00) ou nome"
-                />
+                  placeholder="CPF (123.456.789-00) ou nome" />
                 {pacienteSelecionado && (
                   <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--p3)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--p)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                      {pacienteSelecionado.nome?.slice(0,2).toUpperCase()}
-                    </div>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--p)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{pacienteSelecionado.nome?.slice(0,2).toUpperCase()}</div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--p)' }}>{pacienteSelecionado.nome}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>CPF: {fmtCpf(pacienteSelecionado.cpf) || '—'}</div>
@@ -436,9 +411,9 @@ export default function Agenda() {
                       style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 18 }}>×</button>
                   </div>
                 )}
-                {showDropPaciente && !pacienteSelecionado && pacientesFiltrados.length > 0 && (
+                {showDropPaciente && !pacienteSelecionado && pacsFiltrados.length > 0 && (
                   <div style={dropStyle}>
-                    {pacientesFiltrados.map(p => (
+                    {pacsFiltrados.map(p => (
                       <div key={p.id} onClick={() => selecionarPaciente(p)}
                         style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
                         onMouseOver={ev => ev.currentTarget.style.background = 'var(--p3)'}
@@ -449,22 +424,20 @@ export default function Agenda() {
                     ))}
                   </div>
                 )}
-                {showDropPaciente && !pacienteSelecionado && buscaPaciente.length >= 2 && pacientesFiltrados.length === 0 && (
+                {showDropPaciente && !pacienteSelecionado && buscaPaciente.length >= 2 && pacsFiltrados.length === 0 && (
                   <div style={{ ...dropStyle, padding: '12px 14px', fontSize: 13, color: 'var(--muted)' }}>Nenhum paciente encontrado.</div>
                 )}
               </div>
 
-              {/* ── Busca Estagiário ── */}
+              {/* ── Estagiário ── */}
               <div className="fld" style={{ position: 'relative' }}>
                 <label>Estagiário * {isEstagiario && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(você)</span>}</label>
-                <input
-                  value={buscaEstagiario}
+                <input value={buscaEstagiario}
                   onChange={e => { setBuscaEstagiario(e.target.value); setShowDropEst(true); setEstagiarioSelecionado(null); setForm(f => ({ ...f, estagiario_id: '' })) }}
                   onFocus={() => setShowDropEst(true)}
                   placeholder="Nome ou código (ex: EST01)"
                   disabled={isEstagiario}
-                  style={{ opacity: isEstagiario ? 0.7 : 1 }}
-                />
+                  style={{ opacity: isEstagiario ? 0.7 : 1 }} />
                 {showDropEst && !isEstagiario && estFiltrados.length > 0 && (
                   <div style={dropStyle}>
                     {estFiltrados.map(e => (
@@ -480,143 +453,58 @@ export default function Agenda() {
                 )}
               </div>
 
-              {/* ── Data e Hora ── */}
-              <div className="fld">
-                <label>Data *</label>
-                <input type="date" value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value, sala_id: '' }))} />
-              </div>
+              {/* ── Horário ── */}
               <div className="fld">
                 <label>Horário *</label>
-                <input type="time" value={form.hora} onChange={e => setForm(f => ({ ...f, hora: e.target.value, sala_id: '' }))} />
+                <input type="time" value={form.hora}
+                  onChange={e => setForm(f => ({ ...f, hora: e.target.value, data: '', sala_id: '' }))} />
               </div>
 
-              {/* ── Etapas do Atendimento ── */}
+              {/* ── Etapa ── */}
               <div className="fld" style={{ gridColumn: '1/-1' }}>
                 <label>Etapa do atendimento *</label>
                 <div style={{ display: 'flex', gap: 0, borderRadius: 10, overflow: 'hidden', border: '1.5px solid var(--border)', marginTop: 6 }}>
                   {ETAPAS_ATENDIMENTO.map((etapa, idx) => {
                     const ativo = form.tipo === etapa
-                    const colors = ['#0891b2', '#7c3aed', '#0047AB', '#059669']
-                    const bgs   = ['#e0f7fa', '#f3e8ff', '#eff6ff', '#d1fae5']
                     return (
-                      <button
-                        key={etapa}
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, tipo: etapa }))}
+                      <button key={etapa} type="button" onClick={() => setForm(f => ({ ...f, tipo: etapa }))}
                         style={{
-                          flex: 1, padding: '10px 8px', border: 'none', cursor: 'pointer',
-                          fontFamily: 'inherit', fontSize: 12, fontWeight: ativo ? 700 : 500,
-                          background: ativo ? colors[idx] : '#fff',
+                          flex: 1, padding: '10px 8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                          fontSize: 12, fontWeight: ativo ? 700 : 500,
+                          background: ativo ? ETAPA_COLORS[idx] : '#fff',
                           color: ativo ? '#fff' : '#64748b',
                           borderRight: idx < 3 ? '1px solid var(--border)' : 'none',
                           transition: 'all .15s',
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                        }}
-                      >
-                        <span style={{ fontSize: 16 }}>{['🔍','📋','🩺','🎯'][idx]}</span>
+                        }}>
+                        <span style={{ fontSize: 16 }}>{ETAPA_ICONS[idx]}</span>
                         <span>{etapa}</span>
-                        {ativo && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.7)', display: 'block' }} />}
                       </button>
                     )
                   })}
                 </div>
-                {/* Descrição da etapa */}
-                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                  {form.tipo === 'Triagem' && '🔍 Primeiro contato: identificação do motivo da consulta e encaminhamento.'}
-                  {form.tipo === 'Avaliação' && '📋 Avaliação aprofundada do quadro clínico do paciente.'}
-                  {form.tipo === 'Consulta' && '🩺 Sessão de atendimento padrão com o estagiário.'}
-                  {form.tipo === 'Direcionamento Final' && '🎯 Encerramento do ciclo e direcionamento para próximos passos.'}
-                </p>
               </div>
 
-              {/* ── Seleção de Sala com Ocupação Visual ── */}
+              {/* ── Sala ── */}
               <div className="fld" style={{ gridColumn: '1/-1' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  Sala
-                  {loadingOcupacao && <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Verificando disponibilidade...</span>}
-                  {!loadingOcupacao && form.data && form.hora && (
-                    <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>
-                      Disponibilidade em {fmtData(form.data)} às {fmtHora(form.hora)}
-                    </span>
-                  )}
-                </label>
-
-                {(!form.data || !form.hora) ? (
-                  <p style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 0' }}>
-                    ℹ️ Preencha a data e o horário para ver a disponibilidade das salas.
-                  </p>
+                <label>Sala *</label>
+                {!form.hora ? (
+                  <p style={{ fontSize: 12, color: 'var(--muted)', paddingTop: 4 }}>ℹ️ Preencha o horário primeiro para ver as salas.</p>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginTop: 6 }}>
-                    {/* Opção: sem sala */}
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, sala_id: '' }))}
-                      style={{
-                        padding: '12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-                        border: form.sala_id === '' ? '2px solid var(--p)' : '1.5px solid var(--border)',
-                        background: form.sala_id === '' ? 'var(--p3)' : '#fff',
-                        textAlign: 'left', transition: 'all .15s',
-                      }}
-                    >
-                      <div style={{ fontSize: 12, fontWeight: 600, color: form.sala_id === '' ? 'var(--p)' : 'var(--muted)' }}>Sem sala</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Definir depois</div>
-                    </button>
-
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                     {salas.map(s => {
-                      const ocupante = ocupacaoSalas[s.id]
-                      const ocupada = !!ocupante
-                      const selecionada = form.sala_id === s.id
+                      const sel = form.sala_id === s.id
                       return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => !ocupada && setForm(f => ({ ...f, sala_id: s.id }))}
+                        <button key={s.id} type="button" onClick={() => setForm(f => ({ ...f, sala_id: s.id, data: '' }))}
                           style={{
-                            padding: '12px', borderRadius: 10, fontFamily: 'inherit',
-                            cursor: ocupada ? 'not-allowed' : 'pointer',
-                            border: selecionada
-                              ? '2px solid var(--p)'
-                              : ocupada
-                              ? '1.5px solid #FECACA'
-                              : '1.5px solid var(--border)',
-                            background: selecionada
-                              ? 'var(--p3)'
-                              : ocupada
-                              ? '#FEF2F2'
-                              : '#fff',
-                            textAlign: 'left', transition: 'all .15s',
-                            opacity: ocupada && !selecionada ? 0.9 : 1,
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: selecionada ? 'var(--p)' : ocupada ? '#b91c1c' : 'var(--text)' }}>
-                              🚪 {s.nome}
-                            </span>
-                            {selecionada && <span style={{ fontSize: 12, color: 'var(--p)' }}>✓</span>}
-                            {ocupada && <span style={{ fontSize: 16 }}>🔴</span>}
-                            {!ocupada && !selecionada && <span style={{ fontSize: 16 }}>🟢</span>}
-                          </div>
-
-                          {ocupada ? (
-                            /* ── Bloco de ocupação detalhado ── */
-                            <div style={{ fontSize: 11, lineHeight: 1.5 }}>
-                              <div style={{ color: '#b91c1c', fontWeight: 600, marginBottom: 2 }}>Ocupada</div>
-                              <div style={{ color: '#6b7280' }}>
-                                <span style={{ fontWeight: 600, color: '#374151' }}>👤 {ocupante.paciente}</span>
-                              </div>
-                              <div style={{ color: '#6b7280' }}>
-                                <span style={{ fontWeight: 600, color: '#374151' }}>
-                                  {ocupante.codigo ? `${ocupante.codigo} – ` : ''}{ocupante.estagiario}
-                                </span>
-                              </div>
-                              <div style={{ color: '#9ca3af', marginTop: 3, display: 'flex', gap: 6 }}>
-                                <span>📅 {fmtData(form.data)}</span>
-                                <span>⏰ {fmtHora(ocupante.hora)}</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Disponível</div>
-                          )}
+                            padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+                            fontSize: 13, fontWeight: sel ? 700 : 500,
+                            border: sel ? '2px solid var(--p)' : '1.5px solid var(--border)',
+                            background: sel ? 'var(--p3)' : '#fff',
+                            color: sel ? 'var(--p)' : 'var(--text)',
+                            transition: 'all .15s',
+                          }}>
+                          🚪 {s.nome}
                         </button>
                       )
                     })}
@@ -624,75 +512,177 @@ export default function Agenda() {
                 )}
               </div>
 
+              {/* ── Picker de 10 dias ── */}
+              {form.hora && form.sala_id && (
+                <div className="fld" style={{ gridColumn: '1/-1' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <label style={{ marginBottom: 0 }}>
+                      📅 Selecione o dia *
+                      {form.data && <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--p)', fontWeight: 700 }}>→ {fmtData(form.data)}</span>}
+                    </label>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {loadingDias && <span style={{ fontSize: 11, color: 'var(--muted)' }}>Carregando...</span>}
+                      <button type="button" className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }}
+                        onClick={() => {
+                          const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() - 10)
+                          setBaseDias(d.toISOString().split('T')[0])
+                        }}>← 10 dias</button>
+                      <button type="button" className="btn-outline" style={{ padding: '4px 10px', fontSize: 12, fontWeight: 700 }}
+                        onClick={() => setBaseDias(new Date().toISOString().split('T')[0])}>Hoje</button>
+                      <button type="button" className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }}
+                        onClick={() => {
+                          const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() + 10)
+                          setBaseDias(d.toISOString().split('T')[0])
+                        }}>+10 dias →</button>
+                    </div>
+                  </div>
+
+                  {/* Grade dos 10 dias */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                    {dias10.map(dia => {
+                      const ocupante  = disponib10[dia]?.[form.sala_id]
+                      const ocupada   = !!ocupante
+                      const selecionado = form.data === dia
+                      const hoje      = new Date().toISOString().split('T')[0]
+                      const passado   = dia < hoje
+                      const dtObj     = new Date(dia + 'T12:00:00')
+                      const semana    = dtObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.','')
+                      const diaN      = dtObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      const isSabDom  = [0,6].includes(dtObj.getDay())
+
+                      return (
+                        <button key={dia} type="button"
+                          disabled={ocupada || passado}
+                          onClick={() => setForm(f => ({ ...f, data: dia }))}
+                          style={{
+                            borderRadius: 12, padding: '10px 8px', border: 'none', cursor: ocupada || passado ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit', textAlign: 'center', transition: 'all .15s',
+                            background: selecionado ? 'var(--p)' : ocupada ? '#FEF2F2' : passado ? '#f8fafc' : isSabDom ? '#fafaf0' : '#fff',
+                            border: selecionado ? '2px solid var(--p)' : ocupada ? '1.5px solid #FECACA' : '1.5px solid var(--border)',
+                            opacity: passado && !selecionado ? 0.45 : 1,
+                            boxShadow: selecionado ? '0 2px 10px rgba(0,71,171,0.25)' : 'none',
+                          }}>
+                          {/* Dia da semana */}
+                          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5,
+                            color: selecionado ? 'rgba(255,255,255,0.8)' : isSabDom ? '#f59e0b' : 'var(--muted)', marginBottom: 2 }}>
+                            {semana}
+                          </div>
+                          {/* Data */}
+                          <div style={{ fontSize: 14, fontWeight: 800,
+                            color: selecionado ? '#fff' : ocupada ? '#b91c1c' : passado ? '#cbd5e1' : 'var(--text)' }}>
+                            {diaN}
+                          </div>
+                          {/* Status */}
+                          <div style={{ fontSize: 10, marginTop: 4, fontWeight: 600,
+                            color: selecionado ? 'rgba(255,255,255,0.9)' : ocupada ? '#dc2626' : passado ? '#cbd5e1' : '#16a34a' }}>
+                            {selecionado ? '✓ Selecionado' : ocupada ? '🔴 Ocupado' : passado ? 'Passado' : '🟢 Livre'}
+                          </div>
+                          {/* Quem ocupa */}
+                          {ocupada && !selecionado && (
+                            <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 3, lineHeight: 1.4 }}>
+                              {ocupante.paciente}<br />
+                              {ocupante.codigo ? `${ocupante.codigo} – ` : ''}{ocupante.estagiario}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Alerta se nenhum dia livre nos 10 dias */}
+                  {!loadingDias && dias10.every(d => disponib10[d]?.[form.sala_id] || d < new Date().toISOString().split('T')[0]) && (
+                    <div style={{ marginTop: 10, padding: '10px 14px', background: '#FFFBEB', borderRadius: 8, border: '1px solid #FDE68A', fontSize: 12, color: '#92400E' }}>
+                      ⚠️ Nenhum dia disponível neste período. Navegue para os próximos dias ou escolha outra sala.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* ── Alertas de conflito detalhados ── */}
+            {/* ── Resumo do agendamento ── */}
+            {form.data && form.hora && form.sala_id && (
+              <div style={{ margin: '16px 0', padding: '14px 18px', background: 'var(--p3)', borderRadius: 12, border: '1.5px solid var(--p)', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 20 }}>📅</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>Data</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{fmtData(form.data)}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 20 }}>⏰</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>Horário</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{fmtHora(form.hora)}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 20 }}>🚪</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>Sala</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{salas.find(s => s.id === form.sala_id)?.nome || '—'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 20 }}>{ETAPA_ICONS[ETAPAS_ATENDIMENTO.indexOf(form.tipo)] || '🩺'}</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>Etapa</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--p)' }}>{form.tipo}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Conflitos ── */}
             {conflitoEstagiario && (
-              <div style={{ display: 'flex', gap: 12, background: '#FEF2F2', padding: '14px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 12 }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+              <div style={{ display: 'flex', gap: 12, background: '#FEF2F2', padding: '14px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 8 }}>
+                <span style={{ fontSize: 22 }}>⚠️</span>
                 <div style={{ fontSize: 13 }}>
-                  <p style={{ fontWeight: 700, color: '#991B1B', margin: '0 0 4px' }}>Conflito de horário — Estagiário</p>
-                  <p style={{ color: '#7f1d1d', margin: 0 }}>
-                    <strong>{estagiarioSelecionado?.nome || 'Este estagiário'}</strong> já tem consulta com{' '}
-                    <strong>{conflitoEstagiario.paciente}</strong> neste horário.
-                  </p>
-                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
-                    📅 {fmtData(conflitoEstagiario.data)} às {fmtHora(conflitoEstagiario.hora)}
-                  </p>
+                  <p style={{ fontWeight: 700, color: '#991B1B', margin: '0 0 4px' }}>Conflito — Estagiário ocupado</p>
+                  <p style={{ color: '#7f1d1d', margin: 0 }}><strong>{estagiarioSelecionado?.nome}</strong> já tem consulta com <strong>{conflitoEstagiario.paciente}</strong>.</p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>📅 {fmtData(conflitoEstagiario.data)} ⏰ {fmtHora(conflitoEstagiario.hora)}</p>
                 </div>
               </div>
             )}
             {conflitoPaciente && (
-              <div style={{ display: 'flex', gap: 12, background: '#FEF2F2', padding: '14px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 12 }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+              <div style={{ display: 'flex', gap: 12, background: '#FEF2F2', padding: '14px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 8 }}>
+                <span style={{ fontSize: 22 }}>⚠️</span>
                 <div style={{ fontSize: 13 }}>
-                  <p style={{ fontWeight: 700, color: '#991B1B', margin: '0 0 4px' }}>Conflito de horário — Paciente</p>
-                  <p style={{ color: '#7f1d1d', margin: 0 }}>
-                    <strong>{pacienteSelecionado?.nome || 'Este paciente'}</strong> já tem consulta agendada neste horário.
-                  </p>
-                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
-                    📅 {fmtData(conflitoPaciente.data)} às {fmtHora(conflitoPaciente.hora)}
-                  </p>
+                  <p style={{ fontWeight: 700, color: '#991B1B', margin: '0 0 4px' }}>Conflito — Paciente já agendado</p>
+                  <p style={{ color: '#7f1d1d', margin: 0 }}><strong>{pacienteSelecionado?.nome}</strong> já tem consulta neste horário.</p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>📅 {fmtData(conflitoPaciente.data)} ⏰ {fmtHora(conflitoPaciente.hora)}</p>
                 </div>
               </div>
             )}
             {salaOcupada && (
-              <div style={{ display: 'flex', gap: 12, background: '#FFFBEB', padding: '14px 16px', borderRadius: 10, border: '1px solid #FDE68A', marginTop: 12 }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>🚪</span>
+              <div style={{ display: 'flex', gap: 12, background: '#FFFBEB', padding: '14px 16px', borderRadius: 10, border: '1px solid #FDE68A', marginTop: 8 }}>
+                <span style={{ fontSize: 22 }}>🚪</span>
                 <div style={{ fontSize: 13 }}>
-                  <p style={{ fontWeight: 700, color: '#92400E', margin: '0 0 4px' }}>Sala já reservada</p>
-                  <p style={{ color: '#78350f', margin: 0 }}>
-                    Sala ocupada por <strong>{salaOcupada.paciente}</strong> com{' '}
-                    <strong>{salaOcupada.codigo ? `${salaOcupada.codigo} – ` : ''}{salaOcupada.estagiario}</strong>.
-                  </p>
-                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
-                    📅 {fmtData(salaOcupada.data)} às {fmtHora(salaOcupada.hora)}
-                  </p>
+                  <p style={{ fontWeight: 700, color: '#92400E', margin: '0 0 4px' }}>Sala ocupada neste dia</p>
+                  <p style={{ color: '#78350f', margin: 0 }}><strong>{salaOcupada.paciente}</strong> com <strong>{salaOcupada.codigo ? `${salaOcupada.codigo} – ` : ''}{salaOcupada.estagiario}</strong>.</p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>📅 {fmtData(salaOcupada.data)} ⏰ {fmtHora(salaOcupada.hora)}</p>
                 </div>
               </div>
             )}
 
             <div className="modal-btns">
               <button className="btn-outline" onClick={fecharModal}>Cancelar</button>
-              <button
-                className="btn-primary"
-                onClick={handleAgendar}
-                disabled={saving || !form.paciente_id || !form.estagiario_id || !form.data || !form.hora}
-              >
-                {saving ? 'Verificando...' : `Confirmar — ${form.tipo}`}
+              <button className="btn-primary" onClick={handleAgendar}
+                disabled={saving || !form.paciente_id || !form.estagiario_id || !form.data || !form.hora || !form.sala_id}>
+                {saving ? 'Verificando...' : `Confirmar — ${form.tipo} · ${fmtData(form.data)}`}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ══════════════ MODAL REAGENDAMENTO / CANCELAMENTO ══════════════ */}
+      {/* ══════ MODAL REAGENDAMENTO/CANCELAMENTO ══════ */}
       {modalSolic && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalSolic(null)}>
           <div className="modal">
             <h2>{modalSolic.tipo === 'cancelamento' ? 'Solicitar Cancelamento' : 'Solicitar Reagendamento'}</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.estagiario?.nome}</p>
-            <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>⚠️ Requer aprovação do administrador ou supervisor.</div>
+            <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>⚠️ Requer aprovação do administrador.</div>
             <div className="form-grid">
               {modalSolic.tipo === 'reagendamento' && (<>
                 <div className="fld"><label>Nova data</label><input type="date" value={modalSolic.nova_data} onChange={e => setModalSolic({ ...modalSolic, nova_data: e.target.value })} /></div>
@@ -708,13 +698,13 @@ export default function Agenda() {
         </div>
       )}
 
-      {/* ══════════════ MODAL TROCA DE SALA ══════════════ */}
+      {/* ══════ MODAL TROCA DE SALA ══════ */}
       {modalTrocaSala && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalTrocaSala(null)}>
           <div className="modal">
             <h2>Solicitar Troca de Sala</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>Paciente: <strong>{modalTrocaSala.consulta.paciente?.nome}</strong>{modalTrocaSala.consulta.sala?.nome && ` · Sala atual: ${modalTrocaSala.consulta.sala.nome}`}</p>
-            <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>⚠️ Requer aprovação do administrador ou supervisor.</div>
+            <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>⚠️ Requer aprovação do administrador.</div>
             <div className="form-grid">
               <div className="fld"><label>Nova sala *</label>
                 <select value={modalTrocaSala.sala_nova_id} onChange={e => setModalTrocaSala({ ...modalTrocaSala, sala_nova_id: e.target.value })}>
