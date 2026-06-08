@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import './Pages.css'
+
+// Etapas do fluxo de atendimento
+const ETAPAS_ATENDIMENTO = ['Triagem', 'Avaliação', 'Consulta', 'Direcionamento Final']
 
 export default function Agenda() {
   const { profile } = useAuth()
@@ -16,8 +19,11 @@ export default function Agenda() {
   const [modal, setModal] = useState(false)
   const [modalSolic, setModalSolic] = useState(null)
   const [modalTrocaSala, setModalTrocaSala] = useState(null)
-  const [conflito, setConflito] = useState(null)
-  const [salaOcupada, setSalaOcupada] = useState(null)
+
+  // Conflitos detalhados
+  const [conflitoEstagiario, setConflitoEstagiario] = useState(null)   // { paciente, data, hora }
+  const [conflitoPaciente, setConflitoPaciente] = useState(null)        // { data, hora }
+  const [salaOcupada, setSalaOcupada] = useState(null)                  // { paciente, estagiario, data, hora }
 
   // Busca paciente por CPF
   const [buscaPaciente, setBuscaPaciente] = useState('')
@@ -29,16 +35,62 @@ export default function Agenda() {
   const [estagiarioSelecionado, setEstagiarioSelecionado] = useState(null)
   const [showDropEst, setShowDropEst] = useState(false)
 
-  const [form, setForm] = useState({ paciente_id: '', estagiario_id: '', tipo: 'Psicoterapia', data: '', hora: '', sala_id: '' })
+  const [form, setForm] = useState({
+    paciente_id: '', estagiario_id: '',
+    tipo: 'Triagem', data: '', hora: '', sala_id: ''
+  })
   const [saving, setSaving] = useState(false)
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [filtroSala, setFiltroSala] = useState('todos')
   const [busca, setBusca] = useState('')
   const [viewMode, setViewMode] = useState('dia')
 
+  // Ocupação de salas para o modal (carregada automaticamente quando data+hora mudam)
+  const [ocupacaoSalas, setOcupacaoSalas] = useState({}) // { sala_id: { paciente, estagiario, hora, data } }
+  const [loadingOcupacao, setLoadingOcupacao] = useState(false)
+
   useEffect(() => { fetchConsultas() }, [data, viewMode])
   useEffect(() => { fetchSelects() }, [])
-  useEffect(() => { setConflito(null); setSalaOcupada(null) }, [form.estagiario_id, form.paciente_id, form.data, form.hora, form.sala_id])
+
+  // Limpa conflitos quando campos mudam
+  useEffect(() => {
+    setConflitoEstagiario(null)
+    setConflitoPaciente(null)
+    setSalaOcupada(null)
+  }, [form.estagiario_id, form.paciente_id, form.data, form.hora, form.sala_id])
+
+  // Carrega ocupação das salas em tempo real quando data + hora são preenchidos
+  useEffect(() => {
+    if (form.data && form.hora) {
+      carregarOcupacaoSalas(form.data, form.hora)
+    } else {
+      setOcupacaoSalas({})
+    }
+  }, [form.data, form.hora])
+
+  async function carregarOcupacaoSalas(dataVal, horaVal) {
+    setLoadingOcupacao(true)
+    const { data: rows } = await supabase
+      .from('consultas')
+      .select('sala_id, paciente:pacientes(nome), estagiario:profiles(nome, codigo), data, hora')
+      .eq('data', dataVal)
+      .eq('hora', horaVal)
+      .not('status', 'in', '("cancelada","realizada")')
+      .not('sala_id', 'is', null)
+
+    const mapa = {}
+    ;(rows || []).forEach(c => {
+      if (c.sala_id) mapa[c.sala_id] = {
+        paciente: c.paciente?.nome || '—',
+        estagiario: c.estagiario?.nome || '—',
+        codigo: c.estagiario?.codigo || '',
+        data: c.data,
+        hora: c.hora,
+      }
+    })
+    setOcupacaoSalas(mapa)
+    setLoadingOcupacao(false)
+  }
 
   async function fetchConsultas() {
     setLoading(true)
@@ -77,11 +129,20 @@ export default function Agenda() {
     }
   }
 
-  // Formata CPF para exibição
   function fmtCpf(cpf) {
     if (!cpf) return ''
     const d = cpf.replace(/\D/g, '')
     return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+  }
+
+  function fmtData(d) {
+    if (!d) return '—'
+    return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  function fmtHora(h) {
+    if (!h) return '—'
+    return h.slice(0, 5)
   }
 
   // Filtra pacientes por CPF ou nome
@@ -112,32 +173,71 @@ export default function Agenda() {
   }
 
   async function verificarConflitos() {
+    setConflitoEstagiario(null)
+    setConflitoPaciente(null)
+    setSalaOcupada(null)
+
     if (!form.estagiario_id || !form.data || !form.hora) return false
-    const { data: c1 } = await supabase.from('consultas').select('id, paciente:pacientes(nome)').eq('medico_id', form.estagiario_id).eq('data', form.data).eq('hora', form.hora).not('status', 'in', '("cancelada","realizada")')
-    if (c1?.length > 0) { setConflito(`Conflito: ${c1[0].paciente?.nome} já está agendado neste horário com este estagiário.`); return true }
-    const { data: c2 } = await supabase.from('consultas').select('id').eq('paciente_id', form.paciente_id).eq('data', form.data).eq('hora', form.hora).not('status', 'in', '("cancelada","realizada")')
-    if (c2?.length > 0) { setConflito('Conflito: este paciente já tem consulta neste horário.'); return true }
+
+    // Conflito estagiário no horário
+    const { data: c1 } = await supabase
+      .from('consultas')
+      .select('id, paciente:pacientes(nome), data, hora')
+      .eq('medico_id', form.estagiario_id)
+      .eq('data', form.data)
+      .eq('hora', form.hora)
+      .not('status', 'in', '("cancelada","realizada")')
+    if (c1?.length > 0) {
+      setConflitoEstagiario({
+        paciente: c1[0].paciente?.nome || '—',
+        data: c1[0].data,
+        hora: c1[0].hora,
+      })
+      return true
+    }
+
+    // Conflito paciente no horário
+    const { data: c2 } = await supabase
+      .from('consultas')
+      .select('id, data, hora')
+      .eq('paciente_id', form.paciente_id)
+      .eq('data', form.data)
+      .eq('hora', form.hora)
+      .not('status', 'in', '("cancelada","realizada")')
+    if (c2?.length > 0) {
+      setConflitoPaciente({ data: c2[0].data, hora: c2[0].hora })
+      return true
+    }
+
+    // Sala ocupada
     if (form.sala_id) {
-      const { data: c3 } = await supabase.from('consultas').select('id, paciente:pacientes(nome), estagiario:profiles(nome)').eq('sala_id', form.sala_id).eq('data', form.data).eq('hora', form.hora).not('status', 'in', '("cancelada","realizada")')
-      if (c3?.length > 0) { setSalaOcupada(`Sala ocupada: ${c3[0].paciente?.nome} com ${c3[0].estagiario?.nome} neste horário.`); return true }
+      const ocu = ocupacaoSalas[form.sala_id]
+      if (ocu) {
+        setSalaOcupada({ ...ocu, data: form.data, hora: form.hora })
+        return true
+      }
     }
     return false
   }
 
   async function handleAgendar() {
-    setSaving(true); setConflito(null); setSalaOcupada(null)
+    setSaving(true)
     if (await verificarConflitos()) { setSaving(false); return }
+    // Admin e Coordenador confirmam direto; Estagiário vai para aprovação
+    const statusInicial = ['admin', 'coordenador'].includes(profile?.tipo) ? 'confirmada' : 'aguardando'
     const { error } = await supabase.from('consultas').insert([{
       paciente_id: form.paciente_id, medico_id: form.estagiario_id,
       tipo: form.tipo, data: form.data, hora: form.hora,
-      sala_id: form.sala_id || null, status: 'aguardando', criado_por: profile.id,
+      sala_id: form.sala_id || null, status: statusInicial, criado_por: profile.id,
     }])
     if (!error) {
-      setModal(false); setConflito(null); setSalaOcupada(null)
+      setModal(false)
+      setConflitoEstagiario(null); setConflitoPaciente(null); setSalaOcupada(null)
       setBuscaPaciente(''); setPacienteSelecionado(null)
-      setForm({ paciente_id: '', estagiario_id: profile?.tipo === 'estagiario' ? profile.id : '', tipo: 'Psicoterapia', data: '', hora: '', sala_id: '' })
+      setForm({ paciente_id: '', estagiario_id: profile?.tipo === 'estagiario' ? profile.id : '', tipo: 'Triagem', data: '', hora: '', sala_id: '' })
       if (profile?.tipo !== 'estagiario') { setEstagiarioSelecionado(null); setBuscaEstagiario('') }
       fetchConsultas()
+      toast.success('Consulta agendada com sucesso!')
     } else toast.error('Erro: ' + error.message)
     setSaving(false)
   }
@@ -146,7 +246,7 @@ export default function Agenda() {
     const { consulta, tipo, nova_data, nova_hora, motivo } = modalSolic
     await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo, nova_data: nova_data || null, nova_hora: nova_hora || null, motivo: motivo || null }])
     await supabase.from('consultas').update({ status: tipo === 'cancelamento' ? 'cancelamento_pendente' : 'reagendamento_pendente' }).eq('id', consulta.id)
-    setModalSolic(null); fetchConsultas(); toast.success('Solicitação enviada para aprovação!')
+    setModalSolic(null); fetchConsultas(); toast.success('Solicitação enviada!')
   }
 
   async function handleTrocaSala() {
@@ -154,6 +254,16 @@ export default function Agenda() {
     await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo: 'troca_sala', sala_atual_id: consulta.sala_id || null, sala_nova_id: sala_nova_id || null, motivo: motivo || null }])
     await supabase.from('consultas').update({ status: 'troca_sala_pendente' }).eq('id', consulta.id)
     setModalTrocaSala(null); fetchConsultas(); toast.success('Solicitação de troca de sala enviada!')
+  }
+
+  function fecharModal() {
+    setModal(false)
+    setConflitoEstagiario(null); setConflitoPaciente(null); setSalaOcupada(null)
+    setShowDropPaciente(false); setShowDropEst(false)
+    setBuscaPaciente(''); setPacienteSelecionado(null)
+    setOcupacaoSalas({})
+    setForm({ paciente_id: '', estagiario_id: profile?.tipo === 'estagiario' ? profile.id : '', tipo: 'Triagem', data: '', hora: '', sala_id: '' })
+    if (profile?.tipo !== 'estagiario') { setEstagiarioSelecionado(null); setBuscaEstagiario('') }
   }
 
   const navData = d => { const dt = new Date(data + 'T12:00:00'); dt.setDate(dt.getDate() + d); setData(dt.toISOString().split('T')[0]) }
@@ -165,18 +275,35 @@ export default function Agenda() {
   const filtered = consultas.filter(c => {
     const matchStatus = filtroStatus === 'todos' || c.status === filtroStatus
     const matchSala = filtroSala === 'todos' || c.sala_id === filtroSala
-    const matchBusca = !busca || c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) || c.paciente?.cpf?.replace(/\D/g,'').includes(busca.replace(/\D/g,'')) || c.estagiario?.nome?.toLowerCase().includes(busca.toLowerCase()) || c.estagiario?.codigo?.toLowerCase().includes(busca.toLowerCase())
+    const matchBusca = !busca ||
+      c.paciente?.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+      c.paciente?.cpf?.replace(/\D/g, '').includes(busca.replace(/\D/g, '')) ||
+      c.estagiario?.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+      c.estagiario?.codigo?.toLowerCase().includes(busca.toLowerCase())
     return matchStatus && matchSala && matchBusca
   })
 
-  const dataLabel = viewMode === 'todos' ? 'Todas as consultas' : new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const dataLabel = viewMode === 'todos'
+    ? 'Todas as consultas'
+    : new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
-  const dropStyle = { position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 8, zIndex: 100, maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }
+  const dropStyle = {
+    position: 'absolute', top: '100%', left: 0, right: 0,
+    background: '#fff', border: '1.5px solid var(--border)',
+    borderRadius: 8, zIndex: 100, maxHeight: 220, overflowY: 'auto',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+  }
+
+  // Índice da etapa atual no fluxo
+  const etapaIdx = ETAPAS_ATENDIMENTO.indexOf(form.tipo)
 
   return (
     <div className="page">
       <div className="page-header">
-        <div><h1>Agenda</h1><p className="page-sub">{filtered.length} consulta(s) · {dataLabel}</p></div>
+        <div>
+          <h1>Agenda</h1>
+          <p className="page-sub">{filtered.length} consulta(s) · {dataLabel}</p>
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             {[['dia','Dia'],['semana','Semana'],['todos','Todos']].map(([m,l]) => (
@@ -193,9 +320,10 @@ export default function Agenda() {
         </div>
       </div>
 
+      {/* Filtros */}
       <div className="card" style={{ padding: '14px 18px' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="search-input" placeholder="🔍 Buscar paciente, CPF, estagiário ou código EST..." value={busca} onChange={e => setBusca(e.target.value)} style={{ width: 340 }} />
+          <input className="search-input" placeholder="🔍 Buscar paciente, CPF, estagiário ou código..." value={busca} onChange={e => setBusca(e.target.value)} style={{ width: 340 }} />
           <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
             <option value="todos">Todos os status</option>
             <option value="aguardando">Aguardando</option>
@@ -215,15 +343,22 @@ export default function Agenda() {
         </div>
       </div>
 
+      {/* Tabela */}
       <div className="card">
         <div className="card-head"><h3>Consultas {viewMode === 'semana' ? 'da semana' : viewMode === 'todos' ? '— todas' : 'do dia'}</h3></div>
         <div className="card-body">
-          {loading ? <div className="empty">Carregando...</div> : filtered.length === 0 ? <div className="empty">Nenhuma consulta encontrada.</div> : (
+          {loading ? <div className="empty">Carregando...</div> : filtered.length === 0 ? (
+            <div className="empty">
+              <span style={{ fontSize: 32 }}>📅</span>
+              <span>Nenhuma consulta encontrada</span>
+              <button className="btn-primary" style={{ marginTop: 8 }} onClick={() => setModal(true)}>+ Agendar consulta</button>
+            </div>
+          ) : (
             <table className="tbl">
               <thead>
                 <tr>
                   {viewMode !== 'dia' && <th>Data</th>}
-                  <th>Horário</th><th>Paciente</th><th>CPF</th><th>Estagiário</th><th>Código</th><th>Tipo</th><th>Sala</th><th>Status</th><th>Ações</th>
+                  <th>Horário</th><th>Paciente</th><th>CPF</th><th>Estagiário</th><th>Código</th><th>Etapa</th><th>Sala</th><th>Status</th><th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -235,8 +370,23 @@ export default function Agenda() {
                     <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtCpf(c.paciente?.cpf) || '—'}</td>
                     <td style={{ fontWeight: 500 }}>{c.estagiario?.nome || '—'}</td>
                     <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
-                    <td style={{ fontSize: 12 }}>{c.tipo}</td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, whiteSpace: 'nowrap', display: 'inline-block' }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
+                    <td>
+                      {/* Badge colorido por etapa */}
+                      {(() => {
+                        const colors = { Triagem: '#0891b2', Avaliação: '#7c3aed', Consulta: '#0047AB', 'Direcionamento Final': '#059669' }
+                        const bgs   = { Triagem: '#e0f7fa', Avaliação: '#f3e8ff', Consulta: '#eff6ff', 'Direcionamento Final': '#d1fae5' }
+                        return (
+                          <span style={{ background: bgs[c.tipo] || 'var(--p3)', color: colors[c.tipo] || 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+                            {c.tipo || '—'}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      {c.sala?.nome
+                        ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, display: 'inline-block' }}>{c.sala.nome}</span>
+                        : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}
+                    </td>
                     <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -255,14 +405,16 @@ export default function Agenda() {
         </div>
       </div>
 
-      {/* Modal agendar */}
+      {/* ══════════════ MODAL AGENDAR ══════════════ */}
       {modal && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setModal(false); setShowDropPaciente(false); setShowDropEst(false) } }}>
-          <div className="modal" style={{ maxWidth: 640 }}>
-            <h2>Agendar Consulta</h2>
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) fecharModal() }}>
+          <div className="modal" style={{ maxWidth: 680 }}>
+            <h2 style={{ marginBottom: 4 }}>Agendar Consulta</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Preencha os dados abaixo para registrar o atendimento</p>
+
             <div className="form-grid">
 
-              {/* Busca paciente por CPF */}
+              {/* ── Busca Paciente ── */}
               <div className="fld" style={{ position: 'relative', gridColumn: '1/-1' }}>
                 <label>Paciente * <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 11 }}>— busque por CPF ou nome</span></label>
                 <input
@@ -271,7 +423,6 @@ export default function Agenda() {
                   onFocus={() => setShowDropPaciente(true)}
                   placeholder="Digite o CPF (ex: 123.456.789-00) ou nome"
                 />
-                {/* Card do paciente selecionado */}
                 {pacienteSelecionado && (
                   <div style={{ marginTop: 8, padding: '10px 14px', background: 'var(--p3)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--p)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
@@ -285,7 +436,6 @@ export default function Agenda() {
                       style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 18 }}>×</button>
                   </div>
                 )}
-                {/* Dropdown resultados */}
                 {showDropPaciente && !pacienteSelecionado && pacientesFiltrados.length > 0 && (
                   <div style={dropStyle}>
                     {pacientesFiltrados.map(p => (
@@ -304,10 +454,11 @@ export default function Agenda() {
                 )}
               </div>
 
-              {/* Busca estagiário */}
+              {/* ── Busca Estagiário ── */}
               <div className="fld" style={{ position: 'relative' }}>
                 <label>Estagiário * {isEstagiario && <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(você)</span>}</label>
-                <input value={buscaEstagiario}
+                <input
+                  value={buscaEstagiario}
                   onChange={e => { setBuscaEstagiario(e.target.value); setShowDropEst(true); setEstagiarioSelecionado(null); setForm(f => ({ ...f, estagiario_id: '' })) }}
                   onFocus={() => setShowDropEst(true)}
                   placeholder="Nome ou código (ex: EST01)"
@@ -329,33 +480,213 @@ export default function Agenda() {
                 )}
               </div>
 
-              <div className="fld"><label>Tipo</label>
-                <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}>
-                  {['Psicoterapia','Avaliação Psicológica','Consulta Psiquiátrica','Neuropsicologia','Psicologia Infantil'].map(t => <option key={t}>{t}</option>)}
-                </select>
+              {/* ── Data e Hora ── */}
+              <div className="fld">
+                <label>Data *</label>
+                <input type="date" value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value, sala_id: '' }))} />
               </div>
-              <div className="fld"><label>Sala</label>
-                <select value={form.sala_id} onChange={e => setForm({ ...form, sala_id: e.target.value })}>
-                  <option value="">Selecionar sala...</option>
-                  {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                </select>
+              <div className="fld">
+                <label>Horário *</label>
+                <input type="time" value={form.hora} onChange={e => setForm(f => ({ ...f, hora: e.target.value, sala_id: '' }))} />
               </div>
-              <div className="fld"><label>Data *</label><input type="date" value={form.data} onChange={e => setForm({ ...form, data: e.target.value })} /></div>
-              <div className="fld"><label>Horário *</label><input type="time" value={form.hora} onChange={e => setForm({ ...form, hora: e.target.value })} /></div>
+
+              {/* ── Etapas do Atendimento ── */}
+              <div className="fld" style={{ gridColumn: '1/-1' }}>
+                <label>Etapa do atendimento *</label>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 10, overflow: 'hidden', border: '1.5px solid var(--border)', marginTop: 6 }}>
+                  {ETAPAS_ATENDIMENTO.map((etapa, idx) => {
+                    const ativo = form.tipo === etapa
+                    const colors = ['#0891b2', '#7c3aed', '#0047AB', '#059669']
+                    const bgs   = ['#e0f7fa', '#f3e8ff', '#eff6ff', '#d1fae5']
+                    return (
+                      <button
+                        key={etapa}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, tipo: etapa }))}
+                        style={{
+                          flex: 1, padding: '10px 8px', border: 'none', cursor: 'pointer',
+                          fontFamily: 'inherit', fontSize: 12, fontWeight: ativo ? 700 : 500,
+                          background: ativo ? colors[idx] : '#fff',
+                          color: ativo ? '#fff' : '#64748b',
+                          borderRight: idx < 3 ? '1px solid var(--border)' : 'none',
+                          transition: 'all .15s',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 16 }}>{['🔍','📋','🩺','🎯'][idx]}</span>
+                        <span>{etapa}</span>
+                        {ativo && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.7)', display: 'block' }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Descrição da etapa */}
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                  {form.tipo === 'Triagem' && '🔍 Primeiro contato: identificação do motivo da consulta e encaminhamento.'}
+                  {form.tipo === 'Avaliação' && '📋 Avaliação aprofundada do quadro clínico do paciente.'}
+                  {form.tipo === 'Consulta' && '🩺 Sessão de atendimento padrão com o estagiário.'}
+                  {form.tipo === 'Direcionamento Final' && '🎯 Encerramento do ciclo e direcionamento para próximos passos.'}
+                </p>
+              </div>
+
+              {/* ── Seleção de Sala com Ocupação Visual ── */}
+              <div className="fld" style={{ gridColumn: '1/-1' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Sala
+                  {loadingOcupacao && <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Verificando disponibilidade...</span>}
+                  {!loadingOcupacao && form.data && form.hora && (
+                    <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>
+                      Disponibilidade em {fmtData(form.data)} às {fmtHora(form.hora)}
+                    </span>
+                  )}
+                </label>
+
+                {(!form.data || !form.hora) ? (
+                  <p style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 0' }}>
+                    ℹ️ Preencha a data e o horário para ver a disponibilidade das salas.
+                  </p>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, marginTop: 6 }}>
+                    {/* Opção: sem sala */}
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, sala_id: '' }))}
+                      style={{
+                        padding: '12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+                        border: form.sala_id === '' ? '2px solid var(--p)' : '1.5px solid var(--border)',
+                        background: form.sala_id === '' ? 'var(--p3)' : '#fff',
+                        textAlign: 'left', transition: 'all .15s',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 600, color: form.sala_id === '' ? 'var(--p)' : 'var(--muted)' }}>Sem sala</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Definir depois</div>
+                    </button>
+
+                    {salas.map(s => {
+                      const ocupante = ocupacaoSalas[s.id]
+                      const ocupada = !!ocupante
+                      const selecionada = form.sala_id === s.id
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => !ocupada && setForm(f => ({ ...f, sala_id: s.id }))}
+                          style={{
+                            padding: '12px', borderRadius: 10, fontFamily: 'inherit',
+                            cursor: ocupada ? 'not-allowed' : 'pointer',
+                            border: selecionada
+                              ? '2px solid var(--p)'
+                              : ocupada
+                              ? '1.5px solid #FECACA'
+                              : '1.5px solid var(--border)',
+                            background: selecionada
+                              ? 'var(--p3)'
+                              : ocupada
+                              ? '#FEF2F2'
+                              : '#fff',
+                            textAlign: 'left', transition: 'all .15s',
+                            opacity: ocupada && !selecionada ? 0.9 : 1,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: selecionada ? 'var(--p)' : ocupada ? '#b91c1c' : 'var(--text)' }}>
+                              🚪 {s.nome}
+                            </span>
+                            {selecionada && <span style={{ fontSize: 12, color: 'var(--p)' }}>✓</span>}
+                            {ocupada && <span style={{ fontSize: 16 }}>🔴</span>}
+                            {!ocupada && !selecionada && <span style={{ fontSize: 16 }}>🟢</span>}
+                          </div>
+
+                          {ocupada ? (
+                            /* ── Bloco de ocupação detalhado ── */
+                            <div style={{ fontSize: 11, lineHeight: 1.5 }}>
+                              <div style={{ color: '#b91c1c', fontWeight: 600, marginBottom: 2 }}>Ocupada</div>
+                              <div style={{ color: '#6b7280' }}>
+                                <span style={{ fontWeight: 600, color: '#374151' }}>👤 {ocupante.paciente}</span>
+                              </div>
+                              <div style={{ color: '#6b7280' }}>
+                                <span style={{ fontWeight: 600, color: '#374151' }}>
+                                  {ocupante.codigo ? `${ocupante.codigo} – ` : ''}{ocupante.estagiario}
+                                </span>
+                              </div>
+                              <div style={{ color: '#9ca3af', marginTop: 3, display: 'flex', gap: 6 }}>
+                                <span>📅 {fmtData(form.data)}</span>
+                                <span>⏰ {fmtHora(ocupante.hora)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 500 }}>Disponível</div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
             </div>
 
-            {conflito && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, backgroundColor: '#FEF2F2', padding: '12px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 4 }}><span style={{ fontSize: 18 }}>⚠️</span><p style={{ fontSize: 13, color: '#991B1B', fontWeight: 500 }}>{conflito}</p></div>}
-            {salaOcupada && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, backgroundColor: '#FFFBEB', padding: '12px 16px', borderRadius: 10, border: '1px solid #FDE68A', marginTop: 4 }}><span style={{ fontSize: 18 }}>🚪</span><p style={{ fontSize: 13, color: '#92400E', fontWeight: 500 }}>{salaOcupada}</p></div>}
+            {/* ── Alertas de conflito detalhados ── */}
+            {conflitoEstagiario && (
+              <div style={{ display: 'flex', gap: 12, background: '#FEF2F2', padding: '14px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 12 }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+                <div style={{ fontSize: 13 }}>
+                  <p style={{ fontWeight: 700, color: '#991B1B', margin: '0 0 4px' }}>Conflito de horário — Estagiário</p>
+                  <p style={{ color: '#7f1d1d', margin: 0 }}>
+                    <strong>{estagiarioSelecionado?.nome || 'Este estagiário'}</strong> já tem consulta com{' '}
+                    <strong>{conflitoEstagiario.paciente}</strong> neste horário.
+                  </p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
+                    📅 {fmtData(conflitoEstagiario.data)} às {fmtHora(conflitoEstagiario.hora)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {conflitoPaciente && (
+              <div style={{ display: 'flex', gap: 12, background: '#FEF2F2', padding: '14px 16px', borderRadius: 10, border: '1px solid #FECACA', marginTop: 12 }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+                <div style={{ fontSize: 13 }}>
+                  <p style={{ fontWeight: 700, color: '#991B1B', margin: '0 0 4px' }}>Conflito de horário — Paciente</p>
+                  <p style={{ color: '#7f1d1d', margin: 0 }}>
+                    <strong>{pacienteSelecionado?.nome || 'Este paciente'}</strong> já tem consulta agendada neste horário.
+                  </p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
+                    📅 {fmtData(conflitoPaciente.data)} às {fmtHora(conflitoPaciente.hora)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {salaOcupada && (
+              <div style={{ display: 'flex', gap: 12, background: '#FFFBEB', padding: '14px 16px', borderRadius: 10, border: '1px solid #FDE68A', marginTop: 12 }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>🚪</span>
+                <div style={{ fontSize: 13 }}>
+                  <p style={{ fontWeight: 700, color: '#92400E', margin: '0 0 4px' }}>Sala já reservada</p>
+                  <p style={{ color: '#78350f', margin: 0 }}>
+                    Sala ocupada por <strong>{salaOcupada.paciente}</strong> com{' '}
+                    <strong>{salaOcupada.codigo ? `${salaOcupada.codigo} – ` : ''}{salaOcupada.estagiario}</strong>.
+                  </p>
+                  <p style={{ color: '#9ca3af', fontSize: 11, margin: '4px 0 0' }}>
+                    📅 {fmtData(salaOcupada.data)} às {fmtHora(salaOcupada.hora)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="modal-btns">
-              <button className="btn-outline" onClick={() => { setModal(false); setConflito(null); setSalaOcupada(null); setShowDropPaciente(false); setShowDropEst(false) }}>Cancelar</button>
-              <button className="btn-primary" onClick={handleAgendar} disabled={saving || !form.paciente_id || !form.estagiario_id || !form.data || !form.hora}>{saving ? 'Verificando...' : 'Confirmar agendamento'}</button>
+              <button className="btn-outline" onClick={fecharModal}>Cancelar</button>
+              <button
+                className="btn-primary"
+                onClick={handleAgendar}
+                disabled={saving || !form.paciente_id || !form.estagiario_id || !form.data || !form.hora}
+              >
+                {saving ? 'Verificando...' : `Confirmar — ${form.tipo}`}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal reagendamento/cancelamento */}
+      {/* ══════════════ MODAL REAGENDAMENTO / CANCELAMENTO ══════════════ */}
       {modalSolic && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalSolic(null)}>
           <div className="modal">
@@ -377,7 +708,7 @@ export default function Agenda() {
         </div>
       )}
 
-      {/* Modal troca de sala */}
+      {/* ══════════════ MODAL TROCA DE SALA ══════════════ */}
       {modalTrocaSala && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalTrocaSala(null)}>
           <div className="modal">
