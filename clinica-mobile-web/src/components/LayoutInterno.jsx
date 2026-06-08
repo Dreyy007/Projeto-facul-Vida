@@ -96,11 +96,11 @@ export default function LayoutInterno() {
         <>
           <div onClick={() => setMenuAberto(false)}
             style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-          <div className="mais-menu" style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: 12, background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, overflow: 'hidden', minWidth: 200 }}>
+          <div className="mais-menu" style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: 12, background: 'var(--card)', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.35)', zIndex: 50, overflow: 'hidden', minWidth: 200, border: '1px solid var(--border)' }}>
             {itensVisiveis.map(item => (
               <div key={item.to}
                 onClick={() => { navigate(item.to); setMenuAberto(false) }}
-                style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', fontSize: 14, fontWeight: 600, color: location.pathname.startsWith(item.to) ? '#0047AB' : '#0D1B2A', background: location.pathname.startsWith(item.to) ? '#EFF6FF' : '#fff', cursor: 'pointer', borderBottom: '1px solid #F3F4F6' }}>
+                style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', fontSize: 14, fontWeight: 600, color: location.pathname.startsWith(item.to) ? 'var(--p)' : 'var(--text)', background: location.pathname.startsWith(item.to) ? 'var(--p3)' : 'transparent', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
                 {item.label}
               </div>
             ))}

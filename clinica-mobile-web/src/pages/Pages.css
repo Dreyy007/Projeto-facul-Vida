@@ -69,17 +69,12 @@
 .stat-card:has(.stat-num.warn)  { border-top-color: var(--warn); }
 .stat-card:has(.stat-num.red)   { border-top-color: var(--danger); }
 
-/* Dark mode: mais contraste nos cards */
-body[data-theme="escuro"] .stat-card {
-  background: #181c2e;
-  border-color: #2a3050;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
-}
-
+/* Dark mode iOS: cards elevados */
+body[data-theme="escuro"] .stat-card,
 body[data-theme="escuro"] .card {
-  background: #181c2e;
-  border-color: #2a3050;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
 
 .stat-label {
@@ -632,10 +627,10 @@ body[data-theme="escuro"] .card {
 
   .page-header .btn-outline:hover { border-color: #fff; color: #fff; }
 
-  /* Tema escuro */
+  /* Tema escuro — gradiente iOS azul */
   body[data-theme="escuro"] .page-header {
-    background: linear-gradient(135deg, #312e81 0%, #4338CA 55%, #6d28d9 100%);
-    box-shadow: 0 4px 24px rgba(99,66,210,0.35);
+    background: linear-gradient(135deg, #0A84FF 0%, #0071E3 100%);
+    box-shadow: 0 4px 20px rgba(10,132,255,0.3);
   }
 
   .stats-grid {

@@ -22,23 +22,23 @@ body, body[data-theme="claro"] {
   --r: 12px;
 }
 
-/* ===== TEMA ESCURO ===== */
+/* ===== TEMA ESCURO (iOS-style) ===== */
 body[data-theme="escuro"] {
-  --bg: #0A0C18;
-  --card: #131726;
-  --text: #F0F4FF;
-  --muted: #8896B3;
-  --border: #232840;
-  --p: #818CF8;
-  --p2: #6366F1;
-  --p3: rgba(129,140,248,.18);
-  --p4: rgba(129,140,248,.28);
-  --danger: #FC8181;
-  --dbg: rgba(252,129,129,.12);
-  --success: #6EE7B7;
-  --sbg: rgba(110,231,183,.12);
-  --warn: #FCD34D;
-  --wbg: rgba(252,211,77,.12);
+  --bg: #1C1C1E;
+  --card: #2C2C2E;
+  --text: #FFFFFF;
+  --muted: rgba(235,235,245,0.55);
+  --border: rgba(84,84,88,0.55);
+  --p: #0A84FF;
+  --p2: #0071E3;
+  --p3: rgba(10,132,255,0.15);
+  --p4: rgba(10,132,255,0.25);
+  --danger: #FF453A;
+  --dbg: rgba(255,69,58,0.15);
+  --success: #30D158;
+  --sbg: rgba(48,209,88,0.15);
+  --warn: #FFD60A;
+  --wbg: rgba(255,214,10,0.15);
   --r: 12px;
 }
 
