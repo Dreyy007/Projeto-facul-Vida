@@ -861,6 +861,9 @@ body[data-theme="escuro"] .card {
     scrollbar-width: none;
     padding: 8px !important;
     gap: 4px;
+    /* fade no lado direito indica mais itens */
+    -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
+    mask-image: linear-gradient(to right, black 80%, transparent 100%);
   }
 
   .cfg-menu::-webkit-scrollbar { display: none; }
@@ -877,6 +880,8 @@ body[data-theme="escuro"] .card {
   .cfg-menu-item.cfg-menu-active {
     border-left: none !important;
     border-radius: 20px !important;
+    background: var(--p) !important;
+    color: #fff !important;
   }
 
   .escala-grade {

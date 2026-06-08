@@ -199,6 +199,7 @@ async function handleLogout() {
   const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const temEspecialidade = ['estagiario', 'medico', 'coordenador'].includes(profile?.tipo)
 
+  // 'sair' removido dos tabs — vira botão separado abaixo dos chips
   const menuItens = [
     ['perfil', '👤 Meu perfil'],
     ['senha', '🔒 Alterar senha'],
@@ -209,7 +210,6 @@ async function handleLogout() {
       ['consultas', '📋 Tipos de consulta'],
       ['salas', '🚪 Salas'],
       ['escalas', '📅 Escalas'],
-      ['sair', '🚪 Sair da conta'],
     ] : []),
   ]
 
@@ -224,13 +224,20 @@ async function handleLogout() {
 
       <div className="cfg-grid">
 
-        {/* Menu lateral */}
-        <div className="card cfg-menu">
-          {menuItens.map(([k, l]) => (
-            <div key={k} onClick={() => setAba(k)} className={`cfg-menu-item${aba === k ? ' cfg-menu-active' : ''}`}>
-              {l}
-            </div>
-          ))}
+        {/* Menu lateral + botão Sair separado */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="card cfg-menu">
+            {menuItens.map(([k, l]) => (
+              <div key={k} onClick={() => setAba(k)} className={`cfg-menu-item${aba === k ? ' cfg-menu-active' : ''}`}>
+                {l}
+              </div>
+            ))}
+          </div>
+          {/* Botão Sair sempre visível fora dos chips */}
+          <button onClick={handleLogout}
+            style={{ width: '100%', padding: '10px 16px', background: 'var(--dbg)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 10, fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', touchAction: 'manipulation' }}>
+            🚪 Sair da conta
+          </button>
         </div>
 
         {/* Conteúdo */}
