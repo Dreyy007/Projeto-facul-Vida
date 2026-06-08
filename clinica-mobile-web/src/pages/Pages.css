@@ -854,6 +854,12 @@ body[data-theme="escuro"] .card {
     grid-template-columns: 1fr;
   }
 
+  /* Sair desktop: some nos chips */
+  .cfg-sair-desktop { display: none !important; }
+
+  /* Sair mobile: aparece abaixo do grid */
+  .cfg-sair-mobile { display: block !important; }
+
   .cfg-menu {
     display: flex !important;
     flex-direction: row !important;
@@ -862,8 +868,8 @@ body[data-theme="escuro"] .card {
     padding: 8px !important;
     gap: 4px;
     /* fade no lado direito indica mais itens */
-    -webkit-mask-image: linear-gradient(to right, black 80%, transparent 100%);
-    mask-image: linear-gradient(to right, black 80%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 82%, transparent 100%);
+    mask-image: linear-gradient(to right, black 82%, transparent 100%);
   }
 
   .cfg-menu::-webkit-scrollbar { display: none; }

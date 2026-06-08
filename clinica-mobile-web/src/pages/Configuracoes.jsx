@@ -224,20 +224,18 @@ async function handleLogout() {
 
       <div className="cfg-grid">
 
-        {/* Menu lateral + botão Sair separado */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div className="card cfg-menu">
-            {menuItens.map(([k, l]) => (
-              <div key={k} onClick={() => setAba(k)} className={`cfg-menu-item${aba === k ? ' cfg-menu-active' : ''}`}>
-                {l}
-              </div>
-            ))}
-          </div>
-          {/* Botão Sair sempre visível fora dos chips */}
-          <button onClick={handleLogout}
-            style={{ width: '100%', padding: '10px 16px', background: 'var(--dbg)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 10, fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', touchAction: 'manipulation' }}>
+        {/* Menu lateral */}
+        <div className="card cfg-menu">
+          {menuItens.map(([k, l]) => (
+            <div key={k} onClick={() => setAba(k)} className={`cfg-menu-item${aba === k ? ' cfg-menu-active' : ''}`}>
+              {l}
+            </div>
+          ))}
+          {/* Sair no desktop — fica dentro do sidebar */}
+          <div className="cfg-menu-item cfg-sair-desktop" onClick={handleLogout}
+            style={{ color: 'var(--danger)', borderTop: '1px solid var(--border)', marginTop: 4 }}>
             🚪 Sair da conta
-          </button>
+          </div>
         </div>
 
         {/* Conteúdo */}
@@ -600,25 +598,11 @@ async function handleLogout() {
           </div>
         </div>
       )}
-      {/* Sair da conta */}
-{aba === 'sair' && (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-    <div>
-      <h3 style={{ fontFamily: 'Playfair Display,serif', fontSize: 18, marginBottom: 4 }}>Sair da conta</h3>
-      <p style={{ fontSize: 13, color: 'var(--muted)' }}>Você será desconectado do sistema</p>
-    </div>
-    <div style={{ background: 'var(--dbg)', borderRadius: 10, padding: '16px 18px', fontSize: 13, color: 'var(--danger)' }}>
-      ⚠️ Ao sair, você precisará fazer login novamente para acessar o painel.
-    </div>
-    <div>
-      <button className="btn-danger" onClick={handleLogout} style={{ padding: '12px 24px', fontSize: 14 }}>
-        Sair da conta
+      {/* Botão Sair — mobile only, abaixo do grid */}
+      <button className="cfg-sair-mobile btn-danger" onClick={handleLogout}
+        style={{ width: '100%', padding: '13px', fontSize: 14, fontWeight: 600, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', display: 'none' }}>
+        🚪 Sair da conta
       </button>
-    </div>
-  </div>
-)}
     </div>
   )
 }
-
-    
