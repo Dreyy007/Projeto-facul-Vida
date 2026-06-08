@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { useDebounce } from '../hooks/useDebounce'
 import './Pages.css'
 
 const categorias = ['Exame de Sangue', 'Psicologia', 'Cardiologia', 'Neuropsicologia', 'Imagem', 'Outro']
@@ -16,6 +17,7 @@ export default function Resultados() {
   const [modal, setModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const searchDebounced = useDebounce(search, 280)
   const [filtroCat, setFiltroCat] = useState('todos')
   const [form, setForm] = useState({ paciente_id: '', nome: '', categoria: 'Exame de Sangue', conteudo: '' })
   const [arquivo, setArquivo] = useState(null)
@@ -128,7 +130,7 @@ export default function Resultados() {
   }
 
   const filtered = resultados.filter(r => {
-    const matchSearch = !search || r.nome.toLowerCase().includes(search.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !searchDebounced || r.nome.toLowerCase().includes(searchDebounced.toLowerCase()) || r.paciente?.nome?.toLowerCase().includes(searchDebounced.toLowerCase())
     const matchCat = filtroCat === 'todos' || r.categoria === filtroCat
     return matchSearch && matchCat
   })
@@ -297,7 +299,7 @@ export default function Resultados() {
             <div className="modal-btns">
               <button className="btn-outline" onClick={() => { setModal(false); setArquivo(null) }}>Cancelar</button>
               <button className="btn-primary" onClick={handleSalvar} disabled={saving || !form.paciente_id || !form.nome}>
-                {saving ? 'Salvando...' : 'Liberar resultado'}
+                {saving ? <><span className="spinner"/>Salvando...</> : 'Liberar resultado'}
               </button>
             </div>
           </div>

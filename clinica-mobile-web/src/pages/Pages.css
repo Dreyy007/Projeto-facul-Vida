@@ -129,10 +129,14 @@
 .card-body { padding: 0 18px; }
 
 .empty {
-  padding: 24px 0;
+  padding: 32px 16px;
   font-size: 13px;
   color: var(--muted);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ===== TABLE ===== */
@@ -352,6 +356,39 @@
 }
 .btn-primary:hover { background: var(--p2); }
 .btn-primary:active { transform: scale(0.96); }
+.btn-primary:has(.spinner) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* ===== SPINNER ===== */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner-muted {
+  border-color: rgba(0,0,0,0.15);
+  border-top-color: var(--muted);
+}
+
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  opacity: 0.85;
+}
 
 .btn-outline {
   background: none;

@@ -96,7 +96,7 @@ export default function LayoutInterno() {
         <>
           <div onClick={() => setMenuAberto(false)}
             style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-          <div style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: 12, background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, overflow: 'hidden', minWidth: 200 }}>
+          <div className="mais-menu" style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', right: 12, background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50, overflow: 'hidden', minWidth: 200 }}>
             {itensVisiveis.map(item => (
               <div key={item.to}
                 onClick={() => { navigate(item.to); setMenuAberto(false) }}

@@ -340,7 +340,7 @@ export default function PacienteDetalhe() {
             </div>
             <div className="modal-btns">
               <button className="btn-outline" onClick={() => { setModalResultado(false); setArquivo(null) }}>Cancelar</button>
-              <button className="btn-primary" onClick={salvarResultado} disabled={savingRes || !formRes.nome}>{savingRes ? 'Salvando...' : 'Salvar resultado'}</button>
+              <button className="btn-primary" onClick={salvarResultado} disabled={savingRes || !formRes.nome}>{savingRes ? <><span className="spinner"/>Salvando...</> : 'Salvar resultado'}</button>
             </div>
           </div>
         </div>
@@ -361,7 +361,7 @@ export default function PacienteDetalhe() {
             </div>
             <div className="modal-btns">
               <button className="btn-outline" onClick={() => setModalLaudo(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={salvarLaudo} disabled={savingRes || !formLaudo.nome || !formLaudo.conteudo}>{savingRes ? 'Salvando...' : 'Salvar laudo'}</button>
+              <button className="btn-primary" onClick={salvarLaudo} disabled={savingRes || !formLaudo.nome || !formLaudo.conteudo}>{savingRes ? <><span className="spinner"/>Salvando...</> : 'Salvar laudo'}</button>
             </div>
           </div>
         </div>
@@ -390,7 +390,7 @@ export default function PacienteDetalhe() {
             <div className="modal-btns">
               <button className="btn-outline" onClick={() => setEditando(false)}>Cancelar</button>
               <button className="btn-primary" onClick={handleSave} disabled={saving || !form.nome || !form.email}>
-                {saving ? 'Salvando...' : 'Salvar'}
+                {saving ? <><span className="spinner"/>Salvando...</> : 'Salvar'}
               </button>
             </div>
           </div>

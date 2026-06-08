@@ -263,7 +263,7 @@ async function handleLogout() {
                 </>)}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn-primary" onClick={salvarPerfil} disabled={saving || !formPerfil.nome}>{saving ? 'Salvando...' : 'Salvar perfil'}</button>
+                <button className="btn-primary" onClick={salvarPerfil} disabled={saving || !formPerfil.nome}>{saving ? <><span className="spinner"/>Salvando...</> : 'Salvar perfil'}</button>
               </div>
             </div>
           )}
@@ -588,7 +588,7 @@ async function handleLogout() {
 
             <div className="modal-btns">
               <button className="btn-outline" onClick={() => setModalEscala(null)}>Cancelar</button>
-              <button className="btn-primary" onClick={salvarEscala} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+              <button className="btn-primary" onClick={salvarEscala} disabled={saving}>{saving ? <><span className="spinner"/>Salvando...</> : 'Salvar'}</button>
             </div>
           </div>
         </div>

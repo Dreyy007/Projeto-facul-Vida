@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { useDebounce } from '../hooks/useDebounce'
 import './Pages.css'
 
 export default function Pacientes() {
@@ -13,6 +14,7 @@ export default function Pacientes() {
   const [medicos, setMedicos] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const searchDebounced = useDebounce(search, 280)
   const [filtro, setFiltro] = useState('todos')
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({
@@ -74,11 +76,11 @@ export default function Pacientes() {
   }
 
   const filtered = pacientes.filter(p => {
-    const buscaCpf = search.replace(/\D/g, '')
+    const buscaCpf = searchDebounced.replace(/\D/g, '')
     const matchSearch =
-      !search ||
-      p.nome?.toLowerCase().includes(search.toLowerCase()) ||
-      p.email?.toLowerCase().includes(search.toLowerCase()) ||
+      !searchDebounced ||
+      p.nome?.toLowerCase().includes(searchDebounced.toLowerCase()) ||
+      p.email?.toLowerCase().includes(searchDebounced.toLowerCase()) ||
       (buscaCpf.length >= 3 && p.cpf?.replace(/\D/g, '').includes(buscaCpf))
     const matchFiltro =
       filtro === 'todos' ||
@@ -162,8 +164,19 @@ export default function Pacientes() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>
-                    Nenhum paciente encontrado.
+                  <td colSpan={6}>
+                    <div style={{ textAlign: 'center', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 36 }}>👥</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 14 }}>
+                        {search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        {search ? `Sem resultados para "${search}"` : 'Cadastre o primeiro paciente da clínica'}
+                      </span>
+                      {!search && (
+                        <button className="btn-primary" style={{ marginTop: 4 }} onClick={() => setModal(true)}>+ Novo paciente</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -220,7 +233,7 @@ export default function Pacientes() {
                 onClick={handleSave}
                 disabled={saving || !form.nome || !form.email}
               >
-                {saving ? 'Salvando...' : 'Salvar paciente'}
+                {saving ? <><span className="spinner"/>Salvando...</> : 'Salvar paciente'}
               </button>
             </div>
           </div>
