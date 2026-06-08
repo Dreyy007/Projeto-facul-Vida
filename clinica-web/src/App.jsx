@@ -28,6 +28,15 @@ function PublicRoute({ children }) {
   return !user ? children : <Navigate to="/dashboard" replace />
 }
 
+function AdminRoute({ children }) {
+  const { user, profile, loading } = useAuth()
+  if (loading) return null
+  if (!user) return <Navigate to="/login" replace />
+  if (profile && !['admin', 'coordenador'].includes(profile.tipo))
+    return <Navigate to="/dashboard" replace />
+  return children
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -45,8 +54,8 @@ export default function App() {
             <Route path="consultas" element={<Consultas />} />
             <Route path="aprovacoes" element={<Aprovacoes />} />
             <Route path="chat" element={<Chat />} />
-            <Route path="usuarios" element={<Usuarios />} />
-            <Route path="relatorios" element={<Relatorios />} />
+            <Route path="usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
+            <Route path="relatorios" element={<AdminRoute><Relatorios /></AdminRoute>} />
             <Route path="configuracoes" element={<Configuracoes />} />
             <Route path="resultados" element={<Resultados />} />
           </Route>

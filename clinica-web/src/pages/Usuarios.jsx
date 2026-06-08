@@ -33,7 +33,11 @@ export default function Usuarios() {
   const [showSenha, setShowSenha] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchUsuarios() }, [])
+  useEffect(() => {
+    if (!profile) return
+    if (!['admin', 'coordenador'].includes(profile.tipo)) return
+    fetchUsuarios()
+  }, [profile])
 
   async function fetchUsuarios() {
     const { data } = await supabase.from('profiles').select('*').order('nome')
@@ -93,6 +97,7 @@ export default function Usuarios() {
   }
 
   async function toggleAtivo(id, ativo) {
+    if (!['admin', 'coordenador'].includes(profile?.tipo)) return
     await supabase.from('profiles').update({ ativo: !ativo }).eq('id', id)
     fetchUsuarios()
   }
