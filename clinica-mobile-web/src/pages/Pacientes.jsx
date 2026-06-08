@@ -104,86 +104,60 @@ export default function Pacientes() {
         </div>
       </div>
 
-      <div className="card">
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="tabs" style={{ border: 'none', padding: 0 }}>
-            {['todos', 'ativos', 'inativos'].map(f => (
-              <div key={f} className={`tab${filtro === f ? ' on' : ''}`} onClick={() => setFiltro(f)}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </div>
-            ))}
-          </div>
-          <input
-            className="search-input"
-            placeholder="🔍 Buscar paciente..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Filtros */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="chip-row" style={{ flex: 1 }}>
+          {['todos','ativos','inativos'].map(f => (
+            <button key={f} className={`chip${filtro === f ? ' chip-active' : ''}`} onClick={() => setFiltro(f)}>
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
         </div>
-        <div className="card-body">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Paciente</th>
-                <th>CPF</th>
-                <th>Telefone</th>
-                <th>Profissional</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(p => (
-                <tr key={p.id}>
-                  <td>
-                    <div className="td-user">
-                      <div className="av">{p.nome.slice(0, 2).toUpperCase()}</div>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{p.nome}</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{p.cpf || '—'}</td>
-                  <td>{p.telefone || '—'}</td>
-                  <td>{p.medico?.nome || '—'}</td>
-                  <td>
-                    <span className={p.ativo ? 'tag tg' : 'tag tr'}>
-                      {p.ativo ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => navigate(`/pacientes/${p.id}`)}
-                      style={{ background: 'none', border: 'none', color: 'var(--p)', fontWeight: 600, fontSize: 13, cursor: 'pointer', padding: 0 }}
-                    >
-                      Ver ›
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6}>
-                    <div style={{ textAlign: 'center', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 36 }}>👥</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 14 }}>
-                        {search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
-                      </span>
-                      <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                        {search ? `Sem resultados para "${search}"` : 'Cadastre o primeiro paciente da clínica'}
-                      </span>
-                      {!search && (
-                        <button className="btn-primary" style={{ marginTop: 4 }} onClick={() => setModal(true)}>+ Novo paciente</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <input className="search-input" placeholder="🔍 Buscar..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 140 }} />
       </div>
+
+      {/* Lista de pacientes */}
+      {filtered.length === 0 ? (
+        <div className="card">
+          <div className="empty">
+            <span style={{ fontSize: 36 }}>👥</span>
+            <span style={{ fontWeight: 600 }}>{search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}</span>
+            <span style={{ fontSize: 12 }}>{search ? `Sem resultados para "${search}"` : 'Cadastre o primeiro paciente'}</span>
+            {!search && <button className="btn-primary" style={{ marginTop: 4 }} onClick={() => setModal(true)}>+ Novo paciente</button>}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map(p => (
+            <button key={p.id} onClick={() => navigate(`/pacientes/${p.id}`)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer', width: '100%', textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', transition: 'border-color .15s' }}
+              onTouchStart={e => e.currentTarget.style.borderColor = 'var(--p)'}
+              onTouchEnd={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+              {/* Avatar */}
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: p.ativo ? 'var(--p3)' : 'var(--bg)', border: `2px solid ${p.ativo ? 'var(--p)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: p.ativo ? 'var(--p)' : 'var(--muted)', flexShrink: 0 }}>
+                {p.nome.slice(0,2).toUpperCase()}
+              </div>
+
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 2 }}>{p.nome}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {p.email && <span>{p.email}</span>}
+                  {p.telefone && <span>{p.telefone}</span>}
+                </div>
+                {p.medico?.nome && <div style={{ fontSize: 11, color: 'var(--p)', marginTop: 3, fontWeight: 600 }}>👤 {p.medico.nome}</div>}
+              </div>
+
+              {/* Status + seta */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                <span className={p.ativo ? 'tag tg' : 'tag tr'} style={{ fontSize: 10 }}>{p.ativo ? 'Ativo' : 'Inativo'}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 16 }}>›</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {modal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>

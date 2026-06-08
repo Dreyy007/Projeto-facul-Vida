@@ -114,58 +114,43 @@ export default function Consultas() {
         </select>
       </div>
 
-      <div className="card">
-        <div className="card-body" style={{ padding: '0 4px' }}>
-          {filtradas.length === 0 ? (
-            <div className="empty">Nenhuma consulta encontrada.</div>
-          ) : (
-            <table className="tbl" style={{ width: '100%' }}>
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Horário</th>
-                  <th>Paciente</th>
-                  <th>CPF</th>
-                  {isAdmin && <th>Estagiário</th>}
-                  <th>Tipo</th>
-                  <th style={{ textAlign: 'center' }}>Sala</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtradas.map(c => (
-                  <tr key={c.id}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{c.data ? new Date(c.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
-                    <td>{c.hora?.slice(0, 5)}</td>
-                    <td>
-                      <div className="td-user">
-                        <div className="av">{c.paciente?.nome?.slice(0, 2).toUpperCase()}</div>
-                        <span>{c.paciente?.nome}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{c.paciente?.cpf || '—'}</td>
-                    {isAdmin && (
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13 }}>{limparNome(c.estagiario?.nome) || '—'}</span>
-                          {c.estagiario?.codigo && <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6 }}>{c.estagiario.codigo}</span>}
-                        </div>
-                      </td>
-                    )}
-                    <td style={{ fontSize: 13 }}>{c.tipo || '—'}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      {c.sala?.nome
-                        ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, whiteSpace: 'nowrap' }}>{c.sala.nome}</span>
-                        : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}
-                    </td>
-                    <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {filtradas.length === 0 ? (
+        <div className="card">
+          <div className="empty">
+            <span style={{ fontSize: 32 }}>📋</span>
+            <span style={{ fontWeight: 600 }}>Nenhuma consulta encontrada</span>
+            <span style={{ fontSize: 12 }}>Tente mudar o período ou os filtros</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtradas.map(c => (
+            <div key={c.id} className="card" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--p)' }}>{c.hora?.slice(0,5)}</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--bg)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {c.data ? new Date(c.data+'T00:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) : '—'}
+                  </span>
+                </div>
+                <span className={tagClass(c.status)} style={{ fontSize: 11 }}>{tagLabel(c.status)}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div className="av" style={{ width: 34, height: 34, fontSize: 12, flexShrink: 0 }}>{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{c.paciente?.nome || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.paciente?.cpf || 'Sem CPF'}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, background: 'var(--p3)', color: 'var(--p)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>{c.tipo || '—'}</span>
+                {isAdmin && c.estagiario && <span style={{ fontSize: 11, background: 'var(--sbg)', color: 'var(--success)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>{c.estagiario.codigo || limparNome(c.estagiario.nome)}</span>}
+                {c.sala?.nome && <span style={{ fontSize: 11, background: 'var(--wbg)', color: 'var(--warn)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>{c.sala.nome}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

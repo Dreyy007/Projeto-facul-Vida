@@ -3,11 +3,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
+import { useNavigate } from 'react-router-dom'
 import './Pages.css'
 
 export default function Dashboard() {
   const { profile } = useAuth()
   const { tema } = useTheme()
+  const navigate = useNavigate()
   const dark = tema === 'escuro'
   const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
   const isEstagiario = profile?.tipo === 'estagiario'
@@ -151,26 +153,22 @@ export default function Dashboard() {
       </div>
 
       <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Consultas hoje</div>
-          <div className="stat-num blue">{stats.hoje}</div>
-          <div className="stat-sub">Agendadas para hoje</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Pacientes ativos</div>
-          <div className="stat-num green">{stats.pacientes}</div>
-          <div className="stat-sub">Cadastrados na clínica</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Aprovações pendentes</div>
-          <div className="stat-num warn">{stats.pendentes}</div>
-          <div className="stat-sub">Cancel. e reagend.</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Msgs não lidas</div>
-          <div className="stat-num red">{stats.msgs}</div>
-          <div className="stat-sub">Pacientes aguardando</div>
-        </div>
+        {[
+          { label: 'Consultas hoje',      num: stats.hoje,      cls: 'blue', sub: 'Agendadas para hoje',    to: '/agenda' },
+          { label: 'Pacientes ativos',    num: stats.pacientes, cls: 'green',sub: 'Cadastrados na clínica', to: '/pacientes' },
+          { label: 'Aprovações pend.',    num: stats.pendentes, cls: 'warn', sub: 'Cancel. e reagend.',     to: '/aprovacoes' },
+          { label: 'Msgs não lidas',      num: stats.msgs,      cls: 'red',  sub: 'Pacientes aguardando',   to: '/chat' },
+        ].map(({ label, num, cls, sub, to }) => (
+          <button key={label} className="stat-card" onClick={() => navigate(to)}
+            style={{ cursor: 'pointer', background: 'var(--card)', border: '1px solid var(--border)', textAlign: 'left', fontFamily: 'inherit', width: '100%', transition: 'transform .12s, box-shadow .12s' }}
+            onTouchStart={e => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,71,171,0.15)' }}
+            onTouchEnd={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+          >
+            <div className="stat-label">{label}</div>
+            <div className={`stat-num ${cls}`}>{num}</div>
+            <div className="stat-sub">{sub}</div>
+          </button>
+        ))}
       </div>
 
       <div className="card" style={{ padding: '1.25rem' }}>

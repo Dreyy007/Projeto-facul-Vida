@@ -175,85 +175,128 @@ export default function Agenda() {
 
   return (
     <div className="page">
+      {/* Header compacto */}
       <div className="page-header">
         <div><h1>Agenda</h1><p className="page-sub">{filtered.length} consulta(s) · {dataLabel}</p></div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-            {[['dia','Dia'],['semana','Semana'],['todos','Todos']].map(([m,l]) => (
-              <button key={m} onClick={() => setViewMode(m)} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'inherit', background: viewMode === m ? 'var(--p)' : '#fff', color: viewMode === m ? '#fff' : 'var(--text)', transition: '.15s' }}>{l}</button>
-            ))}
+        <button className="btn-primary" onClick={() => setModal(true)}>+ Agendar</button>
+      </div>
+
+      {/* Navegação de data + view mode */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* View mode chips */}
+        <div className="chip-row">
+          {[['dia','Dia'],['semana','Semana'],['todos','Todos']].map(([m,l]) => (
+            <button key={m} className={`chip${viewMode === m ? ' chip-active' : ''}`} onClick={() => setViewMode(m)}>{l}</button>
+          ))}
+        </div>
+
+        {/* Navegação de data — só mostra em dia/semana */}
+        {viewMode !== 'todos' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button className="btn-outline" style={{ padding: '7px 12px', fontSize: 13 }} onClick={() => navData(-1)}>←</button>
+            <button className="btn-outline" style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700 }} onClick={() => setData(new Date().toISOString().split('T')[0])}>Hoje</button>
+            <input type="date" value={data} onChange={e => setData(e.target.value)}
+              style={{ flex: 1, padding: '8px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, background: 'var(--card)', color: 'var(--text)', outline: 'none' }} />
+            <button className="btn-outline" style={{ padding: '7px 12px', fontSize: 13 }} onClick={() => navData(1)}>→</button>
           </div>
-          {viewMode !== 'todos' && (<>
-            <button className="btn-outline" onClick={() => navData(-1)}>← Anterior</button>
-            <button className="btn-outline" style={{ fontWeight: 700 }} onClick={() => setData(new Date().toISOString().split('T')[0])}>Hoje</button>
-            <input type="date" value={data} onChange={e => setData(e.target.value)} style={{ padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13 }} />
-            <button className="btn-outline" onClick={() => navData(1)}>Próximo →</button>
-          </>)}
-          <button className="btn-primary" onClick={() => setModal(true)}>+ Agendar</button>
-        </div>
+        )}
       </div>
 
-      <div className="card" style={{ padding: '14px 18px' }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input className="search-input" placeholder="🔍 Buscar paciente, CPF, estagiário ou código EST..." value={busca} onChange={e => setBusca(e.target.value)} style={{ width: 340 }} />
-          <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
-            <option value="todos">Todos os status</option>
-            <option value="aguardando">Aguardando</option>
-            <option value="confirmada">Confirmada</option>
-            <option value="realizada">Realizada</option>
-            <option value="cancelada">Cancelada</option>
-            <option value="troca_sala_pendente">Troca sala pend.</option>
-          </select>
-          <select value={filtroSala} onChange={e => setFiltroSala(e.target.value)} style={{ padding: '9px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
-            <option value="todos">Todas as salas</option>
-            {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
-          {(filtroStatus !== 'todos' || filtroSala !== 'todos' || busca) && (
-            <button className="btn-outline" style={{ fontSize: 12, padding: '8px 12px', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => { setFiltroStatus('todos'); setFiltroSala('todos'); setBusca('') }}>✕ Limpar</button>
-          )}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>{filtered.length} resultado(s)</span>
-        </div>
+      {/* Filtros */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input className="search-input" placeholder="🔍 Buscar paciente, estagiário..." value={busca} onChange={e => setBusca(e.target.value)} style={{ flex: 1 }} />
+        <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}
+          style={{ padding: '9px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none', background: 'var(--card)', color: 'var(--text)' }}>
+          <option value="todos">Todos os status</option>
+          <option value="aguardando">Aguardando</option>
+          <option value="confirmada">Confirmada</option>
+          <option value="realizada">Realizada</option>
+          <option value="cancelada">Cancelada</option>
+          <option value="troca_sala_pendente">Troca sala pend.</option>
+        </select>
+        <select value={filtroSala} onChange={e => setFiltroSala(e.target.value)}
+          style={{ padding: '9px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none', background: 'var(--card)', color: 'var(--text)' }}>
+          <option value="todos">Todas as salas</option>
+          {salas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+        </select>
+        {(filtroStatus !== 'todos' || filtroSala !== 'todos' || busca) && (
+          <button className="btn-outline" style={{ fontSize: 12, padding: '8px 10px', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+            onClick={() => { setFiltroStatus('todos'); setFiltroSala('todos'); setBusca('') }}>✕</button>
+        )}
       </div>
 
-      <div className="card">
-        <div className="card-head"><h3>Consultas {viewMode === 'semana' ? 'da semana' : viewMode === 'todos' ? '— todas' : 'do dia'}</h3></div>
-        <div className="card-body">
-          {loading ? <div className="empty">Carregando...</div> : filtered.length === 0 ? <div className="empty">Nenhuma consulta encontrada.</div> : (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  {viewMode !== 'dia' && <th>Data</th>}
-                  <th>Horário</th><th>Paciente</th><th>CPF</th><th>Estagiário</th><th>Código</th><th>Tipo</th><th>Sala</th><th>Status</th><th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(c => (
-                  <tr key={c.id}>
-                    {viewMode !== 'dia' && <td style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })}</td>}
-                    <td style={{ fontWeight: 700, color: 'var(--p)' }}>{c.hora?.slice(0, 5)}</td>
-                    <td><div className="td-user"><div className="av">{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>{c.paciente?.nome}</div></td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtCpf(c.paciente?.cpf) || '—'}</td>
-                    <td style={{ fontWeight: 500 }}>{c.estagiario?.nome || '—'}</td>
-                    <td>{c.estagiario?.codigo ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>{c.estagiario.codigo}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
-                    <td style={{ fontSize: 12 }}>{c.tipo}</td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{c.sala?.nome ? <span style={{ background: 'var(--p3)', color: 'var(--p)', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, whiteSpace: 'nowrap', display: 'inline-block' }}>{c.sala.nome}</span> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>}</td>
-                    <td><span className={tagClass(c.status)}>{tagLabel(c.status)}</span></td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {c.status === 'aguardando' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12 }} onClick={async () => { await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', c.id); fetchConsultas() }}>Confirmar</button>}
-                        {c.status === 'confirmada' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12, background: 'var(--p3)', color: 'var(--p)' }} onClick={async () => { await supabase.from('consultas').update({ status: 'realizada' }).eq('id', c.id); fetchConsultas() }}>Realizada</button>}
-                        {!['cancelada','realizada','cancelamento_pendente','reagendamento_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'reagendamento', nova_data: '', nova_hora: '', motivo: '' })}>Reagendar</button>}
-                        {!['cancelada','realizada','troca_sala_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setModalTrocaSala({ consulta: c, sala_nova_id: '', motivo: '' })}>Trocar sala</button>}
-                        {!['cancelada','realizada','cancelamento_pendente'].includes(c.status) && <button className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'cancelamento', nova_data: '', nova_hora: '', motivo: '' })}>Cancelar</button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {/* Lista de consultas */}
+      {loading ? (
+        <div className="page-loading" style={{ height: 160 }}>Carregando...</div>
+      ) : filtered.length === 0 ? (
+        <div className="card">
+          <div className="empty">
+            <span style={{ fontSize: 32 }}>📅</span>
+            <span style={{ fontWeight: 600 }}>Nenhuma consulta encontrada</span>
+            <span style={{ fontSize: 12 }}>Tente mudar os filtros ou agende uma nova consulta</span>
+            <button className="btn-primary" style={{ marginTop: 4 }} onClick={() => setModal(true)}>+ Agendar consulta</button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filtered.map(c => (
+            <div key={c.id} className="card" style={{ padding: '14px 16px' }}>
+              {/* Linha superior: horário + status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--p)' }}>{c.hora?.slice(0,5)}</span>
+                  {viewMode !== 'dia' && (
+                    <span style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--bg)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                      {new Date(c.data+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'})}
+                    </span>
+                  )}
+                </div>
+                <span className={tagClass(c.status)} style={{ fontSize: 11 }}>{tagLabel(c.status)}</span>
+              </div>
+
+              {/* Paciente */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div className="av" style={{ width: 34, height: 34, fontSize: 12, flexShrink: 0 }}>{c.paciente?.nome?.slice(0,2).toUpperCase()}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{c.paciente?.nome || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtCpf(c.paciente?.cpf) || 'Sem CPF'}</div>
+                </div>
+              </div>
+
+              {/* Detalhes: tipo, estagiário, sala */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                <span style={{ fontSize: 11, background: 'var(--p3)', color: 'var(--p)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>{c.tipo}</span>
+                {c.estagiario && <span style={{ fontSize: 11, background: 'var(--sbg)', color: 'var(--success)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>{c.estagiario.codigo || c.estagiario.nome}</span>}
+                {c.sala?.nome && <span style={{ fontSize: 11, background: 'var(--wbg)', color: 'var(--warn)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>{c.sala.nome}</span>}
+              </div>
+
+              {/* Ações */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                {c.status === 'aguardando' && canApprove && (
+                  <button className="btn-ok" style={{ padding: '5px 12px', fontSize: 12 }}
+                    onClick={async () => { await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', c.id); fetchConsultas() }}>✓ Confirmar</button>
+                )}
+                {c.status === 'confirmada' && canApprove && (
+                  <button className="btn-ok" style={{ padding: '5px 12px', fontSize: 12, background: 'var(--p3)', color: 'var(--p)' }}
+                    onClick={async () => { await supabase.from('consultas').update({ status: 'realizada' }).eq('id', c.id); fetchConsultas() }}>✓ Realizada</button>
+                )}
+                {!['cancelada','realizada','cancelamento_pendente','reagendamento_pendente'].includes(c.status) && (
+                  <button className="btn-outline" style={{ padding: '5px 12px', fontSize: 12 }}
+                    onClick={() => setModalSolic({ consulta: c, tipo: 'reagendamento', nova_data: '', nova_hora: '', motivo: '' })}>Reagendar</button>
+                )}
+                {!['cancelada','realizada','troca_sala_pendente'].includes(c.status) && (
+                  <button className="btn-outline" style={{ padding: '5px 12px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }}
+                    onClick={() => setModalTrocaSala({ consulta: c, sala_nova_id: '', motivo: '' })}>Trocar sala</button>
+                )}
+                {!['cancelada','realizada','cancelamento_pendente'].includes(c.status) && (
+                  <button className="btn-danger" style={{ padding: '5px 12px', fontSize: 12 }}
+                    onClick={() => setModalSolic({ consulta: c, tipo: 'cancelamento', nova_data: '', nova_hora: '', motivo: '' })}>Cancelar</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal agendar */}
       {modal && (
