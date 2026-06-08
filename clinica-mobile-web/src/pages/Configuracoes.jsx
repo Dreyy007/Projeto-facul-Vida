@@ -533,16 +533,6 @@ async function handleLogout() {
 
         </div>
       </div>
-      {/* Botão sair fixo no mobile */}
-<div style={{ marginTop: 16 }}>
-  <button
-    className="btn-danger"
-    onClick={handleLogout}
-    style={{ width: '100%', padding: '14px', fontSize: 14, borderRadius: 10 }}
-  >
-    🚪 Sair da conta
-  </button>
-</div>
       {/* Modal escala */}
       {modalEscala !== null && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalEscala(null)}>
