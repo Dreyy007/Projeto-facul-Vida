@@ -37,7 +37,7 @@ function etapaVazia() {
   return {
     sala_id: '',
     hora: '',
-    data: '',
+    selectedDias: [],    // array de datas selecionadas — múltiplos slots por etapa
     baseDias: new Date().toISOString().split('T')[0],
     ocupacao: {},        // { 'YYYY-MM-DD': [{ hora, paciente, estagiario, codigo }] }
     horasDia: {},        // { 'YYYY-MM-DD': 'HH:MM' } — hora personalizada por dia
@@ -128,7 +128,7 @@ function GlobalConfigurator({ salas, onAplicar }) {
               onChange={e => { setGHora(e.target.value); setAltSalas({}) }}
               style={{ padding: '5px 8px', border: '1.5px solid #bfdbfe', borderRadius: 8, fontFamily: 'inherit', fontSize: 12, outline: 'none', flex: 1 }} />
             {gLoading && <span style={{ fontSize: 10, color: '#64748b' }}>⏳</span>}
-            <div style={{ display: 'flex', gap: 3 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
               {[{label:'←10d',delta:-10},{label:'Hoje',hoje:true},{label:'+10d→',delta:10}].map(bt => (
                 <button key={bt.label} type="button"
                   onClick={() => {
@@ -140,6 +140,9 @@ function GlobalConfigurator({ salas, onAplicar }) {
                   {bt.label}
                 </button>
               ))}
+              <input type="date" value={gBaseDias}
+                onChange={e => { if (e.target.value) { setGBaseDias(e.target.value); if (gSala) carregarOcupacao(gSala, e.target.value) } }}
+                style={{ padding: '3px 5px', fontSize: 10, border: '1px solid #bfdbfe', borderRadius: 5, fontFamily: 'inherit' }} />
             </div>
           </div>
 
@@ -206,9 +209,8 @@ function GlobalConfigurator({ salas, onAplicar }) {
 
 // ─── Painel de cada etapa ─────────────────────────────────────────────────────
 function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
-  const { sala_id, hora, data, baseDias, ocupacao, horasDia, loading } = estado
+  const { sala_id, hora, selectedDias, baseDias, ocupacao, horasDia, loading } = estado
   const hoje = new Date().toISOString().split('T')[0]
-  // Grade aparece assim que sala for selecionada — sem precisar de hora padrão
   const dias = sala_id ? gerarDias(baseDias, 10) : []
 
   function horaDoDia(dia) { return horasDia[dia] || hora }
@@ -222,9 +224,13 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
     if (!h) return []
     return (ocupacao[dia] || []).filter(c => c.hora?.slice(0, 5) === h)
   }
+  function toggleDia(dia) {
+    const jaSel = selectedDias.includes(dia)
+    const novaLista = jaSel ? selectedDias.filter(d => d !== dia) : [...selectedDias, dia].sort()
+    onUpdate({ selectedDias: novaLista })
+  }
 
-  const horaDiaSel = horaDoDia(data)
-  const concluido = !!(sala_id && data && horaDiaSel)
+  const concluido = !!(sala_id && selectedDias.length > 0 && selectedDias.some(d => horaDoDia(d)))
 
   return (
     <div style={{
@@ -239,7 +245,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
           <div style={{ fontWeight: 700, fontSize: 14, color: concluido ? cfg.color : '#374151' }}>{cfg.label}</div>
           {concluido
             ? <div style={{ fontSize: 12, color: cfg.color, opacity: 0.85, marginTop: 1 }}>
-                ✓ {fmtData(data)} às {fmtHora(horaDiaSel)} · {salas.find(s => s.id === sala_id)?.nome || '—'}
+                ✓ {selectedDias.length} dia{selectedDias.length > 1 ? 's' : ''} · {salas.find(s => s.id === sala_id)?.nome || '—'}
               </div>
             : <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
                 {sala_id ? 'Defina o horário em cada dia e clique para confirmar' : 'Selecione uma sala para ver os dias disponíveis'}
@@ -262,7 +268,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
               const sel = sala_id === s.id
               return (
                 <button key={s.id} type="button"
-                  onClick={() => onUpdate({ sala_id: s.id, data: '', hora: '', horasDia: {} }, () => onCarregarOcupacao(s.id, baseDias))}
+                  onClick={() => onUpdate({ sala_id: s.id, selectedDias: [], hora: '', horasDia: {} }, () => onCarregarOcupacao(s.id, baseDias))}
                   style={{
                     padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
                     fontSize: 12, fontWeight: sel ? 700 : 500, transition: 'all .15s',
@@ -283,20 +289,23 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: 0 }}>
-                  {loading ? '⏳ Carregando...' : '📅 Escolha o dia e o horário:'}
-                  {data && <span style={{ color: cfg.color, fontWeight: 700, marginLeft: 6 }}>→ {fmtData(data)}</span>}
+                  {loading ? '⏳ Carregando...' : `📅 Selecione os dias (${selectedDias.length} selecionado${selectedDias.length !== 1 ? 's' : ''})`}
                 </p>
               </div>
-              {/* Horário padrão — aplica a todos */}
+              {/* Horário padrão */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>⚡ Todos:</span>
+                <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>⚡ Hora:</span>
                 <input type="time" value={hora}
-                  onChange={e => onUpdate({ hora: e.target.value, data: '' })}
+                  onChange={e => onUpdate({ hora: e.target.value })}
                   style={{ padding: '4px 6px', border: '1.5px solid #e2e8f0', borderRadius: 6, fontFamily: 'inherit', fontSize: 12, outline: 'none', color: '#374151' }} />
               </div>
-              <div style={{ display: 'flex', gap: 4 }}>
+              {/* Navegação */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => { const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() - 10); onUpdate({ baseDias: d.toISOString().split('T')[0] }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
                   style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>← 10d</button>
+                <input type="date" value={baseDias}
+                  onChange={e => { if (e.target.value) onUpdate({ baseDias: e.target.value }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
+                  style={{ padding: '3px 5px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, fontFamily: 'inherit' }} />
                 <button type="button" onClick={() => { const t = new Date().toISOString().split('T')[0]; onUpdate({ baseDias: t }, () => onCarregarOcupacao(sala_id, t)) }}
                   style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Hoje</button>
                 <button type="button" onClick={() => { const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() + 10); onUpdate({ baseDias: d.toISOString().split('T')[0] }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
@@ -311,7 +320,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                   const horaDia = horaDoDia(dia)
                   const ocupado = estaOcupado(dia)
                   const ocup = ocupantesDia(dia)
-                  const sel = data === dia
+                  const sel = selectedDias.includes(dia)
                   const passado = dia < hoje
                   const semHora = !horaDia
                   const dtObj = new Date(dia + 'T12:00:00')
@@ -335,7 +344,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                       overflow: 'hidden',
                     }}>
                       {/* Cabeçalho clicável */}
-                      <div onClick={() => !ocupado && !passado && horaDia && onUpdate({ data: dia })}
+                      <div onClick={() => !ocupado && !passado && horaDia && toggleDia(dia)}
                         style={{
                           padding: '8px', textAlign: 'center',
                           cursor: (ocupado || passado || !horaDia) ? 'not-allowed' : 'pointer',
@@ -358,7 +367,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                             onClick={e => e.stopPropagation()}
                             onChange={e => {
                               const novasHoras = { ...horasDia, [dia]: e.target.value }
-                              onUpdate({ horasDia: novasHoras, data: data === dia ? '' : data })
+                              onUpdate({ horasDia: novasHoras })
                             }}
                             style={{
                               width: '100%', boxSizing: 'border-box',
@@ -370,7 +379,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                             }} />
                           {temHoraCustom && !ocupado && (
                             <button type="button"
-                              onClick={e => { e.stopPropagation(); const h = { ...horasDia }; delete h[dia]; onUpdate({ horasDia: h, data: data === dia ? '' : data }) }}
+                              onClick={e => { e.stopPropagation(); const h = { ...horasDia }; delete h[dia]; onUpdate({ horasDia: h }) }}
                               style={{ display: 'block', width: '100%', marginTop: 2, fontSize: 9, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
                               ↩ padrão
                             </button>
@@ -399,6 +408,19 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                 })}
               </div>
             </div>
+
+            {/* Chips dos dias selecionados */}
+            {selectedDias.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {selectedDias.map(d => (
+                  <span key={d} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: cfg.bg, color: cfg.color, border: `1.5px solid ${cfg.color}`, borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                    {fmtData(d)} · {horaDoDia(d) || '—'}
+                    <button type="button" onClick={() => toggleDia(d)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: cfg.color, fontWeight: 900, fontSize: 13, lineHeight: 1, padding: '0 0 0 2px' }}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -492,7 +514,10 @@ export default function Agenda() {
 
   // ── Aplica sala+hora+data a todas as 4 etapas de uma vez ──────────────────
   function aplicarGlobal(sala_id, hora, data) {
-    setEtapas(prev => prev.map(e => ({ ...e, sala_id, hora, data, horasDia: {} })))
+    setEtapas(prev => prev.map(e => {
+      const novosDias = e.selectedDias.includes(data) ? e.selectedDias : [...e.selectedDias, data].sort()
+      return { ...e, sala_id, hora: e.hora || hora, selectedDias: novosDias, horasDia: e.horasDia }
+    }))
     ETAPAS_CONFIG.forEach((_, idx) => carregarOcupacaoEtapa(idx, sala_id, data))
   }
 
@@ -547,52 +572,57 @@ export default function Agenda() {
     if (!pacienteSelecionado) { toast.error('Selecione um paciente.'); return }
     if (!estagiarioSelecionado) { toast.error('Selecione um estagiário.'); return }
 
-    const etapasConcluidas = etapas
-      .map((e, i) => ({ ...e, cfg: ETAPAS_CONFIG[i] }))
-      .filter(e => e.sala_id && e.data && (e.horasDia[e.data] || e.hora))
+    const slots = []
+    etapas.forEach((e, i) => {
+      if (!e.sala_id || e.selectedDias.length === 0) return
+      e.selectedDias.forEach(dia => {
+        const horaSlot = e.horasDia[dia] || e.hora
+        if (!horaSlot) return
+        slots.push({ cfg: ETAPAS_CONFIG[i], sala_id: e.sala_id, data: dia, hora: horaSlot })
+      })
+    })
 
-    if (etapasConcluidas.length === 0) {
-      toast.error('Selecione data, hora e sala em pelo menos uma etapa.')
+    if (slots.length === 0) {
+      toast.error('Selecione ao menos um dia com horário definido em alguma etapa.')
       return
     }
 
     setSaving(true)
 
     // ── Verificar conflitos reais no banco antes de inserir ─────────────────────
-    for (const e of etapasConcluidas) {
-      const hora = e.horasDia[e.data] || e.hora
+    for (const slot of slots) {
       const { data: conflitos } = await supabase
         .from('consultas')
         .select('id, paciente:pacientes(nome), estagiario:profiles(nome,codigo)')
-        .eq('sala_id', e.sala_id)
-        .eq('data', e.data)
-        .eq('hora', hora)
+        .eq('sala_id', slot.sala_id)
+        .eq('data', slot.data)
+        .eq('hora', slot.hora)
         .not('status', 'in', '("cancelada","realizada")')
       if (conflitos && conflitos.length > 0) {
-        const nomeSala = salas.find(s => s.id === e.sala_id)?.nome || 'sala'
+        const nomeSala = salas.find(s => s.id === slot.sala_id)?.nome || 'sala'
         const ocupante = conflitos[0]?.paciente?.nome || '—'
         const est = conflitos[0]?.estagiario?.codigo || conflitos[0]?.estagiario?.nome || '—'
-        toast.error(`❌ Conflito em "${e.cfg.label}": ${nomeSala} já está ocupada às ${hora} em ${fmtData(e.data)}.\nPaciente: ${ocupante} · Estagiário: ${est}`)
+        toast.error(`❌ Conflito em "${slot.cfg.label}": ${nomeSala} às ${slot.hora} em ${fmtData(slot.data)}.\nPaciente: ${ocupante} · Estagiário: ${est}`)
         setSaving(false)
         return
       }
     }
 
     // Agendamento direto — sempre confirmado. Aprovação só ocorre em troca de sala.
-    const inserts = etapasConcluidas.map(e => ({
+    const inserts = slots.map(slot => ({
       paciente_id: pacienteSelecionado.id,
       medico_id:   estagiarioSelecionado.id,
-      tipo:        e.cfg.id,
-      data:        e.data,
-      hora:        e.horasDia[e.data] || e.hora,
-      sala_id:     e.sala_id,
+      tipo:        slot.cfg.id,
+      data:        slot.data,
+      hora:        slot.hora,
+      sala_id:     slot.sala_id,
       status:      'confirmada',
       criado_por:  profile.id,
     }))
 
     const { error } = await supabase.from('consultas').insert(inserts)
     if (!error) {
-      toast.success(`${etapasConcluidas.length} consulta(s) agendada(s) com sucesso!`)
+      toast.success(`${inserts.length} consulta(s) agendada(s) com sucesso!`)
       fecharModal()
       fetchConsultas()
     } else {
@@ -675,7 +705,12 @@ export default function Agenda() {
     zIndex: 100, maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
   }
 
-  const etapasConcluidas = etapas.filter((e) => e.sala_id && e.data && (e.horasDia[e.data] || e.hora))
+  const slotsConfirmados = etapas.flatMap((e, i) => {
+    if (!e.sala_id || e.selectedDias.length === 0) return []
+    return e.selectedDias
+      .filter(d => e.horasDia[d] || e.hora)
+      .map(d => ({ cfg: ETAPAS_CONFIG[i], sala_id: e.sala_id, data: d, hora: e.horasDia[d] || e.hora }))
+  })
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -875,29 +910,24 @@ export default function Agenda() {
             ))}
 
             {/* Resumo */}
-            {etapasConcluidas.length > 0 && (
+            {slotsConfirmados.length > 0 && (
               <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 12, padding: '14px 18px', marginTop: 8 }}>
-                <p style={{ fontWeight: 700, color: '#166534', fontSize: 13, margin: '0 0 10px' }}>✅ Resumo do agendamento ({etapasConcluidas.length} etapa{etapasConcluidas.length > 1 ? 's' : ''})</p>
-                {etapas.map((e, i) => {
-                  if (!e.sala_id || !e.data || !(e.horasDia[e.data] || e.hora)) return null
-                  const cfg = ETAPAS_CONFIG[i]
-                  const horaDia = e.horasDia[e.data] || e.hora
-                  return (
-                    <div key={cfg.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i < etapas.length - 1 ? '1px solid #bbf7d0' : 'none' }}>
-                      <span style={{ fontSize: 16 }}>{cfg.icon}</span>
-                      <span style={{ fontWeight: 600, fontSize: 13, color: cfg.color, minWidth: 160 }}>{cfg.label}</span>
-                      <span style={{ fontSize: 12, color: '#374151' }}>📅 {fmtData(e.data)} ⏰ {fmtHora(horaDia)} 🚪 {salas.find(s => s.id === e.sala_id)?.nome}</span>
-                    </div>
-                  )
-                })}
+                <p style={{ fontWeight: 700, color: '#166534', fontSize: 13, margin: '0 0 10px' }}>✅ Resumo — {slotsConfirmados.length} consulta{slotsConfirmados.length > 1 ? 's' : ''} a agendar</p>
+                {slotsConfirmados.map((slot, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: i < slotsConfirmados.length - 1 ? '1px solid #bbf7d0' : 'none' }}>
+                    <span style={{ fontSize: 14 }}>{slot.cfg.icon}</span>
+                    <span style={{ fontWeight: 600, fontSize: 12, color: slot.cfg.color, minWidth: 120 }}>{slot.cfg.label}</span>
+                    <span style={{ fontSize: 11, color: '#374151' }}>📅 {fmtData(slot.data)} ⏰ {fmtHora(slot.hora)} 🚪 {salas.find(s => s.id === slot.sala_id)?.nome}</span>
+                  </div>
+                ))}
               </div>
             )}
 
             <div className="modal-btns" style={{ marginTop: 20 }}>
               <button className="btn-outline" onClick={fecharModal}>Cancelar</button>
               <button className="btn-primary" onClick={handleAgendar}
-                disabled={saving || !pacienteSelecionado || !estagiarioSelecionado || etapasConcluidas.length === 0}>
-                {saving ? 'Salvando...' : `Confirmar ${etapasConcluidas.length > 0 ? `(${etapasConcluidas.length} etapa${etapasConcluidas.length > 1 ? 's' : ''})` : ''}`}
+                disabled={saving || !pacienteSelecionado || !estagiarioSelecionado || slotsConfirmados.length === 0}>
+                {saving ? 'Salvando...' : `Confirmar ${slotsConfirmados.length > 0 ? `(${slotsConfirmados.length} consulta${slotsConfirmados.length > 1 ? 's' : ''})` : ''}`}
               </button>
             </div>
             </div>{/* fim do padding wrapper */}
