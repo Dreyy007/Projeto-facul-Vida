@@ -436,10 +436,15 @@ export default function Agenda() {
   }
 
   async function handleEnviarSolic() {
-    const { consulta, tipo, nova_data, nova_hora, motivo } = modalSolic
-    await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo, nova_data: nova_data || null, nova_hora: nova_hora || null, motivo: motivo || null }])
-    await supabase.from('consultas').update({ status: tipo === 'cancelamento' ? 'cancelamento_pendente' : 'reagendamento_pendente' }).eq('id', consulta.id)
-    setModalSolic(null); fetchConsultas(); toast.success('Solicitação enviada!')
+    const { consulta, tipo, nova_data, nova_hora } = modalSolic
+    if (tipo === 'cancelamento') {
+      await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', consulta.id)
+      toast.success('Consulta cancelada.')
+    } else if (tipo === 'reagendamento') {
+      await supabase.from('consultas').update({ data: nova_data, hora: nova_hora, status: 'confirmada' }).eq('id', consulta.id)
+      toast.success('Consulta reagendada com sucesso!')
+    }
+    setModalSolic(null); fetchConsultas()
   }
 
   async function handleTrocaSala() {
@@ -459,8 +464,8 @@ export default function Agenda() {
   // ── Helpers de tabela ──────────────────────────────────────────────────────
   const navData = d => { const dt = new Date(dataAgenda + 'T12:00:00'); dt.setDate(dt.getDate() + d); setDataAgenda(dt.toISOString().split('T')[0]) }
   const ETAPA_MAP = Object.fromEntries(ETAPAS_CONFIG.map(e => [e.id, e]))
-  const tagClass = s => ({ confirmada:'tag tg', aguardando:'tag ta', cancelada:'tag tr', realizada:'tag tp', cancelamento_pendente:'tag tr', reagendamento_pendente:'tag ta', troca_sala_pendente:'tag ta' }[s] || 'tag tp')
-  const tagLabel = s => ({ confirmada:'Confirmada', aguardando:'Aguardando', cancelada:'Cancelada', realizada:'Realizada', cancelamento_pendente:'Cancel. pend.', reagendamento_pendente:'Reagend. pend.', troca_sala_pendente:'Troca sala pend.' }[s] || s)
+  const tagClass = s => ({ confirmada:'tag tg', aguardando:'tag ta', cancelada:'tag tr', realizada:'tag tp', troca_sala_pendente:'tag ta' }[s] || 'tag tp')
+  const tagLabel = s => ({ confirmada:'Confirmada', aguardando:'Aguardando', cancelada:'Cancelada', realizada:'Realizada', troca_sala_pendente:'Troca sala pend.' }[s] || s)
   const canApprove = ['admin','coordenador'].includes(profile?.tipo)
   const isEstagiario = profile?.tipo === 'estagiario'
 

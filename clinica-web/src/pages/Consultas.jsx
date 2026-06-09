@@ -74,7 +74,7 @@ export default function Consultas() {
   }
 
   const tagClass = s => ({ confirmada: 'tag tg', aguardando: 'tag ta', cancelada: 'tag tr', realizada: 'tag tg', agendada: 'tag tp' }[s] || 'tag tp')
-  const tagLabel = s => ({ confirmada: 'Confirmada', aguardando: 'Aguardando', cancelada: 'Cancelada', realizada: 'Realizada', cancelamento_pendente: 'Cancelamento pend.', reagendamento_pendente: 'Reagend. pend.', agendada: 'Agendada' }[s] || s)
+  const tagLabel = s => ({ confirmada: 'Confirmada', aguardando: 'Aguardando', cancelada: 'Cancelada', realizada: 'Realizada', agendada: 'Agendada', troca_sala_pendente: 'Troca sala pend.' }[s] || s)
 
   if (loading) return <div className="page-loading">Carregando...</div>
 
