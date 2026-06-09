@@ -135,7 +135,7 @@ function GlobalConfigurator({ salas, onAplicar, onRemover, etapas = [], outrosPe
             const sel = gSala === s.id
             return (
               <button key={s.id} type="button"
-                onClick={() => { setGSala(s.id); setGOcupacao({}); setAltSalas({}); setFlashDia(null); carregarOcupacao(s.id, gBaseDias) }}
+                onClick={() => { setGSala(s.id); setGOcupacao({}); setAltSalas({}); carregarOcupacao(s.id, gBaseDias) }}
                 style={{ padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: sel ? 700 : 500, border: sel ? '2px solid #2563eb' : '1.5px solid #bfdbfe', background: sel ? '#2563eb' : '#fff', color: sel ? '#fff' : '#374151' }}>
                 🚪 {s.nome}
               </button>
@@ -196,7 +196,7 @@ function GlobalConfigurator({ salas, onAplicar, onRemover, etapas = [], outrosPe
                   <div onClick={() => clicavel && handleDia(dia)}
                     style={{ borderRadius: 5, border: `1.5px solid ${border}`, background: bg, cursor: clicavel ? 'pointer' : 'default',
                       textAlign: 'center', padding: '4px 1px', userSelect: 'none', opacity: passado ? 0.45 : 1,
-                      boxShadow: flash ? '0 1px 6px #16a34a40' : 'none' }}>
+                      boxShadow: sel ? '0 1px 6px #1d4ed840' : 'none' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: txtColor, lineHeight: 1.2 }}>
                       {new Date(dia + 'T12:00:00').getDate()}
                     </div>
@@ -211,7 +211,7 @@ function GlobalConfigurator({ salas, onAplicar, onRemover, etapas = [], outrosPe
                         ? <div style={{ fontSize: 9, color: '#b91c1c' }}>Nenhuma</div>
                         : alts.map(s => (
                           <button key={s.id} type="button"
-                            onClick={() => { onAplicar(s.id, gHora, dia); setGSala(s.id); carregarOcupacao(s.id, gBaseDias); setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500); setAltSalas({}) }}
+                            onClick={() => { onAplicar(s.id, gHora, dia); setGSala(s.id); carregarOcupacao(s.id, gBaseDias); setAltSalas({}) }}
                             style={{ display: 'block', width: '100%', marginBottom: 2, padding: '3px 5px', fontSize: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', color: '#1d4ed8', fontWeight: 600 }}>
                             🚪 {s.nome}
                           </button>
