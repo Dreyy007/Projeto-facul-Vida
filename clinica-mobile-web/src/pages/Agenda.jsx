@@ -67,7 +67,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
     <div style={{
       border: `2px solid ${concluido ? cfg.color : 'var(--border)'}`,
       borderRadius: 14, overflow: 'hidden', marginBottom: 12,
-      transition: 'border-color .2s',
+      transition: 'border-color .2s', flexShrink: 0,
     }}>
       {/* ── Header ── */}
       <div style={{ padding: '12px 18px', background: concluido ? cfg.bg : '#f8fafc', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -593,11 +593,12 @@ export default function Agenda() {
       ══════════════════════════════════════════════════════════════ */}
       {modal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) fecharModal() }}>
-          <div className="modal" style={{ maxWidth: 820, maxHeight: '92vh', overflowY: 'auto' }}>
-            <div style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10, paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+          <div className="modal" style={{ maxWidth: 820, maxHeight: '92vh', overflowY: 'auto', display: 'block', padding: 0 }}>
+            <div style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10, padding: '16px 20px 14px', borderBottom: '1px solid var(--border)' }}>
               <h2 style={{ margin: 0 }}>Agendar Consultas</h2>
               <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0' }}>Selecione paciente, estagiário e configure cada etapa do atendimento</p>
             </div>
+            <div style={{ padding: '16px 20px 20px' }}>
 
             {/* Paciente */}
             <div className="fld" style={{ position: 'relative', marginBottom: 14 }}>
@@ -705,6 +706,7 @@ export default function Agenda() {
                 {saving ? 'Salvando...' : `Confirmar ${etapasConcluidas.length > 0 ? `(${etapasConcluidas.length} etapa${etapasConcluidas.length > 1 ? 's' : ''})` : ''}`}
               </button>
             </div>
+            </div>{/* fim do padding wrapper */}
           </div>
         </div>
       )}
@@ -715,7 +717,9 @@ export default function Agenda() {
           <div className="modal">
             <h2>{modalSolic.tipo === 'cancelamento' ? 'Solicitar Cancelamento' : 'Solicitar Reagendamento'}</h2>
             <p style={{ fontSize: 13, color: 'var(--muted)' }}>Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.estagiario?.nome}</p>
-            <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500 }}>⚠️ Requer aprovação do administrador.</div>
+            <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534', fontWeight: 500 }}>
+              {modalSolic?.tipo === 'cancelamento' ? '🗑️ A consulta será cancelada e a sala liberada imediatamente.' : '📅 A nova data/hora será aplicada se a sala estiver disponível.'}
+            </div>
             <div className="form-grid">
               {modalSolic.tipo === 'reagendamento' && (<>
                 <div className="fld"><label>Nova data</label><input type="date" value={modalSolic.nova_data} onChange={e => setModalSolic({ ...modalSolic, nova_data: e.target.value })} /></div>
