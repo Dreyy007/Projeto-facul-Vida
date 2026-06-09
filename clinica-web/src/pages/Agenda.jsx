@@ -391,6 +391,27 @@ export default function Agenda() {
     }
 
     setSaving(true)
+
+    // ── Verificar conflitos reais no banco antes de inserir ─────────────────────
+    for (const e of etapasConcluidas) {
+      const hora = e.horasDia[e.data] || e.hora
+      const { data: conflitos } = await supabase
+        .from('consultas')
+        .select('id, paciente:pacientes(nome), estagiario:profiles(nome,codigo)')
+        .eq('sala_id', e.sala_id)
+        .eq('data', e.data)
+        .eq('hora', hora)
+        .not('status', 'in', '("cancelada","realizada")')
+      if (conflitos && conflitos.length > 0) {
+        const nomeSala = salas.find(s => s.id === e.sala_id)?.nome || 'sala'
+        const ocupante = conflitos[0]?.paciente?.nome || '—'
+        const est = conflitos[0]?.estagiario?.codigo || conflitos[0]?.estagiario?.nome || '—'
+        toast.error(`❌ Conflito em "${e.cfg.label}": ${nomeSala} já está ocupada às ${hora} em ${fmtData(e.data)}.\nPaciente: ${ocupante} · Estagiário: ${est}`)
+        setSaving(false)
+        return
+      }
+    }
+
     const statusInicial = ['admin', 'coordenador'].includes(profile?.tipo) ? 'confirmada' : 'aguardando'
 
     const inserts = etapasConcluidas.map(e => ({

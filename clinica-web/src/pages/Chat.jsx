@@ -44,6 +44,16 @@ function tocarSomEnvio() {
   } catch (e) {}
 }
 
+const RESPOSTAS_RAPIDAS = [
+  '✅ Sua consulta está confirmada!',
+  '⏰ Lembrete: você tem consulta amanhã.',
+  '📋 Por favor, traga seus documentos de identificação.',
+  '🔄 Precisamos reagendar. Qual horário é melhor para você?',
+  '❌ Infelizmente precisamos cancelar esta consulta.',
+  '📞 Por favor, entre em contato pelo telefone da clínica.',
+  '🏥 Bem-vindo(a) à Clínica Vida+! Como podemos ajudar?',
+]
+
 export default function Chat() {
   const { profile } = useAuth()
   const toast = useToast()
@@ -53,6 +63,8 @@ export default function Chat() {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [busca, setBusca] = useState('')
+  const [showRapidas, setShowRapidas] = useState(false)
+  const [pacienteInfo, setPacienteInfo] = useState(null)
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
   const ativaRef = useRef(null)
@@ -92,7 +104,20 @@ export default function Chat() {
     if (!ativa) return
     fetchMensagens(ativa.id)
     marcarLidas(ativa.id)
+    fetchPacienteInfo(ativa.id)
   }, [ativa])
+
+  async function fetchPacienteInfo(pacienteId) {
+    const { data } = await supabase
+      .from('consultas')
+      .select('data, hora, tipo, status, sala:salas(nome), estagiario:profiles(nome)')
+      .eq('paciente_id', pacienteId)
+      .not('status', 'in', '("cancelada","realizada")')
+      .order('data')
+      .limit(1)
+      .maybeSingle()
+    setPacienteInfo(data || null)
+  }
 
   function notificarBrowser(nome, mensagem) {
     if (Notification.permission === 'granted') {
@@ -219,9 +244,9 @@ export default function Chat() {
     )
   }
 
-  const conversasFiltradas = conversas.filter(c =>
-    c.nome?.toLowerCase().includes(busca.toLowerCase())
-  )
+  const conversasFiltradas = conversas
+    .filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()))
+    .sort((a, b) => (b.unread || 0) - (a.unread || 0) || new Date(b.ultima_hora || 0) - new Date(a.ultima_hora || 0))
 
   const lastDateDisplay = { current: null }
 
@@ -262,13 +287,19 @@ export default function Chat() {
           </div>
         ) : (
           <>
-            <div className="chat-win-header">
-              <div className="chat-av-lg" style={{ background: '#0047AB', padding: 4 }}>
-                <img src={LOGO_SRC} alt="Clínica Vida+" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-              </div>
-              <div>
-                <div className="chat-win-nome">Clínica Vida+</div>
-                <div className="chat-win-status">● {ativa.nome}</div>
+            <div className="chat-win-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: '14px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                <div className="chat-av-lg" style={{ background: corAvatar(ativa.nome) }}>
+                  {iniciais(ativa.nome)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="chat-win-nome" style={{ fontSize: 16 }}>{ativa.nome}</div>
+                  <div className="chat-win-status" style={{ fontSize: 12 }}>
+                    {pacienteInfo
+                      ? `📅 Próxima: ${new Date(pacienteInfo.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} às ${pacienteInfo.hora?.slice(0,5)} — ${pacienteInfo.tipo} · ${pacienteInfo.sala?.nome || '—'}`
+                      : '● Nenhuma consulta pendente'}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -306,10 +337,23 @@ export default function Chat() {
               <div ref={bottomRef} />
             </div>
 
+            {/* Respostas rápidas */}
+            {showRapidas && (
+              <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', background: 'var(--bg)' }}>
+                {RESPOSTAS_RAPIDAS.map((r, i) => (
+                  <button key={i} type="button"
+                    onClick={() => { setTexto(r); setShowRapidas(false) }}
+                    style={{ padding: '5px 11px', fontSize: 12, borderRadius: 16, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="chat-input-bar">
               <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleAnexo} />
               <button className="btn-clip" onClick={() => fileRef.current?.click()} disabled={enviando} title="Anexar">📎</button>
-              <textarea className="chat-textarea" placeholder="Digite sua mensagem..." value={texto}
+              <button className="btn-clip" onClick={() => setShowRapidas(r => !r)} title="Respostas rápidas" style={{ fontSize: 16 }}>⚡</button>
+              <textarea className="chat-textarea" placeholder="Digite sua mensagem ou use ⚡ para respostas rápidas..." value={texto}
                 onChange={e => setTexto(e.target.value)} onKeyDown={handleKey} rows={1} disabled={enviando} />
               <button className="btn-send" onClick={handleEnviar} disabled={!texto.trim() || enviando}>➤</button>
             </div>

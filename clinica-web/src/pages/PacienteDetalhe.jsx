@@ -199,7 +199,8 @@ export default function PacienteDetalhe() {
       <div className="card">
         <div className="tabs">
           {[
-            ['historico', '📋 Histórico de consultas'],
+            ['prontuario', '🩺 Prontuário'],
+            ['historico', '📋 Histórico'],
             ['mensagens', '💬 Mensagens'],
             ['resultados', '🔬 Resultados'],
             ['laudos', '📄 Laudos'],
@@ -207,6 +208,88 @@ export default function PacienteDetalhe() {
             <div key={k} className={`tab${aba === k ? ' on' : ''}`} onClick={() => setAba(k)}>{l}</div>
           ))}
         </div>
+
+        {/* Prontuário */}
+        {aba === 'prontuario' && (() => {
+          const ETAPAS = [
+            { id: 'Triagem',             label: 'Triagem',             icon: '🔍', color: '#0891b2', bg: '#e0f7fa' },
+            { id: 'Avaliação',           label: 'Avaliação',           icon: '📋', color: '#7c3aed', bg: '#f3e8ff' },
+            { id: 'Consulta',            label: 'Consulta',            icon: '🩺', color: '#0047AB', bg: '#eff6ff' },
+            { id: 'Direcionamento Final',label: 'Direcionamento Final',icon: '🎯', color: '#059669', bg: '#d1fae5' },
+          ]
+          const tagCls = s => ({ confirmada:'tag tg', aguardando:'tag ta', cancelada:'tag tr', realizada:'tag tg', cancelamento_pendente:'tag tr', reagendamento_pendente:'tag ta' }[s] || 'tag tp')
+          const tagLbl = s => ({ confirmada:'Confirmada', aguardando:'Aguardando', cancelada:'Cancelada', realizada:'Realizada', cancelamento_pendente:'Cancel. pend.', reagendamento_pendente:'Reagend. pend.' }[s] || s)
+          const concluidas = (tipo) => consultas.filter(c => c.tipo === tipo && ['confirmada','realizada'].includes(c.status)).length
+          return (
+            <div style={{ padding: '20px 18px' }}>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>Fluxo de atendimento completo do paciente — todas as etapas registradas.</p>
+
+              {/* Linha de progresso */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 28, overflowX: 'auto' }}>
+                {ETAPAS.map((et, idx) => {
+                  const feitas = concluidas(et.id)
+                  const done = feitas > 0
+                  return (
+                    <div key={et.id} style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 110 }}>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div style={{ width: 44, height: 44, borderRadius: '50%', background: done ? et.color : '#e2e8f0', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: `3px solid ${done ? et.color : '#e2e8f0'}`, boxShadow: done ? `0 0 0 4px ${et.bg}` : 'none', transition: 'all .3s' }}>
+                          {done ? '✓' : et.icon}
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, marginTop: 6, color: done ? et.color : '#94a3b8' }}>{et.label}</div>
+                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{feitas} sessão(ões)</div>
+                      </div>
+                      {idx < ETAPAS.length - 1 && (
+                        <div style={{ width: 32, height: 3, background: concluidas(ETAPAS[idx+1].id) > 0 ? ETAPAS[idx+1].color : '#e2e8f0', flexShrink: 0, transition: 'background .3s', marginBottom: 20 }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Detalhes por etapa */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {ETAPAS.map(et => {
+                  const cons = consultas.filter(c => c.tipo === et.id)
+                  return (
+                    <div key={et.id} style={{ border: `1.5px solid ${cons.length > 0 ? et.color : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden' }}>
+                      <div style={{ padding: '12px 16px', background: cons.length > 0 ? et.bg : '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{et.icon}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: cons.length > 0 ? et.color : '#6b7280' }}>{et.label}</div>
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
+                            {cons.length === 0 ? 'Nenhum atendimento registrado' : `${cons.length} atendimento(s) registrado(s)`}
+                          </div>
+                        </div>
+                        {cons.length > 0 && <span style={{ background: et.color, color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{cons.length}</span>}
+                      </div>
+                      {cons.length > 0 && (
+                        <div style={{ padding: '0 16px 12px' }}>
+                          {cons.map((c, i) => (
+                            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < cons.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: et.color, flexShrink: 0 }}>
+                                {new Date(c.data + 'T12:00:00').getDate()}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                  {new Date(c.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                                  <span style={{ fontWeight: 400, color: '#64748b', marginLeft: 8 }}>às {c.hora?.slice(0,5)}</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                                  {c.medico?.nome || '—'}
+                                </div>
+                              </div>
+                              <span className={tagCls(c.status)} style={{ flexShrink: 0 }}>{tagLbl(c.status)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Histórico */}
         {aba === 'historico' && (
