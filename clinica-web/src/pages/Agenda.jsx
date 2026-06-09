@@ -412,8 +412,7 @@ export default function Agenda() {
       }
     }
 
-    const statusInicial = ['admin', 'coordenador'].includes(profile?.tipo) ? 'confirmada' : 'aguardando'
-
+    // Agendamento direto — sempre confirmado. Aprovação só ocorre em troca de sala.
     const inserts = etapasConcluidas.map(e => ({
       paciente_id: pacienteSelecionado.id,
       medico_id:   estagiarioSelecionado.id,
@@ -421,7 +420,7 @@ export default function Agenda() {
       data:        e.data,
       hora:        e.horasDia[e.data] || e.hora,
       sala_id:     e.sala_id,
-      status:      statusInicial,
+      status:      'confirmada',
       criado_por:  profile.id,
     }))
 
