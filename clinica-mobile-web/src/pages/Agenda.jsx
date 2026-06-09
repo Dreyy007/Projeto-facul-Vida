@@ -32,6 +32,31 @@ function gerarDias(base, n = 10) {
   }
   return dias
 }
+function gerarMes(base) {
+  const d = new Date(base + 'T12:00:00')
+  const ano = d.getFullYear(), mes = d.getMonth()
+  const primeiro = new Date(ano, mes, 1), ultimo = new Date(ano, mes + 1, 0)
+  const cells = []
+  for (let i = 0; i < primeiro.getDay(); i++) cells.push(null)
+  for (let i = 1; i <= ultimo.getDate(); i++)
+    cells.push(`${ano}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`)
+  return cells
+}
+function navMes(base, delta) {
+  const d = new Date(base + 'T12:00:00'); d.setDate(1); d.setMonth(d.getMonth() + delta)
+  return d.toISOString().split('T')[0]
+}
+function labelMes(base) {
+  return new Date(base + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+}
+function mesPrimeiroDia(base) {
+  const d = new Date(base + 'T12:00:00')
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`
+}
+function mesUltimoDia(base) {
+  const d = new Date(base + 'T12:00:00'), ult = new Date(d.getFullYear(), d.getMonth()+1, 0)
+  return `${ult.getFullYear()}-${String(ult.getMonth()+1).padStart(2,'0')}-${String(ult.getDate()).padStart(2,'0')}`
+}
 
 function etapaVazia() {
   return {
@@ -56,39 +81,32 @@ function GlobalConfigurator({ salas, onAplicar }) {
   const [altSalas,  setAltSalas]  = useState({})
   const [flashDia,  setFlashDia]  = useState(null)
 
-  const dias = gSala ? gerarDias(gBaseDias, 10) : []
-
   async function carregarOcupacao(sala_id, base) {
     setGLoading(true); setAltSalas({})
-    const ds = gerarDias(base, 10)
     const { data: rows } = await supabase
       .from('consultas').select('data,hora')
-      .eq('sala_id', sala_id).in('data', ds)
+      .eq('sala_id', sala_id)
+      .gte('data', mesPrimeiroDia(base)).lte('data', mesUltimoDia(base))
       .not('status', 'in', '("cancelada","realizada")')
     const occ = {}
-    ds.forEach(d => { occ[d] = [] })
-    ;(rows || []).forEach(c => { if (occ[c.data]) occ[c.data].push(c.hora?.slice(0, 5)) })
+    ;(rows || []).forEach(c => { if (!occ[c.data]) occ[c.data] = []; occ[c.data].push(c.hora?.slice(0, 5)) })
     setGOcupacao(occ); setGLoading(false)
   }
 
-  async function buscarAlternativas(dia, hora) {
+  async function buscarAlternativas(dia) {
     const { data: ocup } = await supabase
       .from('consultas').select('sala_id')
-      .eq('data', dia).eq('hora', hora)
+      .eq('data', dia).eq('hora', gHora)
       .not('status', 'in', '("cancelada","realizada")')
     const ocupadasIds = new Set((ocup || []).map(c => c.sala_id))
-    const livres = salas.filter(s => s.id !== gSala && !ocupadasIds.has(s.id))
-    setAltSalas(prev => ({ ...prev, [dia]: livres }))
+    setAltSalas(prev => ({ ...prev, [dia]: salas.filter(s => s.id !== gSala && !ocupadasIds.has(s.id)) }))
   }
 
-  function diaOcupado(dia) {
-    if (!gHora) return false
-    return (gOcupacao[dia] || []).includes(gHora)
-  }
+  function diaOcupado(dia) { return gHora ? (gOcupacao[dia] || []).includes(gHora) : false }
 
   function handleDia(dia) {
     if (!gHora) return
-    if (diaOcupado(dia)) { buscarAlternativas(dia, gHora); return }
+    if (diaOcupado(dia)) { buscarAlternativas(dia); return }
     onAplicar(gSala, gHora, dia)
     setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500)
   }
@@ -99,7 +117,7 @@ function GlobalConfigurator({ salas, onAplicar }) {
         <span style={{ fontSize: 20 }}>⚡</span>
         <div>
           <div style={{ fontWeight: 700, fontSize: 13, color: '#1e40af' }}>Configuração Rápida</div>
-          <div style={{ fontSize: 11, color: '#64748b' }}>Sala + horário + dia → aplica às 4 etapas</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Sala + horário + clique no dia → aplica às 4 etapas</div>
         </div>
       </div>
 
@@ -122,87 +140,89 @@ function GlobalConfigurator({ salas, onAplicar }) {
 
       {gSala && (
         <>
+          {/* Horário */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>⏰</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>⏰ Hora:</span>
             <input type="time" value={gHora}
               onChange={e => { setGHora(e.target.value); setAltSalas({}) }}
               style={{ padding: '5px 8px', border: '1.5px solid #bfdbfe', borderRadius: 8, fontFamily: 'inherit', fontSize: 12, outline: 'none', flex: 1 }} />
             {gLoading && <span style={{ fontSize: 10, color: '#64748b' }}>⏳</span>}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-              {[{label:'←10d',delta:-10},{label:'Hoje',hoje:true},{label:'+10d→',delta:10}].map(bt => (
-                <button key={bt.label} type="button"
-                  onClick={() => {
-                    let nd
-                    if (bt.hoje) { nd = hoje } else { const d = new Date(gBaseDias+'T12:00:00'); d.setDate(d.getDate()+bt.delta); nd = d.toISOString().split('T')[0] }
-                    setGBaseDias(nd); carregarOcupacao(gSala, nd)
-                  }}
-                  style={{ padding: '3px 6px', fontSize: 10, border: '1px solid #bfdbfe', borderRadius: 5, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: bt.hoje ? 700 : 400 }}>
-                  {bt.label}
-                </button>
-              ))}
-              <input type="date" value={gBaseDias}
-                onChange={e => { if (e.target.value) { setGBaseDias(e.target.value); if (gSala) carregarOcupacao(gSala, e.target.value) } }}
-                style={{ padding: '3px 5px', fontSize: 10, border: '1px solid #bfdbfe', borderRadius: 5, fontFamily: 'inherit' }} />
-            </div>
           </div>
 
-          <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-            <div style={{ display: 'flex', gap: 6, minWidth: 'max-content' }}>
-              {dias.map(dia => {
-                const passado  = dia < hoje
-                const ocupado  = diaOcupado(dia)
-                const flash    = flashDia === dia
-                const alts     = altSalas[dia]
-                const dtObj    = new Date(dia + 'T12:00:00')
-                const semana   = dtObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
-                const diaN     = String(dtObj.getDate()).padStart(2, '0')
-                const mesN     = dtObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-                const isFds    = [0, 6].includes(dtObj.getDay())
-                const clicavel = !passado && gHora
+          {/* Navegação mês */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <button type="button"
+              onClick={() => { const nb = navMes(gBaseDias, -1); setGBaseDias(nb); carregarOcupacao(gSala, nb) }}
+              style={{ padding: '3px 10px', fontSize: 16, border: '1px solid #bfdbfe', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>‹</button>
+            <span style={{ fontWeight: 700, fontSize: 12, color: '#1e40af', textTransform: 'capitalize' }}>{labelMes(gBaseDias)}</span>
+            <button type="button"
+              onClick={() => { const nb = navMes(gBaseDias, 1); setGBaseDias(nb); carregarOcupacao(gSala, nb) }}
+              style={{ padding: '3px 10px', fontSize: 16, border: '1px solid #bfdbfe', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>›</button>
+          </div>
 
-                return (
-                  <div key={dia} style={{ width: 76, flexShrink: 0 }}>
-                    <div onClick={() => clicavel && handleDia(dia)}
-                      style={{
-                        borderRadius: 10, textAlign: 'center', padding: '7px 4px',
-                        border: flash ? '2.5px solid #16a34a' : ocupado ? '1.5px solid #FECACA' : passado ? '1.5px solid #e2e8f0' : gHora ? '1.5px solid #86efac' : '1.5px solid #bfdbfe',
-                        background: flash ? '#dcfce7' : ocupado ? '#FFF5F5' : passado ? '#f8fafc' : gHora ? '#f0fdf4' : '#fff',
-                        opacity: passado ? 0.45 : 1,
-                        cursor: clicavel ? 'pointer' : 'not-allowed',
-                        userSelect: 'none', transition: 'all .15s',
-                      }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: isFds ? '#f59e0b' : '#94a3b8' }}>{semana}</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, marginTop: 2, color: flash ? '#15803d' : ocupado ? '#b91c1c' : passado ? '#cbd5e1' : '#0f172a' }}>{diaN}</div>
-                      <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>{mesN}</div>
-                      <div style={{ fontSize: 14, marginTop: 3 }}>
-                        {flash ? '✅' : !gHora ? '⏰' : ocupado ? '🔴' : passado ? '—' : '🟢'}
-                      </div>
+          {/* Cabeçalho semana */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 2 }}>
+            {['D','S','T','Q','Q','S','S'].map((dn, i) => (
+              <div key={i} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: i === 0 || i === 6 ? '#f59e0b' : '#94a3b8' }}>{dn}</div>
+            ))}
+          </div>
+
+          {/* Grid mês */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+            {gerarMes(gBaseDias).map((dia, i) => {
+              if (!dia) return <div key={`g${i}`} />
+              const passado  = dia < hoje
+              const ocupado  = diaOcupado(dia)
+              const flash    = flashDia === dia
+              const alts     = altSalas[dia]
+              const clicavel = !passado && gHora
+
+              let bg = '#fff', border = '#e2e8f0', txtColor = '#374151'
+              if (flash)        { bg = '#dcfce7'; border = '#16a34a'; txtColor = '#15803d' }
+              else if (ocupado) { bg = '#FFF5F5'; border = '#FECACA'; txtColor = '#dc2626' }
+              else if (passado) { bg = '#fafafa'; border = '#f1f5f9'; txtColor = '#d1d5db' }
+              else if (gHora)   { bg = '#f0fdf4'; border = '#86efac'; txtColor = '#15803d' }
+              else              { bg = '#f8fafc'; border = '#bfdbfe'; txtColor = '#64748b' }
+
+              return (
+                <div key={dia} style={{ position: 'relative' }}>
+                  <div onClick={() => clicavel && handleDia(dia)}
+                    style={{ borderRadius: 5, border: `1.5px solid ${border}`, background: bg, cursor: clicavel ? 'pointer' : 'default',
+                      textAlign: 'center', padding: '4px 1px', userSelect: 'none', opacity: passado ? 0.45 : 1,
+                      boxShadow: flash ? '0 1px 6px #16a34a40' : 'none' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: txtColor, lineHeight: 1.2 }}>
+                      {new Date(dia + 'T12:00:00').getDate()}
                     </div>
-                    {alts !== undefined && (
-                      <div style={{ marginTop: 3 }}>
-                        {alts.length === 0
-                          ? <div style={{ fontSize: 8, color: '#b91c1c', textAlign: 'center' }}>Sem salas</div>
-                          : alts.map(s => (
-                            <button key={s.id} type="button"
-                              onClick={() => { onAplicar(s.id, gHora, dia); setGSala(s.id); carregarOcupacao(s.id, gBaseDias); setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500) }}
-                              style={{ display: 'block', width: '100%', marginBottom: 2, padding: '2px 3px', fontSize: 9, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', color: '#1d4ed8', textAlign: 'center', fontWeight: 600 }}>
-                              {s.nome}
-                            </button>
-                          ))
-                        }
-                      </div>
-                    )}
+                    <div style={{ fontSize: 9, lineHeight: 1 }}>
+                      {flash ? '✅' : !gHora ? '' : ocupado ? '🔴' : passado ? '' : '🟢'}
+                    </div>
                   </div>
-                )
-              })}
-            </div>
+                  {alts !== undefined && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10, background: '#fff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 6, minWidth: 110, boxShadow: '0 4px 14px rgba(0,0,0,.12)' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#1e40af', marginBottom: 3 }}>Salas livres:</div>
+                      {alts.length === 0
+                        ? <div style={{ fontSize: 9, color: '#b91c1c' }}>Nenhuma</div>
+                        : alts.map(s => (
+                          <button key={s.id} type="button"
+                            onClick={() => { onAplicar(s.id, gHora, dia); setGSala(s.id); carregarOcupacao(s.id, gBaseDias); setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500); setAltSalas({}) }}
+                            style={{ display: 'block', width: '100%', marginBottom: 2, padding: '3px 5px', fontSize: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', color: '#1d4ed8', fontWeight: 600 }}>
+                            🚪 {s.nome}
+                          </button>
+                        ))
+                      }
+                      <button onClick={() => setAltSalas({})} style={{ fontSize: 8, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>fechar</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {!gHora && <p style={{ margin: '6px 0 0', fontSize: 10, color: '#64748b' }}>⏰ Informe o horário para ver disponibilidade</p>}
         </>
       )}
 
-      {!gSala && <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>👆 Selecione uma sala para começar</p>}
+      {!gSala && <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>👆 Selecione uma sala para abrir o calendário</p>}
     </div>
   )
 }
@@ -211,7 +231,6 @@ function GlobalConfigurator({ salas, onAplicar }) {
 function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
   const { sala_id, hora, selectedDias, baseDias, ocupacao, horasDia, loading } = estado
   const hoje = new Date().toISOString().split('T')[0]
-  const dias = sala_id ? gerarDias(baseDias, 10) : []
 
   function horaDoDia(dia) { return horasDia[dia] || hora }
   function estaOcupado(dia) {
@@ -248,7 +267,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                 ✓ {selectedDias.length} dia{selectedDias.length > 1 ? 's' : ''} · {salas.find(s => s.id === sala_id)?.nome || '—'}
               </div>
             : <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
-                {sala_id ? 'Defina o horário em cada dia e clique para confirmar' : 'Selecione uma sala para ver os dias disponíveis'}
+                {sala_id ? 'Selecione os dias no calendário' : 'Selecione uma sala para ver o calendário'}
               </div>
           }
         </div>
@@ -282,144 +301,97 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
           </div>
         </div>
 
-        {/* Grade de 10 dias — aparece assim que sala for selecionada */}
+        {/* Calendário mensal */}
         {sala_id && (
           <div>
-            {/* Navegação + horário padrão opcional */}
+            {/* Hora padrão */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: 0 }}>
-                  {loading ? '⏳ Carregando...' : `📅 Selecione os dias (${selectedDias.length} selecionado${selectedDias.length !== 1 ? 's' : ''})`}
-                </p>
-              </div>
-              {/* Horário padrão */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                {loading ? '⏳ Carregando...' : `📅 ${selectedDias.length} dia${selectedDias.length !== 1 ? 's' : ''} selecionado${selectedDias.length !== 1 ? 's' : ''}`}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
                 <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>⚡ Hora:</span>
                 <input type="time" value={hora}
                   onChange={e => onUpdate({ hora: e.target.value })}
-                  style={{ padding: '4px 6px', border: '1.5px solid #e2e8f0', borderRadius: 6, fontFamily: 'inherit', fontSize: 12, outline: 'none', color: '#374151' }} />
-              </div>
-              {/* Navegação */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => { const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() - 10); onUpdate({ baseDias: d.toISOString().split('T')[0] }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
-                  style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>← 10d</button>
-                <input type="date" value={baseDias}
-                  onChange={e => { if (e.target.value) onUpdate({ baseDias: e.target.value }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
-                  style={{ padding: '3px 5px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, fontFamily: 'inherit' }} />
-                <button type="button" onClick={() => { const t = new Date().toISOString().split('T')[0]; onUpdate({ baseDias: t }, () => onCarregarOcupacao(sala_id, t)) }}
-                  style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Hoje</button>
-                <button type="button" onClick={() => { const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() + 10); onUpdate({ baseDias: d.toISOString().split('T')[0] }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
-                  style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>+10d →</button>
+                  style={{ padding: '4px 6px', border: '1.5px solid #e2e8f0', borderRadius: 6, fontFamily: 'inherit', fontSize: 11, outline: 'none', color: '#374151' }} />
               </div>
             </div>
 
-            {/* Grid horizontal */}
-            <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 8 }}>
-              <div style={{ display: 'flex', gap: 7, minWidth: 'max-content' }}>
-                {dias.map(dia => {
-                  const horaDia = horaDoDia(dia)
-                  const ocupado = estaOcupado(dia)
-                  const ocup = ocupantesDia(dia)
-                  const sel = selectedDias.includes(dia)
-                  const passado = dia < hoje
-                  const semHora = !horaDia
-                  const dtObj = new Date(dia + 'T12:00:00')
-                  const semana = dtObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
-                  const diaN = String(dtObj.getDate()).padStart(2, '0')
-                  const mesN = dtObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-                  const isFds = [0, 6].includes(dtObj.getDay())
-                  const temHoraCustom = !!horasDia[dia]
+            {/* Navegação mês */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <button type="button"
+                onClick={() => { const nb = navMes(baseDias, -1); onUpdate({ baseDias: nb }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
+                style={{ padding: '3px 10px', fontSize: 16, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>‹</button>
+              <span style={{ fontWeight: 700, fontSize: 12, color: '#374151', textTransform: 'capitalize' }}>{labelMes(baseDias)}</span>
+              <button type="button"
+                onClick={() => { const nb = navMes(baseDias, 1); onUpdate({ baseDias: nb }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
+                style={{ padding: '3px 10px', fontSize: 16, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>›</button>
+            </div>
 
-                  const corBorda = sel ? cfg.color : ocupado ? '#FECACA' : semHora ? '#e2e8f0' : '#86efac'
-                  const bgCard = sel ? cfg.bg : ocupado ? '#FFF5F5' : semHora ? '#fff' : '#f0fdf4'
-                  const statusIcon = sel ? '✓' : passado ? '—' : ocupado ? '🔴' : semHora ? '⏰' : '🟢'
-                  const statusColor = sel ? '#fff' : passado ? '#cbd5e1' : ocupado ? '#dc2626' : semHora ? '#94a3b8' : '#16a34a'
+            {/* Cabeçalho semana */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 2 }}>
+              {['D','S','T','Q','Q','S','S'].map((dn, i) => (
+                <div key={i} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: i === 0 || i === 6 ? '#f59e0b' : '#94a3b8' }}>{dn}</div>
+              ))}
+            </div>
 
+            {/* Grid mês */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+              {gerarMes(baseDias).map((dia, i) => {
+                if (!dia) return <div key={`e${i}`} />
+                const horaDia = horaDoDia(dia)
+                const ocupado = estaOcupado(dia)
+                const sel     = selectedDias.includes(dia)
+                const passado = dia < hoje
+                const clicavel = !ocupado && !passado && horaDia
+
+                let bg = '#fafafa', border = '#e2e8f0', txtColor = '#94a3b8'
+                if (sel)          { bg = cfg.color;  border = cfg.color;  txtColor = '#fff' }
+                else if (ocupado) { bg = '#FFF5F5';  border = '#FECACA';  txtColor = '#dc2626' }
+                else if (passado) { bg = '#fafafa';  border = '#f1f5f9';  txtColor = '#d1d5db' }
+                else if (horaDia) { bg = '#f0fdf4';  border = '#86efac';  txtColor = '#15803d' }
+
+                return (
+                  <div key={dia}
+                    onClick={() => clicavel && toggleDia(dia)}
+                    title={ocupado ? 'Horário ocupado' : horaDia ? (sel ? 'Clique para remover' : 'Clique para selecionar') : 'Defina a hora padrão'}
+                    style={{ borderRadius: 5, border: `1.5px solid ${border}`, background: bg, cursor: clicavel ? 'pointer' : 'default',
+                      textAlign: 'center', padding: '4px 1px', userSelect: 'none', opacity: passado ? 0.45 : 1,
+                      boxShadow: sel ? `0 1px 6px ${cfg.color}40` : 'none' }}>
+                    <div style={{ fontSize: 12, fontWeight: sel ? 800 : 600, color: txtColor, lineHeight: 1.2 }}>
+                      {new Date(dia + 'T12:00:00').getDate()}
+                    </div>
+                    <div style={{ fontSize: 9, lineHeight: 1, color: sel ? 'rgba(255,255,255,.85)' : txtColor }}>
+                      {sel ? '✓' : ocupado ? '🔴' : horaDia && !passado ? horaDia : ''}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Chips dias selecionados */}
+            {selectedDias.length > 0 && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: '#374151' }}>📌 Selecionados:</p>
+                {selectedDias.map(d => {
+                  const hd = horasDia[d], hEfetiva = hd || hora
                   return (
-                    <div key={dia} style={{
-                      width: 100, flexShrink: 0, borderRadius: 12,
-                      border: sel ? `2.5px solid ${cfg.color}` : `1.5px solid ${corBorda}`,
-                      background: bgCard, opacity: passado && !sel ? 0.45 : 1,
-                      boxShadow: sel ? `0 3px 12px ${cfg.color}35` : '0 1px 3px rgba(0,0,0,0.05)',
-                      overflow: 'hidden',
-                    }}>
-                      {/* Cabeçalho clicável */}
-                      <div onClick={() => !ocupado && !passado && horaDia && toggleDia(dia)}
-                        style={{
-                          padding: '8px', textAlign: 'center',
-                          cursor: (ocupado || passado || !horaDia) ? 'not-allowed' : 'pointer',
-                          background: sel ? cfg.color : 'transparent',
-                          borderBottom: '1px solid #e2e8f0', userSelect: 'none',
-                        }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: sel ? 'rgba(255,255,255,.75)' : isFds ? '#f59e0b' : '#94a3b8' }}>{semana}</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: sel ? '#fff' : ocupado ? '#b91c1c' : passado ? '#cbd5e1' : '#0f172a', marginTop: 2 }}>{diaN}</div>
-                        <div style={{ fontSize: 10, color: sel ? 'rgba(255,255,255,.7)' : '#94a3b8', marginTop: 1 }}>{mesN}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4, color: statusColor }}>{statusIcon}</div>
-                      </div>
-
-                      {/* Hora individual */}
-                      {!passado && (
-                        <div style={{ padding: '5px 5px', borderBottom: '1px solid #f1f5f9', background: temHoraCustom ? '#fefce8' : ocupado ? '#FFF5F5' : '#fff' }}>
-                          <div style={{ fontSize: 9, color: ocupado ? '#b91c1c' : temHoraCustom ? '#d97706' : '#94a3b8', marginBottom: 2, fontWeight: 600, textAlign: 'center' }}>
-                            {ocupado ? '🔴 Ocupado' : temHoraCustom ? '⚡ Ajustado' : '⏰ Hora'}
-                          </div>
-                          <input type="time" value={horaDia}
-                            onClick={e => e.stopPropagation()}
-                            onChange={e => {
-                              const novasHoras = { ...horasDia, [dia]: e.target.value }
-                              onUpdate({ horasDia: novasHoras })
-                            }}
-                            style={{
-                              width: '100%', boxSizing: 'border-box',
-                              padding: '3px 3px', fontSize: 10, fontFamily: 'inherit',
-                              border: `1px solid ${ocupado ? '#FECACA' : temHoraCustom ? '#fde68a' : '#e2e8f0'}`,
-                              borderRadius: 6, outline: 'none',
-                              background: ocupado ? '#FEF2F2' : temHoraCustom ? '#fffbeb' : '#f8fafc',
-                              color: ocupado ? '#b91c1c' : '#374151',
-                            }} />
-                          {temHoraCustom && !ocupado && (
-                            <button type="button"
-                              onClick={e => { e.stopPropagation(); const h = { ...horasDia }; delete h[dia]; onUpdate({ horasDia: h }) }}
-                              style={{ display: 'block', width: '100%', marginTop: 2, fontSize: 9, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
-                              ↩ padrão
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Quem ocupa */}
-                      {ocupado && ocup.length > 0 && (
-                        <div style={{ padding: '4px 5px', fontSize: 9, color: '#6b7280', lineHeight: 1.4, background: '#FFF5F5' }}>
-                          <div style={{ fontWeight: 700, color: '#b91c1c' }}>⚠️ {ocup[0].hora?.slice(0, 5)}</div>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ocup[0].paciente.split(' ')[0]}</div>
-                          <div style={{ color: '#9ca3af' }}>{ocup[0].codigo || ocup[0].estagiario.split(' ')[0]}</div>
-                          <div style={{ color: '#b91c1c', fontSize: 8 }}>Altere o horário</div>
-                        </div>
-                      )}
-
-                      {/* Sem hora */}
-                      {!passado && semHora && (
-                        <div style={{ padding: '4px 5px', fontSize: 8, color: '#94a3b8', textAlign: 'center', background: '#f8fafc' }}>
-                          Defina o horário
-                        </div>
-                      )}
+                    <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 6, background: cfg.bg, border: `1.5px solid ${cfg.color}`, borderRadius: 8, padding: '4px 8px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: cfg.color, flex: 1 }}>{fmtData(d)}</span>
+                      <input type="time" value={hEfetiva}
+                        onChange={e => onUpdate({ horasDia: { ...horasDia, [d]: e.target.value } })}
+                        style={{ padding: '2px 5px', border: `1px solid ${cfg.color}40`, borderRadius: 5, fontFamily: 'inherit', fontSize: 10, outline: 'none', background: '#fff', color: '#374151' }} />
+                      {hd && <button type="button" onClick={() => { const h = { ...horasDia }; delete h[d]; onUpdate({ horasDia: h }) }}
+                        style={{ fontSize: 9, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>↩</button>}
+                      <button type="button" onClick={() => toggleDia(d)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: cfg.color, fontWeight: 900, fontSize: 15, lineHeight: 1 }}>×</button>
                     </div>
                   )
                 })}
               </div>
-            </div>
-
-            {/* Chips dos dias selecionados */}
-            {selectedDias.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {selectedDias.map(d => (
-                  <span key={d} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: cfg.bg, color: cfg.color, border: `1.5px solid ${cfg.color}`, borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                    {fmtData(d)} · {horaDoDia(d) || '—'}
-                    <button type="button" onClick={() => toggleDia(d)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: cfg.color, fontWeight: 900, fontSize: 13, lineHeight: 1, padding: '0 0 0 2px' }}>×</button>
-                  </span>
-                ))}
-              </div>
+            )}
+            {!hora && selectedDias.length === 0 && (
+              <p style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>💡 Defina a hora e clique nos dias do calendário para selecionar.</p>
             )}
           </div>
         )}
@@ -521,19 +493,18 @@ export default function Agenda() {
     ETAPAS_CONFIG.forEach((_, idx) => carregarOcupacaoEtapa(idx, sala_id, data))
   }
 
-  // ── Carrega ocupação de uma sala nos 10 dias de uma etapa ──────────────────
+  // ── Carrega ocupação de uma sala no mês inteiro de uma etapa ─────────────────
   async function carregarOcupacaoEtapa(idx, salaId, baseDias) {
     if (!salaId) return
     updateEtapa(idx, { loading: true })
-    const dias = gerarDias(baseDias, 10)
     const { data: rows } = await supabase
       .from('consultas')
       .select('data, hora, paciente:pacientes(nome), estagiario:profiles(nome,codigo)')
       .eq('sala_id', salaId)
-      .in('data', dias)
+      .gte('data', mesPrimeiroDia(baseDias))
+      .lte('data', mesUltimoDia(baseDias))
       .not('status', 'in', '("cancelada","realizada")')
     const ocupacao = {}
-    dias.forEach(d => { ocupacao[d] = [] })
     ;(rows || []).forEach(c => {
       if (ocupacao[c.data]) ocupacao[c.data].push({
         hora:       c.hora,
