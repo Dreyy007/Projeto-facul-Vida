@@ -437,14 +437,40 @@ export default function Agenda() {
 
   async function handleEnviarSolic() {
     const { consulta, tipo, nova_data, nova_hora } = modalSolic
+
     if (tipo === 'cancelamento') {
+      // Cancela → sala liberada automaticamente (status cancelada é ignorado no filtro de ocupação)
       await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', consulta.id)
-      toast.success('Consulta cancelada.')
-    } else if (tipo === 'reagendamento') {
-      await supabase.from('consultas').update({ data: nova_data, hora: nova_hora, status: 'confirmada' }).eq('id', consulta.id)
-      toast.success('Consulta reagendada com sucesso!')
+      setModalSolic(null); fetchConsultas()
+      toast.success('Consulta cancelada. Sala liberada.')
+      return
     }
-    setModalSolic(null); fetchConsultas()
+
+    if (tipo === 'reagendamento') {
+      if (!nova_data || !nova_hora) { toast.error('Informe a nova data e horário.'); return }
+
+      // Verifica se a sala está disponível no novo horário (ignora a própria consulta)
+      const { data: conflitos } = await supabase
+        .from('consultas')
+        .select('id, paciente:pacientes(nome)')
+        .eq('sala_id', consulta.sala_id)
+        .eq('data', nova_data)
+        .eq('hora', nova_hora)
+        .not('status', 'in', '("cancelada","realizada")')
+        .neq('id', consulta.id)   // ignora a própria consulta
+
+      if (conflitos && conflitos.length > 0) {
+        const ocupante = conflitos[0]?.paciente?.nome || '—'
+        const nomeSala = salas.find(s => s.id === consulta.sala_id)?.nome || 'sala'
+        toast.error(`❌ Conflito: "${nomeSala}" já está ocupada em ${nova_data} às ${nova_hora}.\nPaciente: ${ocupante}`)
+        return
+      }
+
+      // Sala disponível → reagenda direto
+      await supabase.from('consultas').update({ data: nova_data, hora: nova_hora, status: 'confirmada' }).eq('id', consulta.id)
+      setModalSolic(null); fetchConsultas()
+      toast.success('Reagendado! Sala confirmada para o novo horário.')
+    }
   }
 
   async function handleTrocaSala() {
