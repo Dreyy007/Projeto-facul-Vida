@@ -247,7 +247,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
               </div>
             </div>
 
-            {!horaDia && !hora && (
+            {!hora && (
               <p style={{ marginTop: 8, fontSize: 12, color: '#64748b', background: '#f8fafc', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                 💡 Use "Aplicar a todos" para definir o mesmo horário em todos os dias, ou ajuste individualmente em cada célula.
               </p>
