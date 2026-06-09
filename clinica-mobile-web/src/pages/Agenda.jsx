@@ -49,19 +49,23 @@ function etapaVazia() {
 function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
   const { sala_id, hora, data, baseDias, ocupacao, horasDia, loading } = estado
   const hoje = new Date().toISOString().split('T')[0]
-  const dias = sala_id && hora ? gerarDias(baseDias, 10) : []
+  // Grade aparece assim que sala for selecionada — sem precisar de hora padrão
+  const dias = sala_id ? gerarDias(baseDias, 10) : []
 
   function horaDoDia(dia) { return horasDia[dia] || hora }
   function estaOcupado(dia) {
     const h = horaDoDia(dia)
-    return !!(h && (ocupacao[dia] || []).some(c => c.hora?.slice(0, 5) === h))
+    if (!h) return false
+    return !!(ocupacao[dia] || []).some(c => c.hora?.slice(0, 5) === h)
   }
   function ocupantesDia(dia) {
     const h = horaDoDia(dia)
+    if (!h) return []
     return (ocupacao[dia] || []).filter(c => c.hora?.slice(0, 5) === h)
   }
 
-  const concluido = !!(sala_id && hora && data)
+  const horaDiaSel = horaDoDia(data)
+  const concluido = !!(sala_id && data && horaDiaSel)
 
   return (
     <div style={{
@@ -76,9 +80,11 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
           <div style={{ fontWeight: 700, fontSize: 14, color: concluido ? cfg.color : '#374151' }}>{cfg.label}</div>
           {concluido
             ? <div style={{ fontSize: 12, color: cfg.color, opacity: 0.85, marginTop: 1 }}>
-                ✓ {fmtData(data)} às {fmtHora(horaDoDia(data))} · {salas.find(s => s.id === sala_id)?.nome || '—'}
+                ✓ {fmtData(data)} às {fmtHora(horaDiaSel)} · {salas.find(s => s.id === sala_id)?.nome || '—'}
               </div>
-            : <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>Selecione sala → horário → dia</div>
+            : <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 1 }}>
+                {sala_id ? 'Defina o horário em cada dia e clique para confirmar' : 'Selecione uma sala para ver os dias disponíveis'}
+              </div>
           }
         </div>
         {concluido && (
@@ -97,13 +103,12 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
               const sel = sala_id === s.id
               return (
                 <button key={s.id} type="button"
-                  onClick={() => onUpdate({ sala_id: s.id, data: '', horasDia: {} }, () => onCarregarOcupacao(s.id, baseDias))}
+                  onClick={() => onUpdate({ sala_id: s.id, data: '', hora: '', horasDia: {} }, () => onCarregarOcupacao(s.id, baseDias))}
                   style={{
                     padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
                     fontSize: 12, fontWeight: sel ? 700 : 500, transition: 'all .15s',
                     border: sel ? `2px solid ${cfg.color}` : '1.5px solid #e2e8f0',
-                    background: sel ? cfg.bg : '#fff',
-                    color: sel ? cfg.color : '#374151',
+                    background: sel ? cfg.bg : '#fff', color: sel ? cfg.color : '#374151',
                   }}>
                   🚪 {s.nome}
                 </button>
@@ -112,48 +117,44 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
           </div>
         </div>
 
-        {/* Hora padrão */}
+        {/* Grade de 10 dias — aparece assim que sala for selecionada */}
         {sala_id && (
-          <div style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 8px' }}>
-              Horário padrão
-              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6 }}>— pode ajustar individualmente em cada dia abaixo</span>
-            </p>
-            <input type="time" value={hora}
-              onChange={e => onUpdate({ hora: e.target.value, data: '' })}
-              style={{ padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none', color: '#374151' }} />
-          </div>
-        )}
-
-        {/* Grade de 10 dias */}
-        {sala_id && hora && (
           <div>
-            {/* Navegação */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: 0 }}>
-                Selecione o dia
-                {data && <span style={{ marginLeft: 8, color: cfg.color, fontWeight: 700 }}>→ {fmtData(data)}</span>}
-              </p>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {loading && <span style={{ fontSize: 11, color: '#94a3b8' }}>Carregando...</span>}
+            {/* Navegação + horário padrão opcional */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: 0 }}>
+                  {loading ? '⏳ Carregando...' : '📅 Escolha o dia e o horário:'}
+                  {data && <span style={{ color: cfg.color, fontWeight: 700, marginLeft: 6 }}>→ {fmtData(data)}</span>}
+                </p>
+              </div>
+              {/* Horário padrão — aplica a todos */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>⚡ Todos:</span>
+                <input type="time" value={hora}
+                  onChange={e => onUpdate({ hora: e.target.value, data: '' })}
+                  style={{ padding: '4px 6px', border: '1.5px solid #e2e8f0', borderRadius: 6, fontFamily: 'inherit', fontSize: 12, outline: 'none', color: '#374151' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
                 <button type="button" onClick={() => { const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() - 10); onUpdate({ baseDias: d.toISOString().split('T')[0] }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
-                  style={{ padding: '3px 10px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>← 10d</button>
+                  style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>← 10d</button>
                 <button type="button" onClick={() => { const t = new Date().toISOString().split('T')[0]; onUpdate({ baseDias: t }, () => onCarregarOcupacao(sala_id, t)) }}
-                  style={{ padding: '3px 10px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Hoje</button>
+                  style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Hoje</button>
                 <button type="button" onClick={() => { const d = new Date(baseDias + 'T12:00:00'); d.setDate(d.getDate() + 10); onUpdate({ baseDias: d.toISOString().split('T')[0] }, (novo) => onCarregarOcupacao(sala_id, novo.baseDias)) }}
-                  style={{ padding: '3px 10px', fontSize: 11, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>+10d →</button>
+                  style={{ padding: '3px 7px', fontSize: 10, border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>+10d →</button>
               </div>
             </div>
 
-            {/* Grid horizontal com scroll */}
+            {/* Grid horizontal */}
             <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 8 }}>
-              <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
+              <div style={{ display: 'flex', gap: 7, minWidth: 'max-content' }}>
                 {dias.map(dia => {
                   const horaDia = horaDoDia(dia)
                   const ocupado = estaOcupado(dia)
                   const ocup = ocupantesDia(dia)
                   const sel = data === dia
                   const passado = dia < hoje
+                  const semHora = !horaDia
                   const dtObj = new Date(dia + 'T12:00:00')
                   const semana = dtObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
                   const diaN = String(dtObj.getDate()).padStart(2, '0')
@@ -161,69 +162,77 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                   const isFds = [0, 6].includes(dtObj.getDay())
                   const temHoraCustom = !!horasDia[dia]
 
+                  const corBorda = sel ? cfg.color : ocupado ? '#FECACA' : semHora ? '#e2e8f0' : '#86efac'
+                  const bgCard = sel ? cfg.bg : ocupado ? '#FFF5F5' : semHora ? '#fff' : '#f0fdf4'
+                  const statusIcon = sel ? '✓' : passado ? '—' : ocupado ? '🔴' : semHora ? '⏰' : '🟢'
+                  const statusColor = sel ? '#fff' : passado ? '#cbd5e1' : ocupado ? '#dc2626' : semHora ? '#94a3b8' : '#16a34a'
+
                   return (
                     <div key={dia} style={{
-                      width: 108, flexShrink: 0, borderRadius: 12,
-                      border: sel ? `2.5px solid ${cfg.color}` : ocupado ? '1.5px solid #FECACA' : '1.5px solid #e2e8f0',
-                      background: sel ? cfg.bg : ocupado ? '#FFF5F5' : '#fff',
-                      opacity: passado && !sel ? 0.4 : 1,
+                      width: 100, flexShrink: 0, borderRadius: 12,
+                      border: sel ? `2.5px solid ${cfg.color}` : `1.5px solid ${corBorda}`,
+                      background: bgCard, opacity: passado && !sel ? 0.45 : 1,
                       boxShadow: sel ? `0 3px 12px ${cfg.color}35` : '0 1px 3px rgba(0,0,0,0.05)',
                       overflow: 'hidden',
                     }}>
-                      {/* Cabeçalho clicável do dia */}
-                      <div
-                        onClick={() => !ocupado && !passado && onUpdate({ data: dia })}
+                      {/* Cabeçalho clicável */}
+                      <div onClick={() => !ocupado && !passado && horaDia && onUpdate({ data: dia })}
                         style={{
                           padding: '8px', textAlign: 'center',
-                          cursor: ocupado || passado ? 'not-allowed' : 'pointer',
+                          cursor: (ocupado || passado || !horaDia) ? 'not-allowed' : 'pointer',
                           background: sel ? cfg.color : 'transparent',
-                          borderBottom: '1px solid #e2e8f0',
-                          userSelect: 'none',
+                          borderBottom: '1px solid #e2e8f0', userSelect: 'none',
                         }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: sel ? 'rgba(255,255,255,.75)' : isFds ? '#f59e0b' : '#94a3b8' }}>{semana}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: sel ? 'rgba(255,255,255,.75)' : isFds ? '#f59e0b' : '#94a3b8' }}>{semana}</div>
                         <div style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.1, color: sel ? '#fff' : ocupado ? '#b91c1c' : passado ? '#cbd5e1' : '#0f172a', marginTop: 2 }}>{diaN}</div>
                         <div style={{ fontSize: 10, color: sel ? 'rgba(255,255,255,.7)' : '#94a3b8', marginTop: 1 }}>{mesN}</div>
-                        <div style={{ fontSize: 10, fontWeight: 700, marginTop: 4, color: sel ? '#fff' : ocupado ? '#dc2626' : passado ? '#cbd5e1' : '#16a34a' }}>
-                          {sel ? '✓' : ocupado ? '🔴' : passado ? '—' : '🟢'}
-                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4, color: statusColor }}>{statusIcon}</div>
                       </div>
 
-                      {/* Hora ajustável por dia */}
+                      {/* Hora individual */}
                       {!passado && (
-                        <div style={{ padding: '6px', borderBottom: '1px solid #e2e8f0', background: temHoraCustom ? '#fefce8' : '#fff' }}>
-                          <div style={{ fontSize: 9, color: '#94a3b8', marginBottom: 3, fontWeight: 500, textAlign: 'center' }}>
-                            {temHoraCustom ? '⚡ Hora ajustada' : '⏰ Hora'}
+                        <div style={{ padding: '5px 5px', borderBottom: '1px solid #f1f5f9', background: temHoraCustom ? '#fefce8' : ocupado ? '#FFF5F5' : '#fff' }}>
+                          <div style={{ fontSize: 9, color: ocupado ? '#b91c1c' : temHoraCustom ? '#d97706' : '#94a3b8', marginBottom: 2, fontWeight: 600, textAlign: 'center' }}>
+                            {ocupado ? '🔴 Ocupado' : temHoraCustom ? '⚡ Ajustado' : '⏰ Hora'}
                           </div>
                           <input type="time" value={horaDia}
                             onClick={e => e.stopPropagation()}
                             onChange={e => {
                               const novasHoras = { ...horasDia, [dia]: e.target.value }
-                              // Se o dia selecionado mudou a hora, desseleciona para reconfirmar
                               onUpdate({ horasDia: novasHoras, data: data === dia ? '' : data })
                             }}
                             style={{
                               width: '100%', boxSizing: 'border-box',
-                              padding: '3px 4px', fontSize: 11, fontFamily: 'inherit',
-                              border: `1px solid ${temHoraCustom ? '#fde68a' : '#e2e8f0'}`,
+                              padding: '3px 3px', fontSize: 10, fontFamily: 'inherit',
+                              border: `1px solid ${ocupado ? '#FECACA' : temHoraCustom ? '#fde68a' : '#e2e8f0'}`,
                               borderRadius: 6, outline: 'none',
-                              background: temHoraCustom ? '#fffbeb' : '#f8fafc', color: '#374151',
+                              background: ocupado ? '#FEF2F2' : temHoraCustom ? '#fffbeb' : '#f8fafc',
+                              color: ocupado ? '#b91c1c' : '#374151',
                             }} />
-                          {temHoraCustom && (
+                          {temHoraCustom && !ocupado && (
                             <button type="button"
-                              onClick={e => { e.stopPropagation(); const h = { ...horasDia }; delete h[dia]; onUpdate({ horasDia: h }) }}
-                              style={{ display: 'block', width: '100%', marginTop: 3, fontSize: 9, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
+                              onClick={e => { e.stopPropagation(); const h = { ...horasDia }; delete h[dia]; onUpdate({ horasDia: h, data: data === dia ? '' : data }) }}
+                              style={{ display: 'block', width: '100%', marginTop: 2, fontSize: 9, color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
                               ↩ padrão
                             </button>
                           )}
                         </div>
                       )}
 
-                      {/* Quem está ocupando */}
+                      {/* Quem ocupa */}
                       {ocupado && ocup.length > 0 && (
-                        <div style={{ padding: '5px 6px', fontSize: 9, color: '#6b7280', lineHeight: 1.5, background: '#FFF5F5' }}>
-                          <div style={{ fontWeight: 600, color: '#b91c1c' }}>Ocupada às {ocup[0].hora?.slice(0, 5)}</div>
-                          <div>{ocup[0].paciente.split(' ')[0]}</div>
-                          <div style={{ color: '#94a3b8' }}>{ocup[0].codigo || ocup[0].estagiario.split(' ')[0]}</div>
+                        <div style={{ padding: '4px 5px', fontSize: 9, color: '#6b7280', lineHeight: 1.4, background: '#FFF5F5' }}>
+                          <div style={{ fontWeight: 700, color: '#b91c1c' }}>⚠️ {ocup[0].hora?.slice(0, 5)}</div>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ocup[0].paciente.split(' ')[0]}</div>
+                          <div style={{ color: '#9ca3af' }}>{ocup[0].codigo || ocup[0].estagiario.split(' ')[0]}</div>
+                          <div style={{ color: '#b91c1c', fontSize: 8 }}>Altere o horário</div>
+                        </div>
+                      )}
+
+                      {/* Sem hora */}
+                      {!passado && semHora && (
+                        <div style={{ padding: '4px 5px', fontSize: 8, color: '#94a3b8', textAlign: 'center', background: '#f8fafc' }}>
+                          Defina o horário
                         </div>
                       )}
                     </div>
@@ -231,18 +240,10 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                 })}
               </div>
             </div>
-
-            {/* Aviso sem dias livres */}
-            {!loading && dias.length > 0 && dias.every(d => estaOcupado(d) || d < hoje) && (
-              <p style={{ marginTop: 8, fontSize: 12, color: '#92400E', background: '#FFFBEB', padding: '8px 12px', borderRadius: 8, border: '1px solid #FDE68A' }}>
-                ⚠️ Nenhum horário livre nos 10 dias exibidos. Navegue ou troque de sala.
-              </p>
-            )}
           </div>
         )}
 
-        {!sala_id && <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>👆 Selecione uma sala para continuar.</p>}
-        {sala_id && !hora && <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>⏰ Informe o horário padrão para ver os dias disponíveis.</p>}
+        {!sala_id && <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>👆 Selecione uma sala para ver os dias disponíveis.</p>}
       </div>
     </div>
   )
@@ -383,7 +384,7 @@ export default function Agenda() {
 
     const etapasConcluidas = etapas
       .map((e, i) => ({ ...e, cfg: ETAPAS_CONFIG[i] }))
-      .filter(e => e.sala_id && e.hora && e.data)
+      .filter(e => e.sala_id && e.data && (e.horasDia[e.data] || e.hora))
 
     if (etapasConcluidas.length === 0) {
       toast.error('Selecione data, hora e sala em pelo menos uma etapa.')
@@ -509,7 +510,7 @@ export default function Agenda() {
     zIndex: 100, maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
   }
 
-  const etapasConcluidas = etapas.filter((e, i) => e.sala_id && e.hora && e.data)
+  const etapasConcluidas = etapas.filter((e) => e.sala_id && e.data && (e.horasDia[e.data] || e.hora))
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -710,7 +711,7 @@ export default function Agenda() {
               <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 12, padding: '14px 18px', marginTop: 8 }}>
                 <p style={{ fontWeight: 700, color: '#166534', fontSize: 13, margin: '0 0 10px' }}>✅ Resumo do agendamento ({etapasConcluidas.length} etapa{etapasConcluidas.length > 1 ? 's' : ''})</p>
                 {etapas.map((e, i) => {
-                  if (!e.sala_id || !e.hora || !e.data) return null
+                  if (!e.sala_id || !e.data || !(e.horasDia[e.data] || e.hora)) return null
                   const cfg = ETAPAS_CONFIG[i]
                   const horaDia = e.horasDia[e.data] || e.hora
                   return (
