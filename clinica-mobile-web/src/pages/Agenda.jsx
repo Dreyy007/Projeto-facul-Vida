@@ -436,10 +436,35 @@ export default function Agenda() {
   }
 
   async function handleEnviarSolic() {
-    const { consulta, tipo, nova_data, nova_hora, motivo } = modalSolic
-    await supabase.from('solicitacoes').insert([{ consulta_id: consulta.id, tipo, nova_data: nova_data || null, nova_hora: nova_hora || null, motivo: motivo || null }])
-    await supabase.from('consultas').update({ status: tipo === 'cancelamento' ? 'cancelamento_pendente' : 'reagendamento_pendente' }).eq('id', consulta.id)
-    setModalSolic(null); fetchConsultas(); toast.success('Solicitação enviada!')
+    const { consulta, tipo, nova_data, nova_hora } = modalSolic
+
+    if (tipo === 'cancelamento') {
+      await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', consulta.id)
+      setModalSolic(null); fetchConsultas()
+      toast.success('Consulta cancelada. Sala liberada.')
+      return
+    }
+
+    if (tipo === 'reagendamento') {
+      if (!nova_data || !nova_hora) { toast.error('Informe a nova data e horário.'); return }
+      const { data: conflitos } = await supabase
+        .from('consultas')
+        .select('id, paciente:pacientes(nome)')
+        .eq('sala_id', consulta.sala_id)
+        .eq('data', nova_data)
+        .eq('hora', nova_hora)
+        .not('status', 'in', '("cancelada","realizada")')
+        .neq('id', consulta.id)
+      if (conflitos && conflitos.length > 0) {
+        const ocupante = conflitos[0]?.paciente?.nome || '—'
+        const nomeSala = salas.find(s => s.id === consulta.sala_id)?.nome || 'sala'
+        toast.error(`❌ Conflito: "${nomeSala}" já está ocupada em ${nova_data} às ${nova_hora}.\nPaciente: ${ocupante}`)
+        return
+      }
+      await supabase.from('consultas').update({ data: nova_data, hora: nova_hora, status: 'confirmada' }).eq('id', consulta.id)
+      setModalSolic(null); fetchConsultas()
+      toast.success('Reagendado! Sala confirmada para o novo horário.')
+    }
   }
 
   async function handleTrocaSala() {
@@ -459,8 +484,8 @@ export default function Agenda() {
   // ── Helpers de tabela ──────────────────────────────────────────────────────
   const navData = d => { const dt = new Date(dataAgenda + 'T12:00:00'); dt.setDate(dt.getDate() + d); setDataAgenda(dt.toISOString().split('T')[0]) }
   const ETAPA_MAP = Object.fromEntries(ETAPAS_CONFIG.map(e => [e.id, e]))
-  const tagClass = s => ({ confirmada:'tag tg', aguardando:'tag ta', cancelada:'tag tr', realizada:'tag tp', cancelamento_pendente:'tag tr', reagendamento_pendente:'tag ta', troca_sala_pendente:'tag ta' }[s] || 'tag tp')
-  const tagLabel = s => ({ confirmada:'Confirmada', aguardando:'Aguardando', cancelada:'Cancelada', realizada:'Realizada', cancelamento_pendente:'Cancel. pend.', reagendamento_pendente:'Reagend. pend.', troca_sala_pendente:'Troca sala pend.' }[s] || s)
+  const tagClass = s => ({ confirmada:'tag tg', aguardando:'tag ta', cancelada:'tag tr', realizada:'tag tp', troca_sala_pendente:'tag ta' }[s] || 'tag tp')
+  const tagLabel = s => ({ confirmada:'Confirmada', aguardando:'Aguardando', cancelada:'Cancelada', realizada:'Realizada', troca_sala_pendente:'Troca sala pend.' }[s] || s)
   const canApprove = ['admin','coordenador'].includes(profile?.tipo)
   const isEstagiario = profile?.tipo === 'estagiario'
 
@@ -574,9 +599,9 @@ export default function Agenda() {
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             {c.status === 'aguardando' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12 }} onClick={async () => { await supabase.from('consultas').update({ status: 'confirmada' }).eq('id', c.id); fetchConsultas() }}>Confirmar</button>}
                             {c.status === 'confirmada' && canApprove && <button className="btn-ok" style={{ padding: '4px 10px', fontSize: 12, background: 'var(--p3)', color: 'var(--p)' }} onClick={async () => { await supabase.from('consultas').update({ status: 'realizada' }).eq('id', c.id); fetchConsultas() }}>Realizada</button>}
-                            {!['cancelada','realizada','cancelamento_pendente','reagendamento_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'reagendamento', nova_data: '', nova_hora: '', motivo: '' })}>Reagendar</button>}
+                            {!['cancelada','realizada'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'reagendamento', nova_data: '', nova_hora: '', motivo: '' })}>Reagendar</button>}
                             {!['cancelada','realizada','troca_sala_pendente'].includes(c.status) && <button className="btn-outline" style={{ padding: '4px 10px', fontSize: 12, color: 'var(--warn)', borderColor: 'var(--warn)' }} onClick={() => setModalTrocaSala({ consulta: c, sala_nova_id: '', motivo: '' })}>Trocar sala</button>}
-                            {!['cancelada','realizada','cancelamento_pendente'].includes(c.status) && <button className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'cancelamento', nova_data: '', nova_hora: '', motivo: '' })}>Cancelar</button>}
+                            {!['cancelada','realizada'].includes(c.status) && <button className="btn-danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setModalSolic({ consulta: c, tipo: 'cancelamento', nova_data: '', nova_hora: '', motivo: '' })}>Cancelar</button>}
                           </div>
                         </td>
                       </tr>
