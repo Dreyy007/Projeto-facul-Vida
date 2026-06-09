@@ -45,6 +45,180 @@ function etapaVazia() {
   }
 }
 
+// ─── Configurador Global (aplica sala+hora+data a todas as etapas) ───────────
+function GlobalConfigurator({ salas, onAplicar }) {
+  const hoje = new Date().toISOString().split('T')[0]
+  const [gSala,     setGSala]     = useState('')
+  const [gHora,     setGHora]     = useState('')
+  const [gBaseDias, setGBaseDias] = useState(hoje)
+  const [gOcupacao, setGOcupacao] = useState({})
+  const [gLoading,  setGLoading]  = useState(false)
+  const [altSalas,  setAltSalas]  = useState({})   // { dia: [salas livres] }
+  const [flashDia,  setFlashDia]  = useState(null)  // dia que acabou de ser aplicado
+
+  const dias = gSala ? gerarDias(gBaseDias, 10) : []
+
+  async function carregarOcupacao(sala_id, base) {
+    setGLoading(true); setAltSalas({})
+    const ds = gerarDias(base, 10)
+    const { data: rows } = await supabase
+      .from('consultas').select('data,hora')
+      .eq('sala_id', sala_id).in('data', ds)
+      .not('status', 'in', '("cancelada","realizada")')
+    const occ = {}
+    ds.forEach(d => { occ[d] = [] })
+    ;(rows || []).forEach(c => { if (occ[c.data]) occ[c.data].push(c.hora?.slice(0, 5)) })
+    setGOcupacao(occ); setGLoading(false)
+  }
+
+  async function buscarAlternativas(dia, hora) {
+    const { data: ocup } = await supabase
+      .from('consultas').select('sala_id')
+      .eq('data', dia).eq('hora', hora)
+      .not('status', 'in', '("cancelada","realizada")')
+    const ocupadasIds = new Set((ocup || []).map(c => c.sala_id))
+    const livres = salas.filter(s => s.id !== gSala && !ocupadasIds.has(s.id))
+    setAltSalas(prev => ({ ...prev, [dia]: livres }))
+  }
+
+  function diaOcupado(dia) {
+    if (!gHora) return false
+    return (gOcupacao[dia] || []).includes(gHora)
+  }
+
+  function handleDia(dia) {
+    if (!gHora) return
+    if (diaOcupado(dia)) { buscarAlternativas(dia, gHora); return }
+    onAplicar(gSala, gHora, dia)
+    setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500)
+  }
+
+  return (
+    <div style={{ background: 'linear-gradient(135deg,#eff6ff 0%,#f0fdf4 100%)', border: '2px solid #bfdbfe', borderRadius: 16, padding: '16px 20px', marginBottom: 20 }}>
+      {/* Cabeçalho */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <span style={{ fontSize: 22 }}>⚡</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#1e40af' }}>Configuração Rápida</div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Escolha sala, horário e clique em um dia — aplica às 4 etapas de uma vez (você pode ajustar individualmente depois)</div>
+        </div>
+      </div>
+
+      {/* Salas */}
+      <div style={{ marginBottom: 12 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 8px' }}>Sala</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {salas.map(s => {
+            const sel = gSala === s.id
+            return (
+              <button key={s.id} type="button"
+                onClick={() => { setGSala(s.id); setGOcupacao({}); setAltSalas({}); setFlashDia(null); carregarOcupacao(s.id, gBaseDias) }}
+                style={{ padding: '6px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: sel ? 700 : 500, transition: 'all .15s', border: sel ? '2px solid #2563eb' : '1.5px solid #bfdbfe', background: sel ? '#2563eb' : '#fff', color: sel ? '#fff' : '#374151' }}>
+                🚪 {s.nome}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Horário + navegação */}
+      {gSala && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>⏰ Horário:</span>
+              <input type="time" value={gHora}
+                onChange={e => { setGHora(e.target.value); setAltSalas({}) }}
+                style={{ padding: '6px 10px', border: '1.5px solid #bfdbfe', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, outline: 'none' }} />
+              {gHora && <span style={{ fontSize: 11, color: '#64748b' }}>← clique num dia 🟢 para aplicar às 4 etapas</span>}
+            </div>
+            {gLoading && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 'auto' }}>⏳ Verificando...</span>}
+            <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+              {[{label:'← 10d', delta:-10},{label:'Hoje',hoje:true},{label:'+10d →',delta:10}].map(bt => (
+                <button key={bt.label} type="button"
+                  onClick={() => {
+                    let nd
+                    if (bt.hoje) { nd = hoje } else { const d = new Date(gBaseDias+'T12:00:00'); d.setDate(d.getDate()+bt.delta); nd = d.toISOString().split('T')[0] }
+                    setGBaseDias(nd); carregarOcupacao(gSala, nd)
+                  }}
+                  style={{ padding: '4px 10px', fontSize: 11, border: '1px solid #bfdbfe', borderRadius: 6, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: bt.hoje ? 700 : 400 }}>
+                  {bt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Grid 10 dias */}
+          <div style={{ overflowX: 'auto', paddingBottom: 6 }}>
+            <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
+              {dias.map(dia => {
+                const passado  = dia < hoje
+                const ocupado  = diaOcupado(dia)
+                const flash    = flashDia === dia
+                const alts     = altSalas[dia]
+                const dtObj    = new Date(dia + 'T12:00:00')
+                const semana   = dtObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+                const diaN     = String(dtObj.getDate()).padStart(2, '0')
+                const mesN     = dtObj.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+                const isFds    = [0, 6].includes(dtObj.getDay())
+                const clicavel = !passado && gHora
+
+                return (
+                  <div key={dia} style={{ width: 86, flexShrink: 0 }}>
+                    {/* Card do dia */}
+                    <div onClick={() => clicavel && handleDia(dia)}
+                      style={{
+                        borderRadius: 10, textAlign: 'center', padding: '8px 4px',
+                        border: flash ? '2.5px solid #16a34a' : ocupado ? '1.5px solid #FECACA' : passado ? '1.5px solid #e2e8f0' : gHora ? '1.5px solid #86efac' : '1.5px solid #bfdbfe',
+                        background: flash ? '#dcfce7' : ocupado ? '#FFF5F5' : passado ? '#f8fafc' : gHora ? '#f0fdf4' : '#fff',
+                        opacity: passado ? 0.45 : 1,
+                        cursor: clicavel ? 'pointer' : 'not-allowed',
+                        boxShadow: flash ? '0 2px 10px #16a34a50' : 'none',
+                        userSelect: 'none', transition: 'all .15s',
+                      }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: isFds ? '#f59e0b' : '#94a3b8' }}>{semana}</div>
+                      <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.1, marginTop: 2, color: flash ? '#15803d' : ocupado ? '#b91c1c' : passado ? '#cbd5e1' : '#0f172a' }}>{diaN}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{mesN}</div>
+                      <div style={{ fontSize: 16, marginTop: 4 }}>
+                        {flash ? '✅' : !gHora ? '⏰' : ocupado ? '🔴' : passado ? '—' : '🟢'}
+                      </div>
+                      {ocupado && <div style={{ fontSize: 9, color: '#b91c1c', marginTop: 2 }}>Ocupado</div>}
+                    </div>
+
+                    {/* Salas alternativas (quando ocupado e clicado) */}
+                    {alts !== undefined && (
+                      <div style={{ marginTop: 4 }}>
+                        {alts.length === 0
+                          ? <div style={{ fontSize: 9, color: '#b91c1c', textAlign: 'center', padding: '2px 0' }}>Sem salas livres</div>
+                          : alts.map(s => (
+                            <button key={s.id} type="button"
+                              onClick={() => { onAplicar(s.id, gHora, dia); setGSala(s.id); carregarOcupacao(s.id, gBaseDias); setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500) }}
+                              style={{ display: 'block', width: '100%', marginBottom: 3, padding: '3px 4px', fontSize: 9, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit', color: '#1d4ed8', textAlign: 'center', fontWeight: 600 }}>
+                              🚪 {s.nome}
+                            </button>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {!gHora && (
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>⏰ Informe o horário para ver disponibilidade e selecionar o dia</p>
+          )}
+        </>
+      )}
+
+      {!gSala && (
+        <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>👆 Selecione uma sala para ver os 10 dias disponíveis</p>
+      )}
+    </div>
+  )
+}
+
 // ─── Painel de cada etapa ─────────────────────────────────────────────────────
 function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
   const { sala_id, hora, data, baseDias, ocupacao, horasDia, loading } = estado
@@ -341,6 +515,12 @@ export default function Agenda() {
       if (callback) setTimeout(() => callback(next[idx]), 0)
       return next
     })
+  }
+
+  // ── Aplica sala+hora+data a todas as 4 etapas de uma vez ──────────────────
+  function aplicarGlobal(sala_id, hora, data) {
+    setEtapas(prev => prev.map(e => ({ ...e, sala_id, hora, data, horasDia: {} })))
+    ETAPAS_CONFIG.forEach((_, idx) => carregarOcupacaoEtapa(idx, sala_id, data))
   }
 
   // ── Carrega ocupação de uma sala nos 10 dias de uma etapa ──────────────────
@@ -699,10 +879,13 @@ export default function Agenda() {
               )}
             </div>
 
+            {/* ── Configurador Global ── */}
+            <GlobalConfigurator salas={salas} onAplicar={aplicarGlobal} />
+
             {/* Linha divisória + título etapas */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Etapas do Atendimento</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Ajuste por Etapa (opcional)</span>
               <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
             </div>
 
