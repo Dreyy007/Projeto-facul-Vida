@@ -71,7 +71,7 @@ function etapaVazia() {
 }
 
 // ─── Configurador Global (mobile) ────────────────────────────────────────────
-function GlobalConfigurator({ salas, onAplicar }) {
+function GlobalConfigurator({ salas, onAplicar, outrosPendentes = [] }) {
   const hoje = new Date().toISOString().split('T')[0]
   const [gSala,     setGSala]     = useState('')
   const [gHora,     setGHora]     = useState('')
@@ -176,13 +176,14 @@ function GlobalConfigurator({ salas, onAplicar }) {
               const flash    = flashDia === dia
               const alts     = altSalas[dia]
               const clicavel = !passado && gHora
+              const amarelo  = !flash && !ocupado && !passado && gHora &&
+                outrosPendentes.some(p => p.slots?.some(s => s.sala_id === gSala && s.hora === gHora && s.data === dia))
 
               let bg = '#fff', border = '#e2e8f0', txtColor = '#374151'
               if (flash)        { bg = '#dcfce7'; border = '#16a34a'; txtColor = '#15803d' }
               else if (ocupado) { bg = '#FFF5F5'; border = '#FECACA'; txtColor = '#dc2626' }
+              else if (amarelo) { bg = '#fefce8'; border = '#fde047'; txtColor = '#854d0e' }
               else if (passado) { bg = '#fafafa'; border = '#f1f5f9'; txtColor = '#d1d5db' }
-              else if (gHora)   { bg = '#f0fdf4'; border = '#86efac'; txtColor = '#15803d' }
-              else              { bg = '#f8fafc'; border = '#bfdbfe'; txtColor = '#64748b' }
 
               return (
                 <div key={dia} style={{ position: 'relative' }}>
@@ -194,7 +195,7 @@ function GlobalConfigurator({ salas, onAplicar }) {
                       {new Date(dia + 'T12:00:00').getDate()}
                     </div>
                     <div style={{ fontSize: 9, lineHeight: 1 }}>
-                      {flash ? '✅' : !gHora ? '' : ocupado ? '🔴' : passado ? '' : '🟢'}
+                      {flash ? '✅' : !gHora ? '' : ocupado ? '🔴' : amarelo ? '⚠️' : passado ? '' : '🟢'}
                     </div>
                   </div>
                   {alts !== undefined && (
@@ -228,7 +229,7 @@ function GlobalConfigurator({ salas, onAplicar }) {
 }
 
 // ─── Painel de cada etapa ─────────────────────────────────────────────────────
-function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
+function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao, outrosPendentes = [] }) {
   const { sala_id, hora, selectedDias, baseDias, ocupacao, horasDia, loading } = estado
   const hoje = new Date().toISOString().split('T')[0]
 
@@ -344,12 +345,14 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                 const sel     = selectedDias.includes(dia)
                 const passado = dia < hoje
                 const clicavel = !ocupado && !passado && horaDia
+                const amarelo = !sel && !ocupado && !passado && horaDia &&
+                  outrosPendentes.some(p => p.slots?.some(s => s.sala_id === sala_id && s.hora === horaDia && s.data === dia))
 
-                let bg = '#fafafa', border = '#e2e8f0', txtColor = '#94a3b8'
+                let bg = '#fff', border = '#e2e8f0', txtColor = '#374151'
                 if (sel)          { bg = cfg.color;  border = cfg.color;  txtColor = '#fff' }
                 else if (ocupado) { bg = '#FFF5F5';  border = '#FECACA';  txtColor = '#dc2626' }
+                else if (amarelo) { bg = '#fefce8';  border = '#fde047';  txtColor = '#854d0e' }
                 else if (passado) { bg = '#fafafa';  border = '#f1f5f9';  txtColor = '#d1d5db' }
-                else if (horaDia) { bg = '#f0fdf4';  border = '#86efac';  txtColor = '#15803d' }
 
                 return (
                   <div key={dia}
@@ -362,7 +365,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
                       {new Date(dia + 'T12:00:00').getDate()}
                     </div>
                     <div style={{ fontSize: 9, lineHeight: 1, color: sel ? 'rgba(255,255,255,.85)' : txtColor }}>
-                      {sel ? '✓' : ocupado ? '🔴' : horaDia && !passado ? horaDia : ''}
+                      {sel ? '✓' : ocupado ? '🔴' : amarelo ? '⚠️' : horaDia && !passado ? horaDia : ''}
                     </div>
                   </div>
                 )
@@ -425,6 +428,10 @@ export default function Agenda() {
   const [modalTrocaSala, setModalTrocaSala] = useState(null)
   const [saving,         setSaving]         = useState(false)
 
+  // ── Presença em tempo real ────────────────────────────────────────────────────
+  const [outrosPendentes, setOutrosPendentes] = useState([])
+  const canalPresenca = useRef(null)
+
   // Paciente / Estagiário
   const [buscaPaciente,       setBuscaPaciente]       = useState('')
   const [pacienteSelecionado, setPacienteSelecionado] = useState(null)
@@ -439,6 +446,39 @@ export default function Agenda() {
   // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => { fetchConsultas() }, [dataAgenda, viewMode])
   useEffect(() => { fetchSelects()   }, [])
+
+  useEffect(() => {
+    if (!modal) {
+      if (canalPresenca.current) {
+        canalPresenca.current.send({ type: 'broadcast', event: 'presenca',
+          payload: { uid: profile?.id, active: false, slots: [] } }).catch(() => {})
+        canalPresenca.current.unsubscribe()
+        canalPresenca.current = null
+      }
+      setOutrosPendentes([])
+      return
+    }
+    const canal = supabase.channel('agenda-presenca-v1')
+    canal.on('broadcast', { event: 'presenca' }, ({ payload }) => {
+      if (!payload?.uid || payload.uid === profile?.id) return
+      setOutrosPendentes(prev => {
+        const sem = prev.filter(p => p.uid !== payload.uid)
+        return payload.active && payload.slots?.length > 0 ? [...sem, payload] : sem
+      })
+    })
+    canal.subscribe()
+    canalPresenca.current = canal
+    return () => { canal.unsubscribe(); canalPresenca.current = null }
+  }, [modal])
+
+  useEffect(() => {
+    if (!modal || !canalPresenca.current) return
+    const slots = etapas.flatMap(e =>
+      (e.selectedDias || []).map(d => ({ sala_id: e.sala_id, hora: e.horasDia[d] || e.hora, data: d }))
+    ).filter(s => s.sala_id && s.hora && s.data)
+    canalPresenca.current.send({ type: 'broadcast', event: 'presenca',
+      payload: { uid: profile?.id, active: slots.length > 0, slots } }).catch(() => {})
+  }, [etapas, modal])
 
   // ── Busca de dados ──────────────────────────────────────────────────────────
   async function fetchConsultas() {
@@ -853,7 +893,7 @@ export default function Agenda() {
             </div>
 
             {/* ── Configurador Global ── */}
-            <GlobalConfigurator salas={salas} onAplicar={aplicarGlobal} />
+            <GlobalConfigurator salas={salas} onAplicar={aplicarGlobal} outrosPendentes={outrosPendentes} />
 
             {/* Linha divisória + título etapas */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -877,6 +917,7 @@ export default function Agenda() {
                   })
                 }}
                 onCarregarOcupacao={(salaId, baseDias) => carregarOcupacaoEtapa(idx, salaId, baseDias)}
+                outrosPendentes={outrosPendentes}
               />
             ))}
 
