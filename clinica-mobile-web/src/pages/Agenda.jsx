@@ -411,6 +411,110 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao, outrosPe
   )
 }
 
+// ─── Modal de Reagendamento com disponibilidade de sala ──────────────────────
+function ModalReagendamento({ modalSolic, setModalSolic, salas, canApprove, onEnviar }) {
+  const [horariosOcupados, setHorariosOcupados] = React.useState([])
+  const { consulta, tipo, nova_data, nova_hora } = modalSolic
+
+  React.useEffect(() => {
+    if (tipo !== 'reagendamento' || !nova_data || !consulta?.sala_id) {
+      setHorariosOcupados([])
+      return
+    }
+    supabase
+      .from('consultas')
+      .select('hora, paciente:pacientes(nome)')
+      .eq('sala_id', consulta.sala_id)
+      .eq('data', nova_data)
+      .not('status', 'in', '("cancelada","realizada")')
+      .neq('id', consulta.id)
+      .then(({ data }) => setHorariosOcupados(data || []))
+  }, [nova_data, consulta?.sala_id, consulta?.id, tipo])
+
+  const nomeSala = salas.find(s => s.id === consulta.sala_id)?.nome || 'sala'
+  const isAdmin = canApprove
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalSolic(null)}>
+      <div className="modal" style={{ maxWidth: 500 }}>
+        <h2>{tipo === 'cancelamento' ? 'Solicitar Cancelamento' : 'Reagendar Consulta'}</h2>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+          Paciente: <strong>{consulta.paciente?.nome}</strong> · {consulta.estagiario?.nome}
+          <br />Sala atual: <strong>{nomeSala}</strong> · {consulta.data} às {consulta.hora}
+        </p>
+
+        {!isAdmin && (
+          <div style={{ background: 'var(--wbg)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warn)', fontWeight: 500, marginBottom: 12 }}>
+            ⚠️ Requer aprovação do administrador.
+          </div>
+        )}
+        {isAdmin && tipo === 'reagendamento' && (
+          <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534', fontWeight: 500, marginBottom: 12 }}>
+            ✅ Como administrador, o reagendamento é aplicado diretamente.
+          </div>
+        )}
+
+        <div className="form-grid">
+          {tipo === 'reagendamento' && (<>
+            <div className="fld">
+              <label>Nova data</label>
+              <input type="date" value={nova_data} onChange={e => setModalSolic({ ...modalSolic, nova_data: e.target.value })} />
+            </div>
+            <div className="fld">
+              <label>Novo horário</label>
+              <input type="time" value={nova_hora} onChange={e => setModalSolic({ ...modalSolic, nova_hora: e.target.value })} />
+            </div>
+
+            {nova_data && (
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Horários ocupados em {nomeSala} — {nova_data}
+                </label>
+                {horariosOcupados.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#166534', background: '#f0fdf4', borderRadius: 6, padding: '8px 12px', marginTop: 6 }}>
+                    ✅ Sala livre neste dia — nenhum horário ocupado.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {horariosOcupados.map((h, i) => (
+                      <span key={i} style={{
+                        background: nova_hora === h.hora ? '#fee2e2' : '#FFF5F5',
+                        border: `1.5px solid ${nova_hora === h.hora ? '#dc2626' : '#FECACA'}`,
+                        borderRadius: 6, padding: '4px 10px', fontSize: 12,
+                        color: nova_hora === h.hora ? '#dc2626' : '#b91c1c',
+                        fontWeight: nova_hora === h.hora ? 700 : 500,
+                      }}>
+                        🔴 {h.hora}{h.paciente?.nome ? ` · ${h.paciente.nome}` : ''}
+                        {nova_hora === h.hora ? ' ← CONFLITO!' : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>)}
+
+          <div className="fld" style={{ gridColumn: '1/-1' }}>
+            <label>Motivo</label>
+            <textarea rows={2} value={modalSolic.motivo} onChange={e => setModalSolic({ ...modalSolic, motivo: e.target.value })} placeholder="Descreva o motivo..." style={{ resize: 'vertical' }} />
+          </div>
+        </div>
+
+        <div className="modal-btns">
+          <button className="btn-outline" onClick={() => setModalSolic(null)}>Voltar</button>
+          <button
+            className="btn-primary"
+            onClick={onEnviar}
+            disabled={tipo === 'reagendamento' && nova_hora && horariosOcupados.some(h => h.hora === nova_hora)}
+          >
+            {isAdmin ? 'Reagendar' : 'Enviar solicitação'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Agenda() {
   const { profile } = useAuth()
@@ -959,26 +1063,13 @@ export default function Agenda() {
 
       {/* Modal reagendamento/cancelamento */}
       {modalSolic && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalSolic(null)}>
-          <div className="modal">
-            <h2>{modalSolic.tipo === 'cancelamento' ? 'Solicitar Cancelamento' : 'Solicitar Reagendamento'}</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>Paciente: <strong>{modalSolic.consulta.paciente?.nome}</strong> · {modalSolic.consulta.estagiario?.nome}</p>
-            <div style={{ background: '#f0fdf4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#166534', fontWeight: 500 }}>
-              {modalSolic?.tipo === 'cancelamento' ? '🗑️ A consulta será cancelada e a sala liberada imediatamente.' : '📅 A nova data/hora será aplicada se a sala estiver disponível.'}
-            </div>
-            <div className="form-grid">
-              {modalSolic.tipo === 'reagendamento' && (<>
-                <div className="fld"><label>Nova data</label><input type="date" value={modalSolic.nova_data} onChange={e => setModalSolic({ ...modalSolic, nova_data: e.target.value })} /></div>
-                <div className="fld"><label>Novo horário</label><input type="time" value={modalSolic.nova_hora} onChange={e => setModalSolic({ ...modalSolic, nova_hora: e.target.value })} /></div>
-              </>)}
-              <div className="fld" style={{ gridColumn: '1/-1' }}><label>Motivo</label><textarea rows={2} value={modalSolic.motivo} onChange={e => setModalSolic({ ...modalSolic, motivo: e.target.value })} placeholder="Descreva o motivo..." style={{ resize: 'vertical' }} /></div>
-            </div>
-            <div className="modal-btns">
-              <button className="btn-outline" onClick={() => setModalSolic(null)}>Voltar</button>
-              <button className="btn-primary" onClick={handleEnviarSolic}>Enviar solicitação</button>
-            </div>
-          </div>
-        </div>
+        <ModalReagendamento
+          modalSolic={modalSolic}
+          setModalSolic={setModalSolic}
+          salas={salas}
+          canApprove={canApprove}
+          onEnviar={handleEnviarSolic}
+        />
       )}
 
       {/* Modal troca de sala */}
