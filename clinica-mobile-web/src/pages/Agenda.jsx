@@ -71,7 +71,7 @@ function etapaVazia() {
 }
 
 // ─── Configurador Global (mobile) ────────────────────────────────────────────
-function GlobalConfigurator({ salas, onAplicar, outrosPendentes = [] }) {
+function GlobalConfigurator({ salas, onAplicar, onRemover, etapas = [], outrosPendentes = [] }) {
   const hoje = new Date().toISOString().split('T')[0]
   const [gSala,     setGSala]     = useState('')
   const [gHora,     setGHora]     = useState('')
@@ -79,7 +79,10 @@ function GlobalConfigurator({ salas, onAplicar, outrosPendentes = [] }) {
   const [gOcupacao, setGOcupacao] = useState({})
   const [gLoading,  setGLoading]  = useState(false)
   const [altSalas,  setAltSalas]  = useState({})
-  const [flashDia,  setFlashDia]  = useState(null)
+
+  const diasSelecionadosQualquer = gSala
+    ? [...new Set(etapas.filter(e => e.sala_id === gSala).flatMap(e => e.selectedDias))]
+    : []
 
   async function carregarOcupacao(sala_id, base) {
     setGLoading(true); setAltSalas({})
@@ -107,8 +110,11 @@ function GlobalConfigurator({ salas, onAplicar, outrosPendentes = [] }) {
   function handleDia(dia) {
     if (!gHora) return
     if (diaOcupado(dia)) { buscarAlternativas(dia); return }
-    onAplicar(gSala, gHora, dia)
-    setFlashDia(dia); setTimeout(() => setFlashDia(null), 2500)
+    if (diasSelecionadosQualquer.includes(dia)) {
+      onRemover(dia)
+    } else {
+      onAplicar(gSala, gHora, dia)
+    }
   }
 
   return (
@@ -173,14 +179,14 @@ function GlobalConfigurator({ salas, onAplicar, outrosPendentes = [] }) {
               if (!dia) return <div key={`g${i}`} />
               const passado  = dia < hoje
               const ocupado  = diaOcupado(dia)
-              const flash    = flashDia === dia
+              const sel      = diasSelecionadosQualquer.includes(dia)
               const alts     = altSalas[dia]
               const clicavel = !passado && gHora
-              const amarelo  = !flash && !ocupado && !passado && gHora &&
+              const amarelo  = !sel && !ocupado && !passado && gHora &&
                 outrosPendentes.some(p => p.slots?.some(s => s.sala_id === gSala && s.hora === gHora && s.data === dia))
 
               let bg = '#fff', border = '#e2e8f0', txtColor = '#374151'
-              if (flash)        { bg = '#dcfce7'; border = '#16a34a'; txtColor = '#15803d' }
+              if (sel)          { bg = '#1d4ed8'; border = '#1d4ed8'; txtColor = '#fff' }
               else if (ocupado) { bg = '#FFF5F5'; border = '#FECACA'; txtColor = '#dc2626' }
               else if (amarelo) { bg = '#fefce8'; border = '#fde047'; txtColor = '#854d0e' }
               else if (passado) { bg = '#fafafa'; border = '#f1f5f9'; txtColor = '#d1d5db' }
@@ -195,7 +201,7 @@ function GlobalConfigurator({ salas, onAplicar, outrosPendentes = [] }) {
                       {new Date(dia + 'T12:00:00').getDate()}
                     </div>
                     <div style={{ fontSize: 9, lineHeight: 1 }}>
-                      {flash ? '✅' : !gHora ? '' : ocupado ? '🔴' : amarelo ? '⚠️' : passado ? '' : '🟢'}
+                      {sel ? '✓' : !gHora ? '' : ocupado ? '🔴' : amarelo ? '⚠️' : passado ? '' : '🟢'}
                     </div>
                   </div>
                   {alts !== undefined && (
@@ -531,6 +537,10 @@ export default function Agenda() {
       return { ...e, sala_id, hora: e.hora || hora, selectedDias: novosDias, horasDia: e.horasDia }
     }))
     ETAPAS_CONFIG.forEach((_, idx) => carregarOcupacaoEtapa(idx, sala_id, data))
+  }
+
+  function removerGlobal(data) {
+    setEtapas(prev => prev.map(e => ({ ...e, selectedDias: e.selectedDias.filter(d => d !== data) })))
   }
 
   // ── Carrega ocupação de uma sala no mês inteiro de uma etapa ─────────────────
@@ -893,7 +903,7 @@ export default function Agenda() {
             </div>
 
             {/* ── Configurador Global ── */}
-            <GlobalConfigurator salas={salas} onAplicar={aplicarGlobal} outrosPendentes={outrosPendentes} />
+            <GlobalConfigurator salas={salas} onAplicar={aplicarGlobal} onRemover={removerGlobal} etapas={etapas} outrosPendentes={outrosPendentes} />
 
             {/* Linha divisória + título etapas */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
