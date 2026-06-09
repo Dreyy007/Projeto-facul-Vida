@@ -28,13 +28,41 @@ export default function Aprovacoes() {
     if (aba === 'historico') fetchHistorico()
   }, [aba])
 
+  function tocarAlerta() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const tocar = (freq, inicio, dur, vol = 0.25) => {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.frequency.value = freq; osc.type = 'sine'
+        gain.gain.setValueAtTime(0, ctx.currentTime + inicio)
+        gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + inicio + 0.01)
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + inicio + dur)
+        osc.start(ctx.currentTime + inicio); osc.stop(ctx.currentTime + inicio + dur + 0.05)
+      }
+      tocar(660, 0, 0.1); tocar(880, 0.12, 0.1); tocar(1100, 0.24, 0.15)
+    } catch (e) {}
+  }
+
+  function notificarAdmin(tipo) {
+    if (!['admin', 'coordenador'].includes(profile?.tipo)) return
+    const labels = { cancelamento: 'Cancelamento', reagendamento: 'Reagendamento', troca_sala: 'Troca de Sala', novo_agendamento: 'Novo Agendamento' }
+    const label = labels[tipo] || 'Solicitação'
+    tocarAlerta()
+    if (Notification.permission === 'granted') {
+      new Notification(`🔔 Nova solicitação — ${label}`, { body: 'Aguardando sua aprovação em Aprovações.', icon: '/favicon.ico' })
+    }
+  }
+
   function iniciarRealtime() {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission()
     canalRef.current = supabase
       .channel('aprovacoes-realtime-' + Date.now())
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'solicitacoes' }, payload => {
         fetchSolics()
         setNovaSolic(payload.new)
-        setTimeout(() => setNovaSolic(null), 5000)
+        notificarAdmin(payload.new?.tipo)
+        setTimeout(() => setNovaSolic(null), 6000)
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'solicitacoes' }, () => {
         fetchSolics()
@@ -106,13 +134,8 @@ export default function Aprovacoes() {
   }
 
   async function handleAprovar(s, aprovado) {
-    const isEstagiario = profile?.tipo === 'estagiario'
-    const isAdmin = ['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)
-    if (!isEstagiario && !isAdmin) { toast.error('Sem permissão.'); return }
-
-    const update = {}
-    if (isEstagiario) update.aprovado_medico = aprovado
-    if (isAdmin) update.aprovado_admin = aprovado
+    const isAdmin = ['admin', 'coordenador'].includes(profile?.tipo)
+    if (!isAdmin) { toast.error('Apenas administradores e coordenadores podem aprovar solicitações.'); return }
 
     const paciente_id = s.consulta?.paciente?.id
     const data_consulta = s.consulta?.data
@@ -122,25 +145,24 @@ export default function Aprovacoes() {
     const codigo = s.consulta?.estagiario?.codigo ? ` (${s.consulta.estagiario.codigo})` : ''
 
     if (!aprovado) {
-      update.status = 'recusada'
+      await supabase.from('solicitacoes').update({ status: 'recusada', aprovado_admin: false }).eq('id', s.id)
       await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', s.consulta_id)
       if (paciente_id) {
         await enviarMensagemBot(paciente_id,
           `❌ Infelizmente sua consulta do dia ${dataFmt} às ${hora_consulta} com ${estagiarioNome}${codigo} não pôde ser confirmada.\n\nEntre em contato conosco para reagendar.`
         )
       }
+      fetchSolics()
+      window.dispatchEvent(new Event('refresh-badges'))
+      toast.success('Solicitação recusada.')
+      return
     }
 
-    await supabase.from('solicitacoes').update(update).eq('id', s.id)
+    // Aprovado pelo admin — executa a ação diretamente
+    await supabase.from('solicitacoes').update({ status: 'aprovada', aprovado_admin: true }).eq('id', s.id)
     const { data: fresh } = await supabase.from('solicitacoes').select('*').eq('id', s.id).single()
 
-    const novoAgendamento = fresh?.tipo === 'novo_agendamento'
-    const ambosAprovaram = novoAgendamento
-      ? fresh?.aprovado_medico === true
-      : fresh?.aprovado_medico === true && fresh?.aprovado_admin === true
-
-    if (ambosAprovaram) {
-      await supabase.from('solicitacoes').update({ status: 'aprovada' }).eq('id', s.id)
+    if (fresh) {
 
       if (fresh.tipo === 'cancelamento') {
         await supabase.from('consultas').update({ status: 'cancelada' }).eq('id', s.consulta_id)
@@ -166,11 +188,10 @@ export default function Aprovacoes() {
       } else if (fresh.tipo === 'troca_sala') {
         await supabase.from('consultas').update({ sala_id: fresh.sala_nova_id, status: 'confirmada' }).eq('id', s.consulta_id)
 
-      } else if (novoAgendamento) {
-        const salaId = await atribuirSalaDisponivel(s.consulta_id, data_consulta, s.consulta?.hora)
+      } else if (fresh.tipo === 'novo_agendamento') {
+        await atribuirSalaDisponivel(s.consulta_id, data_consulta, s.consulta?.hora)
         const { data: consultaAtualizada } = await supabase.from('consultas').select('sala:salas(nome)').eq('id', s.consulta_id).single()
         const salaNome = consultaAtualizada?.sala?.nome
-
         if (paciente_id) {
           await enviarMensagemBot(paciente_id,
             `🎉 Sua consulta foi confirmada!\n\n📅 ${dataFmt} às ${hora_consulta}\n👤 ${estagiarioNome}${codigo}${salaNome ? `\n🚪 Sala: ${salaNome}` : ''}\n\nAguardamos você! Qualquer dúvida fale aqui. 😊`
@@ -181,14 +202,12 @@ export default function Aprovacoes() {
 
     fetchSolics()
     window.dispatchEvent(new Event('refresh-badges'))
+    toast.success('Solicitação aprovada!')
   }
 
   const canAct = (s) => {
-    if (profile?.tipo === 'estagiario') {
-      return s.consulta?.estagiario?.id === profile.id && s.aprovado_medico === null
-    }
-    if (['admin', 'coordenador', 'recepcionista'].includes(profile?.tipo)) {
-      if (s.tipo === 'novo_agendamento') return false
+    // Apenas admin e coordenador podem aprovar/recusar
+    if (['admin', 'coordenador'].includes(profile?.tipo)) {
       return s.aprovado_admin === null
     }
     return false
@@ -335,24 +354,15 @@ export default function Aprovacoes() {
               </p>
             )}
 
-            {/* Status badges */}
+            {/* Status de aprovação */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span style={{
                 fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500,
-                background: s.aprovado_medico === true ? '#dcfce7' : s.aprovado_medico === false ? '#fef2f2' : '#f1f5f9',
-                color: s.aprovado_medico === true ? '#166534' : s.aprovado_medico === false ? '#b91c1c' : '#64748b',
+                background: s.aprovado_admin === true ? '#dcfce7' : s.aprovado_admin === false ? '#fef2f2' : '#f1f5f9',
+                color: s.aprovado_admin === true ? '#166534' : s.aprovado_admin === false ? '#b91c1c' : '#64748b',
               }}>
-                {s.aprovado_medico === true ? '✓ Estagiário aprovou' : s.aprovado_medico === false ? '✗ Estagiário recusou' : '⏳ Estagiário pendente'}
+                {s.aprovado_admin === true ? '✓ Aprovado pelo Admin' : s.aprovado_admin === false ? '✗ Recusado pelo Admin' : '⏳ Aguardando Admin'}
               </span>
-              {s.tipo !== 'novo_agendamento' && (
-                <span style={{
-                  fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500,
-                  background: s.aprovado_admin === true ? '#dcfce7' : s.aprovado_admin === false ? '#fef2f2' : '#f1f5f9',
-                  color: s.aprovado_admin === true ? '#166534' : s.aprovado_admin === false ? '#b91c1c' : '#64748b',
-                }}>
-                  {s.aprovado_admin === true ? '✓ Admin aprovou' : s.aprovado_admin === false ? '✗ Admin recusou' : '⏳ Admin pendente'}
-                </span>
-              )}
             </div>
           </div>
 
