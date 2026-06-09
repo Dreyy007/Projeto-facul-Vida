@@ -67,7 +67,7 @@ function EtapaPanel({ cfg, estado, salas, onUpdate, onCarregarOcupacao }) {
     <div style={{
       border: `2px solid ${concluido ? cfg.color : 'var(--border)'}`,
       borderRadius: 14, overflow: 'hidden', marginBottom: 12,
-      transition: 'border-color .2s',
+      transition: 'border-color .2s', flexShrink: 0,
     }}>
       {/* ── Header ── */}
       <div style={{ padding: '12px 18px', background: concluido ? cfg.bg : '#f8fafc', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -624,11 +624,12 @@ export default function Agenda() {
       ══════════════════════════════════════════════════════════════ */}
       {modal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) fecharModal() }}>
-          <div className="modal" style={{ maxWidth: 820, maxHeight: '92vh', overflowY: 'auto' }}>
-            <div style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10, paddingBottom: 16, borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+          <div className="modal" style={{ maxWidth: 820, maxHeight: '92vh', overflowY: 'auto', display: 'block', padding: 0 }}>
+            <div style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 10, padding: '20px 28px 16px', borderBottom: '1px solid var(--border)' }}>
               <h2 style={{ margin: 0 }}>Agendar Consultas</h2>
               <p style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0 0' }}>Selecione paciente, estagiário e configure cada etapa do atendimento</p>
             </div>
+            <div style={{ padding: '20px 28px 28px' }}>
 
             {/* Paciente */}
             <div className="fld" style={{ position: 'relative', marginBottom: 14 }}>
@@ -736,6 +737,7 @@ export default function Agenda() {
                 {saving ? 'Salvando...' : `Confirmar ${etapasConcluidas.length > 0 ? `(${etapasConcluidas.length} etapa${etapasConcluidas.length > 1 ? 's' : ''})` : ''}`}
               </button>
             </div>
+            </div>{/* fim padding wrapper */}
           </div>
         </div>
       )}
